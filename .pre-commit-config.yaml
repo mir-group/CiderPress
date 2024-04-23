@@ -27,5 +27,5 @@ repos:
     rev: 79dadb849d5247ae54fa1f13f838fde95d91b2e9
     hooks:
     - id: clang-format
-      args: ['-style=llvm']
+      args: ['-style=file']
 exclude: ^docs/

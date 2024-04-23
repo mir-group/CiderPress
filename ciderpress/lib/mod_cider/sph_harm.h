@@ -8,15 +8,15 @@
 #define SPHF0 0.28209479177387814346
 
 typedef struct {
-  int nlm; // (lmax+1) * (lmax+1)
-  int lmax;
-  int lp1;              // (lmax+1)
-  double *coef0;        // size nlm, indexed as l, m
-  double *coef1;        // size nlm, indexed as l, m
-  double *c0;           // size lp1, indexed as l
-  double *c1;           // size lp1, indexed as l
-  double complex *ylm;  // size nlm, indexed as l, m
-  double complex *dylm; // size nlm, indexed as l, m
+    int nlm; // (lmax+1) * (lmax+1)
+    int lmax;
+    int lp1;              // (lmax+1)
+    double *coef0;        // size nlm, indexed as l, m
+    double *coef1;        // size nlm, indexed as l, m
+    double *c0;           // size lp1, indexed as l
+    double *c1;           // size lp1, indexed as l
+    double complex *ylm;  // size nlm, indexed as l, m
+    double complex *dylm; // size nlm, indexed as l, m
 } sphbuf;
 
 sphbuf setup_sph_harm_buffer(int nlm);
