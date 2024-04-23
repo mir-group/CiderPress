@@ -1,0 +1,15 @@
+.idea/
+.vscode/
+build/
+functionals/
+*__pycache__*
+*.out
+*.err
+*.npy
+*.npz
+*.hdf5
+*.pth
+*.so
+*.o
+*.pyc
+*.png
