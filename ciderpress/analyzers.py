@@ -13,7 +13,7 @@ CALC_TYPES = {
 
 
 def recursive_remove_none(obj):
-    if type(obj) == dict:
+    if isinstance(obj, dict):
         return {k: recursive_remove_none(v) for k, v in obj.items() if v is not None}
     else:
         return obj

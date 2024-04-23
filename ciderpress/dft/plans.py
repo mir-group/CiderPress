@@ -417,8 +417,8 @@ class SADMPlan:
         self.alpha_norms = (np.pi / (2 * self.alphas)) ** -0.75
         prod = self.alphas * self.alphas[:, None]
         sum = self.alphas + self.alphas[:, None]
-        ### coul = ( alpha(r) | 1/(r-r') | beta(r') )
-        ### coul = 4 * np.sqrt(2) * np.pi / prod**0.25 / sum**0.5
+        # coul = ( alpha(r) | 1/(r-r') | beta(r') )
+        # coul = 4 * np.sqrt(2) * np.pi / prod**0.25 / sum**0.5
         # coul = ( alpha(r) | 1 / r | beta(r) )
         coul = 4 * np.sqrt(2 / np.pi) * prod**0.75 / sum
         LJ = cholesky(coul, lower=True)
