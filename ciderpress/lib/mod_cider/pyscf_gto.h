@@ -1,3 +1,4 @@
+#include <stddef.h>
 #ifndef PYSCF_GTO_H_
 #define PYSCF_GTO_H_
 
