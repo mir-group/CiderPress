@@ -1,0 +1,52 @@
+name: Run PySCF Tests
+
+on:
+  push:
+    branches:
+    - dev
+
+  pull_request:
+    branches:
+    - dev
+
+jobs:
+  build:
+
+    runs-on: ubuntu-20.04
+    strategy:
+      matrix:
+        python-version: ['3.10']
+    defaults:
+      run:
+        shell: bash -el {0}
+    steps:
+    - uses: actions/checkout@v3
+    - name: Setup conda environment
+      uses: mamba-org/setup-micromamba@v1
+      with:
+        micromamba-version: '1.5.6-0' # any version from https://github.com/mamba-org/micromamba-releases
+        environment-file: nocomp_env.yml
+        environment-name: run_tests
+        init-shell: >-
+          bash
+          powershell
+        cache-environment: true
+        post-cleanup: 'all'
+        create-args: >-
+          python=3.10
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - name: Install dependencies and build
+      run: |
+        sudo apt-get -qq install gcc libblas-dev cmake
+    - name: Build things
+      run: |
+        source .github/workflows/load_conda.sh
+        python setup.py build_ext --inplace
+        python scripts/download_functionals.py
+    - name: Test with unittest
+      run: |
+        # See https://github.com/pytest-dev/pytest/issues/1075
+        source .github/workflows/load_conda.sh
+        sh .github/workflows/run_tests.sh
+        # PYTHONHASHSEED=0 OMP_NUM_THREADS=2 python -m unittest discover ciderpress/dft/tests/
