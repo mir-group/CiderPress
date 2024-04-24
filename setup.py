@@ -1,6 +1,7 @@
 import os
 import sys
 
+from numpy.distutils.command.build import build
 from numpy.distutils.command.build_ext import build_ext
 from numpy.distutils.core import Extension as NPExtension
 from numpy.distutils.core import setup
@@ -55,8 +56,6 @@ class CMakeBuildExt(build_ext):
         else:
             return super(CMakeBuildExt, self).get_ext_filename(ext_name)
 
-
-from numpy.distutils.command.build import build
 
 build.sub_commands = [c for c in build.sub_commands if c[0] == "build_ext"] + [
     c for c in build.sub_commands if c[0] != "build_ext"
