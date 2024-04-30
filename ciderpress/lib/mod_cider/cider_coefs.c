@@ -1,5 +1,4 @@
 #include "fblas.h"
-// #include "nr_cider_numint.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

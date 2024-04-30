@@ -3,13 +3,13 @@ import ctypes
 import numpy as np
 
 from ciderpress import lib
-from ciderpress.dft.sph_harm_coeff import get_deriv_ylm_coeff
-from ciderpress.new_dft.lcao_convolutions import (
+from ciderpress.dft.lcao_convolutions import (
     ATCBasis,
     atom_loc_from_bas,
     get_gamma_lists_from_bas_and_env,
     libcider,
 )
+from ciderpress.dft.sph_harm_coeff import get_deriv_ylm_coeff
 
 ATOM_OF = 0
 ANG_OF = 1

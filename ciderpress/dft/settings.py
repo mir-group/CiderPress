@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 import numpy as np
 from scipy.special import gamma as gamma_func
 
-from ciderpress.new_dft.feat_normalizer import (
+from ciderpress.dft.feat_normalizer import (
     ConstantNormalizer,
     DensityNormalizer,
     FeatNormalizerList,

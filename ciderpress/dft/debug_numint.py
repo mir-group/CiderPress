@@ -2,8 +2,8 @@ import ctypes
 
 import numpy as np
 
+from ciderpress.dft.plans import get_cider_exponent
 from ciderpress.lib import load_library as load_cider_library
-from ciderpress.new_dft.plans import get_cider_exponent
 
 libcider = load_cider_library("libmcider")
 

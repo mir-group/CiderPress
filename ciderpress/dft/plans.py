@@ -8,8 +8,7 @@ from scipy.linalg import cho_factor, cho_solve, cholesky, solve_triangular
 from scipy.special import gamma
 
 from ciderpress import lib
-from ciderpress.lib import load_library as load_cider_library
-from ciderpress.new_dft.settings import (
+from ciderpress.dft.settings import (
     NLDFSettings,
     SDMXBaseSettings,
     SDMXFullSettings,
@@ -19,6 +18,7 @@ from ciderpress.new_dft.settings import (
     get_cider_exponent,
     get_s2,
 )
+from ciderpress.lib import load_library as load_cider_library
 
 libcider = load_cider_library("libmcider")
 

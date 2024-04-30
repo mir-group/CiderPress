@@ -1,6 +1,6 @@
 import numpy as np
 
-from ciderpress.new_dft.lcao_interpolation import LCAOInterpolatorDirect
+from ciderpress.dft.lcao_interpolation import LCAOInterpolatorDirect
 
 
 class LCAONLDFGenerator:

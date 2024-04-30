@@ -25,19 +25,20 @@ basedir = __file__
 savedir = os.path.basename(os.path.join(basedir, "../functionals"))
 
 os.makedirs(savedir, exist_ok=True)
-
 links = {
-    "NL_GGA": "1UNxxvYpxc8RkywxIynbenkLEMGviIce1",
-    "NL_MGGA_DTR": "1-233LBivti-UDfbSuOMdPZuyC_Gibto0",
-    "NL_MGGA_PBE": "15x8s_Pf3_iYoAHl_sWChB2q1HFif1jFA",
-    "NL_MGGA": "1wwYFSJsZX_jhBSlsXVeggQutODXC2KP0",
-    "SL_GGA": "1qD_IpXQNYUbT8Y7nLt4e4pA1E1dNntu7",
-    "SL_MGGA": "18OFNglYpcPXHzXwFcRXeJn9VCLFtC7Zd",
+    "CIDER23X_NL_GGA": "16IF81oS3Snqp96KdS43orSmpmNyRKFEs",
+    "CIDER23X_NL_MGGA_DTR": "1njP58rnZL0L523hEiwXdQ9YoBTlp0Uev",
+    "CIDER23X_NL_MGGA_PBE": "1sVofPzXu4eN2N0cDSC0wawnvNjqCoXhi",
+    "CIDER23X_NL_MGGA": "1Y_pGWGnuzH7PiTT1UntnCga4NPIXBh0m",
+    "CIDER23X_SL_GGA": "1laNkInAIq1EfHACfOf5hUpqL7eWFpoA1",
+    "CIDER23X_SL_MGGA": "1kmYuG50OhTCNB8QVIEHLm-cEQ8mMjwT8",
+    "CIDER24Xe": "1tFKAMvfYJcUZEz11uFSl-DXGW-47l9SV",
+    "CIDER24Xne": "1OUcWv18e2vM0eSDyiSl1dm9g3A7Wu5_3",
 }
 
 os.chdir(savedir)
 cmd = "wget --no-check-certificate 'https://docs.google.com/uc?export=download&id={}' -O {}"
 for name, linkid in links.items():
-    fname = "CIDER23_{}.yaml".format(name)
+    fname = "{}.yaml".format(name)
     mycmd = cmd.format(linkid, fname)
     subprocess.call(mycmd, shell=True)
