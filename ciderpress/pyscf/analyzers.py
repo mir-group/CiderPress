@@ -3,8 +3,9 @@ from abc import ABC, abstractmethod
 import numpy as np
 from pyscf import dft, gto, lib, scf
 from pyscf.dft.gen_grid import Grids
+from pyscf.sgx.sgx import sgx_fit
 
-from ciderpress.external.sgx_tools import get_jk_densities, sgx_fit
+from ciderpress.external.sgx_tools import get_jk_densities
 
 CALC_TYPES = {
     "RHF": scf.hf.RHF,
