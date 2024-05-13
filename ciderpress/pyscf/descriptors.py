@@ -21,7 +21,7 @@ from ciderpress.pyscf.analyzers import UHFAnalyzer
 from ciderpress.pyscf.frac_lapl import FLNumInt, FracLaplPlan
 from ciderpress.pyscf.gen_cider_grid import CiderGrids
 from ciderpress.pyscf.nldf_convolutions import DEFAULT_CIDER_LMAX, PyscfNLDFGenerator
-from ciderpress.pyscf.xedsadm import EXXSphGenerator
+from ciderpress.pyscf.sdmx import EXXSphGenerator
 
 NLDF_VERSION_LIST = ["i", "j", "ij", "k"]
 

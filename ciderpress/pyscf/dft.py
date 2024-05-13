@@ -7,8 +7,6 @@ from ciderpress.dft.xc_evaluator import MappedXC
 from ciderpress.pyscf.gen_cider_grid import CiderGrids
 from ciderpress.pyscf.nldf_convolutions import PySCFNLDFInitializer
 from ciderpress.pyscf.numint import CiderNumInt, NLDFNLOFNumInt, NLDFNumInt, NLOFNumInt
-
-# from ciderpress.pyscf.xedsadm import PySCFSDMXInitializer
 from ciderpress.pyscf.sdmx import PySCFSDMXInitializer
 
 
