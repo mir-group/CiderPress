@@ -3,7 +3,18 @@ import unittest
 import numpy as np
 from numpy.testing import assert_almost_equal
 
-from ciderpress.dft.transform_data import *
+from ciderpress.dft.transform_data import (
+    FeatureList,
+    LMap,
+    SignedUMap,
+    TMap,
+    UMap,
+    VMap,
+    WMap,
+    XMap,
+    YMap,
+    ZMap,
+)
 
 TMP_TEST = "test_files/tmp"
 

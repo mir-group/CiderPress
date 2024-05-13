@@ -91,12 +91,6 @@ def simple_map(
     # optimizer = torch.optim.SGD(my_nn.parameters(), lr=1e-2)
     optimizer = torch.optim.LBFGS(my_nn.parameters(), lr=lr)
 
-    def closure():
-        optimizer.zero_grad()
-        objective = f(x_lbfgs)
-        objective.backward()
-        return objective
-
     def train(X, y, model, loss_fn, optimizer, t, need_closure=False):
         size = len(X)
         model.train()
@@ -116,7 +110,7 @@ def simple_map(
         else:
             optimizer.step()
         optimizer.zero_grad()
-        loss, current = loss.item(), 0
+        loss = loss.item()
         if t % 10 == 0:
             print(f"loss: {loss:>7f}  [{t:>5d}/{size:>5d}]")
 
@@ -155,7 +149,7 @@ def simple_map(
         else:
             optimizer.step()
         optimizer.zero_grad()
-        loss, current = loss.item(), 0
+        loss = loss.item(), 0
         if t % 10 == 0:
             print(f"loss: {loss:>7f}  [{t:>5d}/{size:>5d}]")
 

@@ -334,7 +334,7 @@ class SBTGridContainer:
 
     @classmethod
     def from_setup(cls, setup, rmin=1e-4, d=0.03, encut=1e6, N=None):
-        rcut = np.max(setup.rcut_j)
+        # rcut = np.max(setup.rcut_j)
         rmax = setup.rgd.r_g[-1]
         if N is not None:
             assert isinstance(N, int)
@@ -391,7 +391,7 @@ class PASDWCiderKernel(PAWCiderKernelShell):
             setups = self.dens.setups
         for a, setup in enumerate(setups):
             if not hasattr(setup, "nlxc_correction"):
-                rcut = setup.xc_correction.rgd.r_g[-1]
+                # rcut = setup.xc_correction.rgd.r_g[-1]
                 setup.xc_correction = DiffPAWXCCorrection.from_setup(
                     setup, build_kinetic=self.is_mgga
                 )
@@ -508,7 +508,6 @@ class PASDWData:
 
 class PAOnlySetup(PASDWData):
     def initialize_g2a(self):
-        rgd = self.slrgd
         nn = self.nn
         nj = self.nj
         ng = self.ng
@@ -586,45 +585,30 @@ class PAOnlySetup(PASDWData):
             nlist_j = [0, 2, 4, 6, 8, 1, 3, 5, 7, 2, 4, 6, 8, 3, 5, 7, 4, 6, 8]
             llist_j = [0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 4, 4, 4]
             nbas_lst = [5, 4, 4, 3, 3]
-            nao_lst = [n * (2 * l + 1) for l, n in enumerate(nbas_lst)]
             nbas_loc = np.append([0], np.cumsum(nbas_lst)).astype(np.int32)
-            nlist_i = []
-            llist_i = []
             lmlist_i = []
             jlist_i = []
         elif setup.Z > 18:
             nlist_j = [0, 2, 4, 6, 1, 3, 5, 2, 4, 6, 3, 5, 4, 6]
             llist_j = [0, 0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 4, 4]
             nbas_lst = [4, 3, 3, 2, 2]
-            nao_lst = [n * (2 * l + 1) for l, n in enumerate(nbas_lst)]
             nbas_loc = np.append([0], np.cumsum(nbas_lst)).astype(np.int32)
-            nlist_i = []
-            llist_i = []
             lmlist_i = []
             jlist_i = []
-            iloc_l = np.append([0], np.cumsum(nao_lst)).astype(np.int32)
         elif setup.Z > 0:
             nlist_j = [0, 2, 4, 1, 3, 2, 4, 3, 4]
             llist_j = [0, 0, 0, 1, 1, 2, 2, 3, 4]
             nbas_lst = [3, 2, 2, 1, 1]
-            nao_lst = [n * (2 * l + 1) for l, n in enumerate(nbas_lst)]
             nbas_loc = np.append([0], np.cumsum(nbas_lst)).astype(np.int32)
-            nlist_i = []
-            llist_i = []
             lmlist_i = []
             jlist_i = []
-            iloc_l = np.append([0], np.cumsum(nao_lst)).astype(np.int32)
         else:
             nlist_j = [0, 2, 1, 2]
             llist_j = [0, 0, 1, 2]
             nbas_lst = [2, 1, 1]
-            nao_lst = [n * (2 * l + 1) for l, n in enumerate(nbas_lst)]
             nbas_loc = np.append([0], np.cumsum(nbas_lst)).astype(np.int32)
-            nlist_i = []
-            llist_i = []
             lmlist_i = []
             jlist_i = []
-            iloc_l = np.append([0], np.cumsum(nao_lst)).astype(np.int32)
 
         nn = np.max(nlist_j) + 1
 
@@ -672,11 +656,8 @@ class PAOnlySetup(PASDWData):
 class PSOnlySetup(PASDWData):
     def _initialize_ffunc(self):
         rgd = self.slrgd
-        nn = self.nn
         nj = self.nj
         ng = self.ng
-        r_g = self.slrgd.r_g
-        dr_g = self.slrgd.dr_g
         nlist_j = self.nlist_j
         pfuncs_ng = self.pfuncs_ng
 
@@ -720,7 +701,6 @@ class PSOnlySetup(PASDWData):
             alphas_bas, self.rcut_feat, self.slrgd, thr=pmin, lmax=self.lmax
         )
         rgd = self.sbt_rgd
-        ng = self.sbt_rgd.r_g.size
         pfuncs_jg = np.stack([self.pfuncs_ng2[n] for n in self.nlist_j])
         pfuncs_k = get_pfuncs_k(pfuncs_jg, self.llist_j, rgd, ns=self.nlist_j)
         phi_jabk = get_phi_iabk(pfuncs_k, rgd.k_g, self.alphas, betas=self.alphas_ae)
@@ -777,7 +757,6 @@ class PSOnlySetup(PASDWData):
     def get_c_and_df(self, y_sbLg, realspace=True):
         nspin, nb, Lmax, ng = y_sbLg.shape
         rgd = self.sbt_rgd
-        Nalpha = nb
         Nalpha_sm = self.alphas.size
         NP = self.delta_lpg.shape[1]
         c_sib = np.zeros((nspin, self.ni, Nalpha_sm))
@@ -805,11 +784,9 @@ class PSOnlySetup(PASDWData):
     def get_v_from_c_and_df(self, vc_sib, vdf_sLpb, realspace=True):
         nspin, Lmax, NP, nb = vdf_sLpb.shape
         rgd = self.sbt_rgd
-        Nalpha = nb
         Nalpha_sm = self.alphas.size
         ng = rgd.r_g.size
         vy_sbLg = np.zeros((nspin, nb, Lmax, ng))
-        df_sLpb = np.zeros((nspin, Lmax, NP, nb))
         for s in range(nspin):
             for l in range(self.lmax + 1):
                 Lmin = l * l
@@ -857,11 +834,8 @@ class PSOnlySetup(PASDWData):
 
     def get_vf_realspace_contribs(self, vyt_sbLg, rgd, sl=False):
         dv_g = get_dv(rgd)
-        Nalpha = self.alphas_ae.size
         phi_jabg = self.phi_sr_jabg if sl else self.phi_jabg
-        ng = phi_jabg.shape[-1]
-        nspin, nb, Lmax, ng = vyt_sbLg.shape
-        Lmax = 25  # np.max(self.lmlist_i) + 1
+        nspin, nb = vyt_sbLg.shape[:2]
         vc_sib = np.zeros((nspin, self.ni, nb))
         for i in range(self.ni):
             L = self.lmlist_i[i]
@@ -1004,41 +978,28 @@ class PSOnlySetup(PASDWData):
         rgd = setup.xc_correction.rgd
         rcut_feat = np.max(setup.rcut_j)
         rcut_func = rcut_feat * 1.00
-        rmax = np.max(rgd.r_g)
 
         if setup.Z > 100:
             nlist_j = [0, 2, 4, 6, 1, 3, 5, 2, 4, 6, 3, 5, 4, 6]
             llist_j = [0, 0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 4, 4]
             nbas_lst = [4, 3, 3, 2, 2]
-            nao_lst = [n * (2 * l + 1) for l, n in enumerate(nbas_lst)]
             nbas_loc = np.append([0], np.cumsum(nbas_lst)).astype(np.int32)
-            nlist_i = []
-            llist_i = []
             lmlist_i = []
             jlist_i = []
-            iloc_l = np.append([0], np.cumsum(nao_lst)).astype(np.int32)
         elif setup.Z > 0:
             nlist_j = [0, 2, 4, 1, 3, 2, 4, 3, 4]
             llist_j = [0, 0, 0, 1, 1, 2, 2, 3, 4]
             nbas_lst = [3, 2, 2, 1, 1]
-            nao_lst = [n * (2 * l + 1) for l, n in enumerate(nbas_lst)]
             nbas_loc = np.append([0], np.cumsum(nbas_lst)).astype(np.int32)
-            nlist_i = []
-            llist_i = []
             lmlist_i = []
             jlist_i = []
-            iloc_l = np.append([0], np.cumsum(nao_lst)).astype(np.int32)
         else:
             nlist_j = [0, 2, 1, 2]
             llist_j = [0, 0, 1, 2]
             nbas_lst = [2, 1, 1]
-            nao_lst = [n * (2 * l + 1) for l, n in enumerate(nbas_lst)]
             nbas_loc = np.append([0], np.cumsum(nbas_lst)).astype(np.int32)
-            nlist_i = []
-            llist_i = []
             lmlist_i = []
             jlist_i = []
-            iloc_l = np.append([0], np.cumsum(nao_lst)).astype(np.int32)
 
         nt = 100
         interp_rgd = EquidistantRadialGridDescriptor(h=rcut_func / (nt - 1), N=nt)

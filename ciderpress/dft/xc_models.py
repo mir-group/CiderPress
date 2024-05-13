@@ -152,9 +152,11 @@ class Evaluator:
         if vec_eval:
             dres = np.zeros(X.shape)
         for t in range(self.nterms):
-            if type(self.ind_sets[t]) != int and len(self.ind_sets[t]) < min_order:
+            if (not isinstance(self.ind_sets[t], int)) and len(
+                self.ind_sets[t]
+            ) < min_order:
                 continue
-            if (type(self.ind_sets[t]) == int) or len(self.ind_sets[t]) <= max_order:
+            if isinstance(self.ind_sets[t], int) or len(self.ind_sets[t]) <= max_order:
                 ind_set = self.ind_sets[t]
                 if vec_eval:
                     y, dy = get_vec_eval(

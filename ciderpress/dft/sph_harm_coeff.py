@@ -1,7 +1,7 @@
 import ctypes
 
 import numpy as np
-from sympy.physics.wigner import clebsch_gordan, gaunt
+from sympy.physics.wigner import clebsch_gordan
 
 from ciderpress.lib import load_library as load_cider_library
 
@@ -39,7 +39,9 @@ def su2_clebsch_gordan(l1, l2, l3):
 
 
 def clebsch_gordan_e3nn(l1: int, l2: int, l3: int) -> np.ndarray:
-    r"""The Clebsch-Gordan coefficients of the real irreducible representations of :math:`SO(3)`.
+    r"""
+    The Clebsch-Gordan coefficients of the real irreducible representations of :math:`SO(3)`.
+    This function taken from https://github.com/e3nn/e3nn
 
     Args:
         l1 (int): the representation order of the first irrep
@@ -57,24 +59,6 @@ def clebsch_gordan_e3nn(l1: int, l2: int, l3: int) -> np.ndarray:
 
     assert np.all(np.abs(np.imag(C)) < 1e-5)
     return np.real(C)
-
-
-def get_deriv_coeffs(lmax):
-    """
-    Args:
-        l: Maximum l values for coefficients
-
-    Returns:
-
-    """
-    nlm = (l + 1) * (l + 1)
-    coeff = np.zeros((3, nlm))
-    for l in range(lmax + 1):
-        for m in range(l + 1):
-            lm = l * l + m
-            coeff[IZ, lm] = gaunt(1, l, l - 1, 0, m, m).n(64)
-            coeff[IX, lm] = gaunt(1, l, l - 1, 1, m, m + 1).n(64)
-            coeff[IY, lm] = gaunt(1, l, l - 1, -1, m, m - 1).n(64)
 
 
 def get_ylm(r, lmax):
