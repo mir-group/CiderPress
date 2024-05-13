@@ -239,7 +239,7 @@ def eval_rho(
         tau_idx = 4
 
     c0 = _dot_ao_dm(mol, ao[0], dm, non0tab, shls_slice, ao_loc)
-    #:rho[0] = numpy.einsum('pi,pi->p', ao[0], c0)
+    # rho[0] = numpy.einsum('pi,pi->p', ao[0], c0)
     rho[0] = _contract_rho(ao[0], c0)
     nk0 = flsettings.nk0
     nk1 = flsettings.nk1
@@ -265,10 +265,10 @@ def eval_rho(
         rho[ir] = 0
     for i in range(1, 4):
         c1 = _dot_ao_dm(mol, ao[i], dm, non0tab, shls_slice, ao_loc)
-        #:rho[tau_idx] += numpy.einsum('pi,pi->p', c1, ao[i])
+        # rho[tau_idx] += numpy.einsum('pi,pi->p', c1, ao[i])
         rho[tau_idx] += _contract_rho(ao[i], c1)
 
-        #:rho[i] = numpy.einsum('pi,pi->p', c0, ao[i])
+        # rho[i] = numpy.einsum('pi,pi->p', c0, ao[i])
         rho[i] = _contract_rho(ao[i], c0)
         if hermi:
             rho[i] *= 2
@@ -534,7 +534,7 @@ def eval_rho2(
             rho = np.empty((5 + flsettings.nrho, ngrids))
             tau_idx = 4
         c0 = _dot_ao_dm(mol, ao[0], cpos, non0tab, shls_slice, ao_loc)
-        #:rho[0] = numpy.einsum('pi,pi->p', c0, c0)
+        # rho[0] = numpy.einsum('pi,pi->p', c0, c0)
         rho[0] = _contract_rho(c0, c0)
         cklst = []
         for i in range(kao.shape[0]):

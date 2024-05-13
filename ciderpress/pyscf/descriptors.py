@@ -462,7 +462,7 @@ def _sadm_desc_getter(mol, pgrids, dm, settings, coeffs=None, **kwargs):
         maxmem //= 4
         maxmem += 1
     for ao, mask, weight, coords in ni.block_loop(mol, pgrids, nao, 0, maxmem):
-        mask = None  # TODO remove once screening is fixed
+        # TODO implement screening
         ip1 = ip0 + weight.size
         if coeffs is None or len(coeffs) == 0:
             desc[:, ip0:ip1] = exxgen.get_features(dm, mol, coords)
