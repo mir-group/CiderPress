@@ -147,14 +147,14 @@ class PyscfNLDFGenerator(LCAONLDFGenerator):
         nspin,
         nldf_settings,
         plan_type="gaussian",
-        lmax=10,
+        lmax=None,
         aux_lambd=1.6,
-        aug_beta=1.6,
-        alpha_max=3000,
-        alpha_min=1.43702907e-03,
-        alpha_formula="etb",
-        rhocut=1e-9,
-        expcut=1e-9,
+        aug_beta=None,
+        alpha_max=10000,
+        alpha_min=None,
+        alpha_formula=None,
+        rhocut=1e-10,
+        expcut=1e-10,
         gbuf=2.0,
         interpolator_type="onsite_direct",
         aparam=0.03,
@@ -170,7 +170,7 @@ class PyscfNLDFGenerator(LCAONLDFGenerator):
         if aug_beta is None:
             aug_beta = aux_lambd
         if alpha_min is None:
-            alpha_min = nldf_settings.theta_params[0] / 128  # sensible default
+            alpha_min = nldf_settings.theta_params[0] / 256  # sensible default
         if plan_type not in ["gaussian", "spline"]:
             raise ValueError("plan_type must be gaussian or spline")
         if alpha_formula is None:

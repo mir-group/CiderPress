@@ -7,6 +7,7 @@ import numpy as np
 from pyscf import lib
 from pyscf.dft.numint import NumInt
 
+from ciderpress.dft.plans import FracLaplPlan
 from ciderpress.dft.settings import (
     FracLaplSettings,
     NLDFSettings,
@@ -18,10 +19,10 @@ from ciderpress.dft.settings import (
     get_s2,
 )
 from ciderpress.pyscf.analyzers import UHFAnalyzer
-from ciderpress.pyscf.frac_lapl import FLNumInt, FracLaplPlan
+from ciderpress.pyscf.frac_lapl import FLNumInt
 from ciderpress.pyscf.gen_cider_grid import CiderGrids
 from ciderpress.pyscf.nldf_convolutions import DEFAULT_CIDER_LMAX, PyscfNLDFGenerator
-from ciderpress.pyscf.sdmx import EXXSphGenerator
+from ciderpress.pyscf.sdmx_slow import EXXSphGenerator
 
 NLDF_VERSION_LIST = ["i", "j", "ij", "k"]
 

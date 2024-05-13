@@ -18,7 +18,8 @@ from ciderpress.pyscf.descriptors import (
     get_full_rho,
     get_labels_and_coeffs,
 )
-from ciderpress.pyscf.nldf_convolutions import CiderGrids, PyscfNLDFGenerator
+from ciderpress.pyscf.gen_cider_grid import CiderGrids
+from ciderpress.pyscf.nldf_convolutions import PyscfNLDFGenerator
 from ciderpress.pyscf.tests.utils_for_test import (
     get_random_coords,
     get_rotated_coords,
