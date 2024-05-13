@@ -4,10 +4,12 @@ import numpy as np
 from numpy.testing import assert_allclose
 from pyscf import dft, gto, scf
 from pyscf.dft.gen_grid import Grids
+from pyscf.sgx.sgx import sgx_fit
 from scipy.special import dawsn, erf, gamma
 
 from ciderpress.dft.plans import SADMPlan, SDMXFullPlan, SDMXPlan
 from ciderpress.dft.settings import (
+    LDA_FACTOR,
     SADMSettings,
     SDMX1Settings,
     SDMXFullSettings,
@@ -15,7 +17,7 @@ from ciderpress.dft.settings import (
     SDMXGSettings,
     SDMXSettings,
 )
-from ciderpress.external.sgx_tools import get_jk_densities, sgx_fit
+from ciderpress.external.sgx_tools import get_jk_densities
 from ciderpress.pyscf.analyzers import RHFAnalyzer, UHFAnalyzer
 from ciderpress.pyscf.descriptors import get_descriptors, get_labels_and_coeffs
 from ciderpress.pyscf.sdmx_slow import EXXSphGenerator, eval_conv_ao
@@ -26,7 +28,6 @@ from ciderpress.pyscf.tests.utils_for_test import (
     rotate_molecule,
 )
 
-LDA_FACTOR = -3.0 / 4.0 * (3.0 / np.pi) ** (1.0 / 3)
 FD_DELTA = 1e-4
 
 np.random.seed(555)

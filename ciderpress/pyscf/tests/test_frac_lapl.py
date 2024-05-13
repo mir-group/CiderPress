@@ -11,12 +11,6 @@ from scipy.special import erf, gamma
 
 from ciderpress.dft.plans import FracLaplPlan
 from ciderpress.dft.settings import FracLaplSettings
-from ciderpress.dft.tests.utils_for_test import (
-    get_random_coords,
-    get_rotated_coords,
-    get_scaled_mol,
-    rotate_molecule,
-)
 from ciderpress.pyscf.analyzers import RHFAnalyzer, UHFAnalyzer
 from ciderpress.pyscf.descriptors import get_descriptors, get_labels_and_coeffs
 from ciderpress.pyscf.frac_lapl import (
@@ -27,6 +21,12 @@ from ciderpress.pyscf.frac_lapl import (
     eval_flapl_gto,
     eval_kao,
     libcider,
+)
+from ciderpress.pyscf.tests.utils_for_test import (
+    get_random_coords,
+    get_rotated_coords,
+    get_scaled_mol,
+    rotate_molecule,
 )
 
 
