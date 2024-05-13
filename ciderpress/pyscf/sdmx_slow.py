@@ -12,10 +12,10 @@ from pyscf.gto.eval_gto import (
 )
 from pyscf.gto.mole import ANG_OF, ATOM_OF, PTR_EXP
 
+from ciderpress.dft.plans import SADMPlan, SDMXFullPlan, SDMXPlan
+from ciderpress.dft.settings import SADMSettings, SDMXFullSettings, SDMXSettings
 from ciderpress.dft.sph_harm_coeff import get_deriv_ylm_coeff
 from ciderpress.lib import load_library as load_cider_library
-from ciderpress.new_dft.plans import SADMPlan, SDMXFullPlan, SDMXPlan
-from ciderpress.new_dft.settings import SADMSettings, SDMXFullSettings, SDMXSettings
 
 libcider = load_cider_library("libmcider")
 
@@ -404,7 +404,7 @@ class EXXSphGenerator:
         Initialize from settings object and pyscf.gto.Mole object.
 
         Args:
-            settings (ciderpress.new_dft.settings.SDMXBaseSettings):
+            settings (ciderpress.dft.settings.SDMXBaseSettings):
                 SDMX settings object that specifies features to compute.
             nspin (int): 1 or 2, 1 for non-spin-polarized and 2 for
                 spin-polarized.

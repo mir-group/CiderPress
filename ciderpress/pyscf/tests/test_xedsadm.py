@@ -6,9 +6,8 @@ from pyscf import dft, gto, scf
 from pyscf.dft.gen_grid import Grids
 from scipy.special import dawsn, erf, gamma
 
-from ciderpress.external.sgx_tools import get_jk_densities, sgx_fit
-from ciderpress.new_dft.plans import SADMPlan, SDMXFullPlan, SDMXPlan
-from ciderpress.new_dft.settings import (
+from ciderpress.dft.plans import SADMPlan, SDMXFullPlan, SDMXPlan
+from ciderpress.dft.settings import (
     SADMSettings,
     SDMX1Settings,
     SDMXFullSettings,
@@ -16,12 +15,13 @@ from ciderpress.new_dft.settings import (
     SDMXGSettings,
     SDMXSettings,
 )
-from ciderpress.new_dft.tests.utils_for_test import (
+from ciderpress.dft.tests.utils_for_test import (
     get_random_coords,
     get_rotated_coords,
     get_scaled_mol,
     rotate_molecule,
 )
+from ciderpress.external.sgx_tools import get_jk_densities, sgx_fit
 from ciderpress.pyscf.analyzers import RHFAnalyzer, UHFAnalyzer
 from ciderpress.pyscf.descriptors import get_descriptors, get_labels_and_coeffs
 from ciderpress.pyscf.sdmx_slow import EXXSphGenerator, eval_conv_ao

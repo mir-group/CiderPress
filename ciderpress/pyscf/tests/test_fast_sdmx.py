@@ -8,9 +8,9 @@ from pyscf import gto, lib
 from pyscf.dft.gen_grid import Grids
 from pyscf.gto.mole import ANG_OF, ATOM_OF, NCTR_OF, NPRIM_OF, PTR_COEFF, PTR_EXP
 
+from ciderpress.dft.settings import SDMXG1Settings, SDMXGSettings
 from ciderpress.dft.sph_harm_coeff import get_deriv_ylm_coeff_v2
 from ciderpress.lib import load_library as load_cider_library
-from ciderpress.new_dft.settings import SDMXG1Settings, SDMXGSettings
 from ciderpress.pyscf.sdmx import eval_conv_sh
 from ciderpress.pyscf.sdmx_slow import (
     PySCFSDMXInitializer,

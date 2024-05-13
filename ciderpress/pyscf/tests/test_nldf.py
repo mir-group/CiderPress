@@ -5,13 +5,13 @@ from numpy.testing import assert_allclose, assert_almost_equal
 from pyscf import dft, gto
 from pyscf.dft.gen_grid import Grids
 
-from ciderpress.new_dft.settings import (
+from ciderpress.dft.settings import (
     NLDFSettingsVI,
     NLDFSettingsVIJ,
     NLDFSettingsVJ,
     NLDFSettingsVK,
 )
-from ciderpress.new_dft.tests.utils_for_test import (
+from ciderpress.dft.tests.utils_for_test import (
     get_random_coords,
     get_rotated_coords,
     get_scaled_grid,

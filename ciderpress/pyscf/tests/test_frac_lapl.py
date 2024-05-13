@@ -9,8 +9,8 @@ from pyscf.dft.gen_grid import Grids
 from pyscf.dft.numint import _dot_ao_dm, eval_ao
 from scipy.special import erf, gamma
 
-from ciderpress.new_dft.plans import FracLaplPlan, FracLaplSettings
-from ciderpress.new_dft.tests.utils_for_test import (
+from ciderpress.dft.plans import FracLaplPlan, FracLaplSettings
+from ciderpress.dft.tests.utils_for_test import (
     get_random_coords,
     get_rotated_coords,
     get_scaled_mol,
@@ -467,39 +467,10 @@ class TestFracLapl(unittest.TestCase):
                 [[0.0, 0.0, 0.0], [0.0, 0.0, 1.0], [10.0, 0.0, 0.0]], dtype=np.float64
             ),
         )
-        dd = 1e-7
-        grids_cen2 = _Grids(
-            mol,
-            np.array(
-                [
-                    [-dd, 0.0, 0.0],
-                    [dd, 0.0, 0.0],
-                    [0.0, -dd, 0.0],
-                    [0.0, dd, 0.0],
-                    [0.0, 0.0, -dd],
-                    [0.0, 0.0, dd],
-                    [-dd, 0.0, 1.0],
-                    [dd, 0.0, 1.0],
-                    [0.0, -dd, 1.0],
-                    [0.0, dd, 1.0],
-                    [0.0, 0.0, 1.0 - dd],
-                    [0.0, 0.0, 1.0 + dd],
-                    [10.0 - dd, 0.0, 0.0],
-                    [10.0 + dd, 0.0, 0.0],
-                    [10.0, -dd, 0.0],
-                    [10.0, dd, 0.0],
-                    [10.0, 0.0, -dd],
-                    [10.0, 0.0, dd],
-                ],
-                dtype=np.float64,
-            ),
-        )
 
         t0 = time.monotonic()
         ao_ref = eval_ao(mol, coords=grids.coords)
         ao_ref_cen = eval_ao(mol, coords=grids_cen.coords)
-        # dao_ref_cen = eval_ao(mol, coords=grids_cen.coords, deriv=1)[1:4]
-        # fdao_ref_cen = eval_ao(mol, coords=grids_cen2.coords)
         t1 = time.monotonic()
         ao_pred = eval_flapl_gto(settings.slist, mol, coords=grids.coords, debug=True)
         t2 = time.monotonic()
@@ -561,14 +532,7 @@ class TestFracLapl(unittest.TestCase):
         dm_gu = _dot_ao_dm(mol, ao_ref, dm, None, shls_slice, ao_loc)
         dm_ru = _dot_ao_dm(mol, ao_ref_cen, dm, None, shls_slice, ao_loc)
         dm_rg = np.einsum("ru,gu->rg", ao_ref_cen, dm_gu)
-        # ddm_rg = np.einsum('ru,gu->rg', fdao_ref_cen, dm_gu)
-        # dm_vrg = np.einsum('vru,gu->rg', dao_ref_cen, dm_gu)
         dm_rr = np.diag(np.einsum("ru,gu->rg", ao_ref_cen, dm_ru))
-        # ddm_rr = np.diag(np.einsum('ru,gu->rg', fdao_ref_cen, dm_ru))
-        # dm_vrr = np.stack(
-        #    [np.diag(np.einsum('ru,gu->rg', ao_tmp, dm_ru))
-        #     for ao_tmp in dao_ref_cen]
-        # )
 
         make_rho, nset, nao = self.numint._gen_rho_evaluator(
             mol, dm, hermi=1, with_lapl=False
@@ -579,20 +543,8 @@ class TestFracLapl(unittest.TestCase):
 
         i = 0
         s = settings.slist[i]
-        print(grids.coords.shape, dm_rg.shape, dm_rr.shape)
         refvals = get_flapl2(grids, grids_cen, dm_rg, dm_rr, s=s)
-        print(feat[0, i], refvals)
         assert_allclose(feat[0, i], refvals, rtol=2e-3, atol=1e-7)
-        # i = settings.nk0
-        # fd_refvals = get_flapl2(grids, grids_cen2, ddm_rg, ddm_rr, s=s)
-        # for v in range(3):
-        #    fdm = fd_refvals[2*v::6]
-        #    fdp = fd_refvals[2*v+1::6]
-        #    fd = (fdp - fdm) / (2 * dd)
-        #    print(v)
-        #    refvals = get_flapl2(grids, grids_cen, dm_vrg[v], dm_vrr[v], s=s)
-        #    print(rho[i + v], fd, refvals)
-        #    assert_allclose(rho[i + v], refvals, rtol=2e-3, atol=1e-7)
 
 
 if __name__ == "__main__":
