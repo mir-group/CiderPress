@@ -78,7 +78,7 @@ def get_cider_exponent(
     dadtau = C / rho
     if grad_mul != 0:
         grad_fac = grad_mul * 1.2 * (6 * np.pi**2) ** (2.0 / 3) / np.pi
-        grad_fac *= np.pi / 2 ** (2.0 / 3) * 0.125
+        grad_fac *= np.pi / 2 ** (2.0 / 3) * 0.125 / CFC
         ascale += grad_fac * sigma / (rho * rho)
         dadsigma = grad_fac / (rho * rho)
         dadrho -= 2 * grad_fac * sigma / (rho * rho * rho)

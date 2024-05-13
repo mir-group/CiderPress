@@ -1,6 +1,6 @@
 import numpy as np
 
-from ciderpress.density import LDA_FACTOR
+from ciderpress.dft.settings import LDA_FACTOR
 
 
 def nsp_rho_basline(X0T, e=None, dedx=None):
