@@ -121,7 +121,6 @@ def simple_map(
         model.train()
         pred = model(X)
         fac = 1.0 / nfeat
-        # print(pred.size(), y.size())
         loss = loss_fn(pred[:nsamp], y[:nsamp])
         for i in range(nfeat):
             deriv = (

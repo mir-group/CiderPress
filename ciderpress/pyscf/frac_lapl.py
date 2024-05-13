@@ -3,7 +3,7 @@ import ctypes
 import numpy as np
 from pyscf import lib
 from pyscf.dft import numint
-from pyscf.dft.gen_grid import ALIGNMENT_UNIT, BLKSIZE, CUTOFF, NBINS, make_mask
+from pyscf.dft.gen_grid import ALIGNMENT_UNIT, make_mask
 from pyscf.dft.numint import (
     OCCDROP,
     _contract_rho,
@@ -18,6 +18,8 @@ from pyscf.dft.numint import (
 )
 from pyscf.gto.eval_gto import (
     BLKSIZE,
+    CUTOFF,
+    NBINS,
     _get_intor_and_comp,
     libcgto,
     make_loc,
