@@ -201,7 +201,10 @@ class ElectronAnalyzer(ABC):
             eigvals = np.einsum("...ui,ui->...i", self.mo_coeff, orbvals)
             self._data["ORBXC_{}".format(xcname)] = eigvals
         else:
-            from ciderpress.descriptors import get_labels_and_coeffs, unpack_eigvals
+            from ciderpress.pyscf.descriptors import (
+                get_labels_and_coeffs,
+                unpack_eigvals,
+            )
 
             labels, coeffs, en_list, sep_spins = get_labels_and_coeffs(
                 orbs, self.mo_coeff, self.mo_occ, self.mo_energy

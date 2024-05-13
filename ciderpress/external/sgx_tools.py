@@ -19,8 +19,8 @@
 
 import time
 
-from pyscf.sgx.sgx_jk import *
-from pyscf.sgx.sgx_jk import _gen_batch_nuc, _gen_jk_direct
+import numpy
+from pyscf.sgx.sgx_jk import _gen_batch_nuc, _gen_jk_direct, lib, logger
 
 
 def get_jk_densities(sgx, dm, hermi=1, direct_scf_tol=1e-13):
@@ -53,7 +53,6 @@ def get_jk_densities(sgx, dm, hermi=1, direct_scf_tol=1e-13):
         coords = grids.coords[i0:i1]
         ao = mol.eval_gto("GTOval", coords)
         wao = ao * grids.weights[i0:i1, None]
-        weights = grids.weights[i0:i1]
 
         fg = lib.einsum("gi,xij->xgj", wao, dms)
         fgnw = lib.einsum("gi,xij->xgj", ao, dms)

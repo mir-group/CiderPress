@@ -15,16 +15,16 @@ from ciderpress.dft.settings import (
     SDMXGSettings,
     SDMXSettings,
 )
-from ciderpress.dft.tests.utils_for_test import (
+from ciderpress.external.sgx_tools import get_jk_densities, sgx_fit
+from ciderpress.pyscf.analyzers import RHFAnalyzer, UHFAnalyzer
+from ciderpress.pyscf.descriptors import get_descriptors, get_labels_and_coeffs
+from ciderpress.pyscf.sdmx_slow import EXXSphGenerator, eval_conv_ao
+from ciderpress.pyscf.tests.utils_for_test import (
     get_random_coords,
     get_rotated_coords,
     get_scaled_mol,
     rotate_molecule,
 )
-from ciderpress.external.sgx_tools import get_jk_densities, sgx_fit
-from ciderpress.pyscf.analyzers import RHFAnalyzer, UHFAnalyzer
-from ciderpress.pyscf.descriptors import get_descriptors, get_labels_and_coeffs
-from ciderpress.pyscf.sdmx_slow import EXXSphGenerator, eval_conv_ao
 
 LDA_FACTOR = -3.0 / 4.0 * (3.0 / np.pi) ** (1.0 / 3)
 FD_DELTA = 1e-4

@@ -11,12 +11,6 @@ from ciderpress.dft.settings import (
     NLDFSettingsVJ,
     NLDFSettingsVK,
 )
-from ciderpress.dft.tests.utils_for_test import (
-    get_random_coords,
-    get_rotated_coords,
-    get_scaled_grid,
-    rotate_molecule,
-)
 from ciderpress.pyscf.analyzers import RHFAnalyzer, UHFAnalyzer
 from ciderpress.pyscf.debug_numint import get_nldf_numint
 from ciderpress.pyscf.descriptors import (
@@ -25,6 +19,12 @@ from ciderpress.pyscf.descriptors import (
     get_labels_and_coeffs,
 )
 from ciderpress.pyscf.nldf_convolutions import CiderGrids, PyscfNLDFGenerator
+from ciderpress.pyscf.tests.utils_for_test import (
+    get_random_coords,
+    get_rotated_coords,
+    get_scaled_grid,
+    rotate_molecule,
+)
 
 nh3str = """
 N        0.000000    0.000000    0.116671

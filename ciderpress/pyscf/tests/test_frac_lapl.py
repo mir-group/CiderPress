@@ -9,7 +9,8 @@ from pyscf.dft.gen_grid import Grids
 from pyscf.dft.numint import _dot_ao_dm, eval_ao
 from scipy.special import erf, gamma
 
-from ciderpress.dft.plans import FracLaplPlan, FracLaplSettings
+from ciderpress.dft.plans import FracLaplPlan
+from ciderpress.dft.settings import FracLaplSettings
 from ciderpress.dft.tests.utils_for_test import (
     get_random_coords,
     get_rotated_coords,
