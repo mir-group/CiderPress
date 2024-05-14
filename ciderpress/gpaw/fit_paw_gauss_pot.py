@@ -1,10 +1,12 @@
-import os
-
 import numpy as np
 from scipy.linalg import cholesky
 from scipy.special import jv
 
-from ciderpress.dft.sphere_util import gauss_conv_coef_and_expnt, gauss_fft
+from ciderpress.dft.sphere_util import (
+    gauss_and_derivs,
+    gauss_conv_coef_and_expnt,
+    gauss_fft,
+)
 
 
 def get_pf_integral(n, R):
@@ -36,7 +38,6 @@ def get_ffunc2(n, r, R, taper=0.5):
     # return y
     x = r**n / R**n
     return x * np.exp(-0.5 * (n + 1) * (r / R) * (r / R))
-    ###return x / (1 + taper * x)
 
 
 def get_ffunc3(n, r, R):
@@ -210,7 +211,7 @@ NBAS_LOC = np.append([0], np.cumsum(NBAS_LST)).astype(np.int32)
 
 
 def get_phi_ovlp_direct(phi_iabg, rgd, rcut, l, nbas_loc=NBAS_LOC, w_b=None):
-    ###dv = 4 * np.pi * rgd.dr_g * rgd.r_g**2
+    # dv = 4 * np.pi * rgd.dr_g * rgd.r_g**2
     dv = rgd.dr_g * rgd.r_g**2
     if w_b is None:
         w_b = np.ones(phi_iabg.shape[-2])
@@ -233,7 +234,7 @@ def get_phi_solve_direct(phi_iabg, phi_iajb, l, nbas_loc=NBAS_LOC, w_b=None):
 def get_phi_ovlp_f(phi_iabg, f_Lbg, rgd, l, rcut, nbas_loc=NBAS_LOC, w_b=None):
     # TODO will need L channel on f_bg and construct separate ia
     # matrix for each L
-    ###dv = 4 * np.pi * rgd.dr_g * rgd.r_g**2
+    # dv = 4 * np.pi * rgd.dr_g * rgd.r_g**2
     if w_b is None:
         w_b = np.ones(phi_iabg.shape[-2])
     dv = rgd.dr_g * rgd.r_g**2
@@ -241,16 +242,6 @@ def get_phi_ovlp_f(phi_iabg, f_Lbg, rgd, l, rcut, nbas_loc=NBAS_LOC, w_b=None):
     phicut_iabg = phi_iabg[nbas_loc[l] : nbas_loc[l + 1], ..., rgd.r_g > rcut]
     fcut_bg = f_bg[..., rgd.r_g > rcut]
     return np.einsum("iabg,mbg,b->ima", phicut_iabg, fcut_bg, w_b)
-
-
-def construct_incomplete_ovlp(alphas, n, rcut, alpha_norms=None):
-    if alpha_norms is None:
-        alpha_norms = 1 / np.sqrt(gauss_integral(n, alphas))
-    norm_mat = alpha_norms * alpha_norms[:, None]
-    sum_mat = alphas + alphas[:, None]
-    ovlp = norm_mat * gauss_integral(n, sum_mat)
-    ovlp_inc = incomplete_gauss_integral(n, sum_mat, rcut)
-    return alpha_norms, ovlp, ovlp_inc
 
 
 def get_dv(rgd):
@@ -324,9 +315,6 @@ def construct_full_p_matrices(p11_lpp, p12_pbja, p21_japb, p22_ljaja, w_b, nbas_
         pl_ii[N1:, N1:] = p22_jaja.reshape(N2, N2)
         p_l_ii.append(pl_ii)
     return p_l_ii
-
-
-from ciderpress.dft.sphere_util import gauss_and_derivs
 
 
 def get_delta_lpg(betas, rcut, rgd, thr=6, lmax=4):
@@ -411,49 +399,3 @@ def get_gaussian_convs(alphas, beta, l, gammas, r_g):
             coef, expnt = gauss_conv_coef_and_expnt(l, expnt, gammas[i])
             convolutions[a, i] = coef * np.exp(-expnt * r_g**2)
     return convolutions
-
-
-def convolve_on_rgd(funcs, gmax, rs):
-    rs_in = rs[: gmax + 1]
-    rs_out = rs[gmax:]
-    sin_wt = np.empty((gamma.shape[0], rs_out.shape[0]))
-    for r_in in rs_in:
-        l = 0
-        for g, gam in enumerate(gammas):
-            sin_wt[g] = spherical_in(l, 2 * gam * r_in * rs_out)
-            sin_wt[g] *= np.exp(-gam * r_in**2)
-            sin_wt[g] *= np.exp(-gam * rs_out**2)
-        for c, gam in enumerate(gammas):
-            for a, alpha in enumerate(gammas):
-                convs[:, a, c, :] += sin_wt[g] * sin_wt[a] * funcs[:, r_in] * dv_in
-        einsum("iacg,jbcg->iajb", convs, convs * dv_out)
-
-
-def fpgp_test_func():
-    lambd = 1.8
-    emax = 3000
-    Nalpha = 25
-    emax / lambd ** np.arange(Nalpha)
-
-    RMAX = 1.3
-    x = np.linspace(0, RMAX, 200)
-    basf = 0.5 + 0.5 * np.cos(np.pi * x / RMAX)
-    # basf *= basf
-    funcs = [
-        basf,
-        x * basf,
-        x * x * basf,
-        x * x * x * basf,
-        x * x * x * x * basf,
-        x * x * x * x * x * basf,
-        x * x * x * x * x * x * basf,
-    ]
-    for f in funcs:
-        plt.plot(x, f)
-    print("FINISHED")
-    print(os.getcwd())
-    plt.savefig("fitfuncs_CHECK.png")
-
-
-if __name__ == "__main__":
-    fpgp_test_func()

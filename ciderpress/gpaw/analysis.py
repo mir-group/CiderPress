@@ -434,7 +434,7 @@ class _FeatureMixin:
             tau_sg = None
 
         nspin = nt_sg.shape[0]
-        feat, dfeat, p_iag, dp_iag, q_ag, dq_ag = {}, {}, {}, {}, {}, {}
+        feat, dfeat, p_iag, q_ag, dq_ag = {}, {}, {}, {}, {}
         cider_nt_sg = self.domain_world2cider(nt_sg)
         if cider_nt_sg is None:
             cider_nt_sg = {s: None for s in range(nspin)}
@@ -659,7 +659,7 @@ class _FeatureMixin:
             tau_sg = None
 
         nspin = nt_sg.shape[0]
-        feat, dfeat, p_iag, dp_iag, q_ag, dq_ag = {}, {}, {}, {}, {}, {}
+        feat, dfeat, p_iag, q_ag, dq_ag = {}, {}, {}, {}, {}
         dfeatdf_jig = {}
         cider_nt_sg = self.domain_world2cider(nt_sg)
         cider_drhodf_jg = self.domain_world2cider(drhodf_jg)

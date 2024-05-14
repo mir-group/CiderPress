@@ -376,7 +376,9 @@ def construct_cubic_splines(self):
 
     The recipe is from
 
-      http://en.wikipedia.org/wiki/Spline_(mathematics)
+    http://en.wikipedia.org/wiki/Spline_(mathematics)
+
+    This function is taken directly from the GPAW code and modified slightly.
     """
     self.dense_Nalpha = self.Nalpha
     self.dense_lambd = (self.bas_exp[-1] / self.bas_exp[0]) ** (
@@ -394,12 +396,7 @@ def construct_cubic_splines(self):
         return
 
     if self.verbose:
-        print(
-            (
-                "VDW: using %d cubic splines: 0.00, %.2f, ..., %.2f, %.2f"
-                % (n, q1, q[-2], q[-1])
-            )
-        )
+        pass
 
     # shape N,n
     y = self.get_cider_coefs(q)[0].T
@@ -615,7 +612,7 @@ class _CiderBase:
             for c, n in enumerate(self.shape):
                 if not gd.pbc_c[c]:
                     # self.shape[c] = get_efficient_fft_size(n)
-                    self.shape[c] = int(2 ** ceil(log(n) / log(2)))
+                    self.shape[c] = int(2 ** np.ceil(np.log(n) / np.log(2)))
         else:
             self.shape = np.array(self.size)
             for c, n in enumerate(self.shape):

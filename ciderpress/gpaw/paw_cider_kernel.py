@@ -1,3 +1,4 @@
+import gpaw.mpi as mpi
 import numpy as np
 from gpaw.sphere.lebedev import weight_n
 

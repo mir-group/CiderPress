@@ -529,7 +529,6 @@ class _CiderPASDW_MPRoutines:
             for a in self.aalist:
                 atom_slice = atom_slices[a]
                 funcs_gi = atom_slice.get_funcs()
-                ni = funcs_gi.shape[1]
                 coefs_bi = coefs_abi[a]
                 if atom_slice.sinv_pf is not None:
                     coefs_bi = coefs_bi.dot(atom_slice.sinv_pf.T)
@@ -545,7 +544,6 @@ class _CiderPASDW_MPRoutines:
             for a in self.aalist:
                 atom_slice = atom_slices[a]
                 funcs_gi = atom_slice.get_funcs()
-                ni = funcs_gi.shape[1]
                 coefs_bi = coefs_abi[a]
                 if atom_slice.sinv_pf is not None:
                     coefs_bi = coefs_bi.dot(atom_slice.sinv_pf.T)
@@ -565,7 +563,6 @@ class _CiderPASDW_MPRoutines:
     def interpolate_rbuf_onto_atoms(self, pot=False):
         if self.atom_slices is None:
             self._setup_atom_slices()
-        comm = self.world
         coefs_abi = {}
         Nalpha_r = len(self.alphas)
 

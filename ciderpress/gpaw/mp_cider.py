@@ -193,7 +193,6 @@ class AtomCommData:
         self.world.broadcast(rank_arr, ROOT)
         my_rank = self.world.rank
         wsize = self.world.size
-        atoms = np.arange(len(setups))[rank_a == self.world.rank]
 
         atom_locs_1 = {r: [] for r in range(wsize)}
         alpha_locs_1 = {r: [] for r in range(wsize)}
