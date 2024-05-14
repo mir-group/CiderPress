@@ -101,6 +101,7 @@ def run_calc(mol, spinpol):
             xkernel="GGA_X_PBE",
             ckernel="GGA_C_PBE",
         )
+        ks.small_rho_cutoff = 0.0
     ks.grids.level = 3
     etot = ks.kernel()
     return etot
@@ -113,8 +114,6 @@ else:
 
 etot_mol = run_calc(mol, spinpol)
 etot_ae = -1 * etot_mol
-
-exit()
 
 for Z, count in formula.items():
     atom = gto.M(
