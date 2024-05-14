@@ -1,15 +1,16 @@
 import unittest
 
 import numpy as np
-from numpy.testing import assert_almost_equal, assert_equal
+from numpy.testing import assert_allclose, assert_almost_equal, assert_equal
 
-from ciderpress.dft.plans import NLDFGaussianPlan, NLDFSplinePlan
+from ciderpress.dft.plans import NLDFGaussianPlan, NLDFSplinePlan, SemilocalPlan
 from ciderpress.dft.settings import (
     CFC,
     NLDFSettingsVI,
     NLDFSettingsVIJ,
     NLDFSettingsVJ,
     NLDFSettingsVK,
+    SemilocalSettings,
 )
 
 DELTA = 1e-7
@@ -28,6 +29,103 @@ def ovlp_reference(a, b, featid, extra_args=None):
         return (np.pi / (a + b)) ** 1.5 / np.sqrt(1 + c / (a + b))
     else:
         raise ValueError
+
+
+class TestSemilocalPlan(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        N = 50
+        cls._x = np.linspace(0, 1, N)
+
+        # construct a reasonable set of densities
+        np.random.seed(53)
+        directions = 0.25 * np.random.normal(size=(3, N))
+        np.random.seed(53)
+        alpha = np.random.normal(size=N) ** 2
+        rho = 1 + 0.5 * np.sin(np.pi * cls._x)
+        drho = directions * rho
+        tauw = np.einsum("xg,xg->g", drho, drho) / (8 * rho)
+        tau = tauw + alpha * CFC * rho ** (5.0 / 3)
+        rho_data = np.concatenate([[rho], drho, [tau]], axis=0)
+        assert rho_data.shape[0] == 5
+        cls.rho = rho_data[None, :, :]
+        cls.sprho = 0.5 * np.stack([rho_data, rho_data])
+        cls.gga_rho = rho_data[None, :4, :]
+        cls.gga_sprho = 0.5 * np.stack([rho_data[:4], rho_data[:4]])
+
+        cls.npa = SemilocalSettings(mode="npa")
+        cls.nst = SemilocalSettings(mode="nst")
+        cls.np = SemilocalSettings(mode="np")
+        cls.ns = SemilocalSettings(mode="ns")
+
+    def check_settings(self, settings):
+        plan = SemilocalPlan(settings, 1)
+        if settings.level == "MGGA":
+            rho = self.rho
+        else:
+            rho = self.gga_rho
+        rho = rho.copy()
+        feat = plan.get_feat(rho)
+
+        def get_e_and_vfeat(feat):
+            energy = (1 + (feat**2).sum(axis=1)) ** 0.5
+            return (energy, feat / energy[:, None, :])
+
+        vfeat = get_e_and_vfeat(feat)[1]
+        vxc1 = plan.get_vxc(rho, vfeat, vxc=None)
+        vxc2 = np.zeros_like(vxc1)
+        vxc3 = plan.get_vxc(rho, vfeat, vxc=vxc2)
+        assert_allclose(vxc2, vxc1, atol=1e-14)
+        assert_allclose(vxc3, vxc1, atol=1e-14)
+
+        delta = 1e-5
+        for i in range(rho.shape[1]):
+            rho[:, i] += 0.5 * delta
+            f = plan.get_feat(rho)
+            ep = get_e_and_vfeat(f)[0]
+            rho[:, i] -= delta
+            f = plan.get_feat(rho)
+            em = get_e_and_vfeat(f)[0]
+            rho[:, i] += 0.5 * delta
+            assert_allclose(vxc1[:, i], (ep - em) / delta, rtol=1e-8, atol=1e-8)
+
+        nsp_feat = feat
+        plan = SemilocalPlan(settings, 2)
+        if settings.level == "MGGA":
+            rho = self.sprho
+        else:
+            rho = self.gga_sprho
+        rho = rho.copy()
+        feat = plan.get_feat(rho)
+
+        assert feat.shape[0] == 2
+        assert feat.shape[1:] == nsp_feat.shape[1:]
+        assert_allclose(feat[0], nsp_feat[0], atol=1e-14)
+        assert_allclose(feat[1], nsp_feat[0], atol=1e-14)
+
+        vfeat = get_e_and_vfeat(feat)[1]
+        vxc1 = plan.get_vxc(rho, vfeat, vxc=None)
+        vxc2 = np.zeros_like(vxc1)
+        vxc3 = plan.get_vxc(rho, vfeat, vxc=vxc2)
+        assert_allclose(vxc2, vxc1, atol=1e-14)
+        assert_allclose(vxc3, vxc1, atol=1e-14)
+
+        delta = 1e-5
+        for i in range(rho.shape[1]):
+            rho[:, i] += 0.5 * delta
+            f = plan.get_feat(rho)
+            ep = get_e_and_vfeat(f)[0]
+            rho[:, i] -= delta
+            f = plan.get_feat(rho)
+            em = get_e_and_vfeat(f)[0]
+            rho[:, i] += 0.5 * delta
+            assert_allclose(vxc1[:, i], (ep - em) / delta, rtol=1e-8, atol=1e-8)
+
+    def test_settings(self):
+        self.check_settings(self.npa)
+        self.check_settings(self.np)
+        self.check_settings(self.nst)
+        self.check_settings(self.ns)
 
 
 class TestNLDFGaussianPlan(unittest.TestCase):
@@ -295,7 +393,7 @@ class TestNLDFGaussianPlan(unittest.TestCase):
             energy = (1 + (feat**2).sum(axis=0)) ** 0.5
             return (energy, feat / energy)
 
-        energy, vfeat = get_e_and_vfeat(feat)
+        vfeat = get_e_and_vfeat(feat)[1]
         vrho = np.zeros_like(rho)
         vdrho = np.zeros_like(drho)
         vtau = np.zeros_like(tau)

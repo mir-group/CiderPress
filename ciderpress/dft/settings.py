@@ -1451,34 +1451,41 @@ class SemilocalSettings(BaseSettings):
     Should not be edited from default in general.
     """
 
-    def __init__(self, level="MGGA", mode="nst"):
-        # mode should be nst or npa
-        self.level = level.upper()
-        # Currently only support meta-GGA because we don't currently
-        # have an elegant way of handling whether various semilocal
-        # ingredients are available to the more complex features
-        # like NLDF and Fractional Laplacian.
-        if self.level != "MGGA":
-            raise NotImplementedError("Only MGGA implemented currently")
-        if mode not in ["nst", "npa"]:
-            raise ValueError("Mode must be nst or npa")
+    def __init__(self, mode="nst"):
+        # mode should be nst or npa (MGGA) or ns or np (GGA).
+        self.level = None
+        if mode in ["nst", "npa"]:
+            self.level = "MGGA"
+        elif mode in ["ns", "np"]:
+            self.level = "GGA"
+        else:
+            raise ValueError("Mode must be nst, npa, ns, or np.")
         self.mode = mode
 
     @property
     def nfeat(self):
-        return 3
+        if self.level == "MGGA":
+            return 3
+        else:
+            return 2
 
     def get_feat_usps(self):
         if self.mode == "nst":
             return [3, 8, 5]
-        else:
+        elif self.mode == "npa":
             return [3, 0, 0]
+        elif self.mode == "ns":
+            return [3, 8]
+        else:
+            return [3, 0]
 
     def ueg_vector(self, rho=1.0):
         if self.mode == "nst":
             return np.array([rho, 0.0, CFC * rho ** (5.0 / 3)])
-        else:
+        elif self.mode == "npa":
             return np.array([rho, 0.0, 1.0])
+        else:
+            return np.array([rho, 0.0])
 
     def get_reasonable_normalizer(self):
         return [None] * self.nfeat

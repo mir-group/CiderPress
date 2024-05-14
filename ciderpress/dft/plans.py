@@ -155,25 +155,58 @@ class SemilocalPlan:
         """
         self.settings = settings
         self.nspin = nspin
-        if self.settings.mode != "npa":
+        if self.settings.mode not in ["npa", "nst", "np", "ns"]:
             raise NotImplementedError
 
-    def get_feat(self, rho):
-        assert rho.ndim == 3
+    def _fill_feat_npa_(self, rho, feat):
+        assert feat.shape[1] == 3
         sigma = np.einsum("sxg,sxg->sg", rho[:, 1:4], rho[:, 1:4])
-        # nfeat is always 3 for npa SL settings
-        feat = np.empty((rho.shape[0], self.settings.nfeat, rho.shape[2]))
         feat[:, 0] = rho[:, 0]
         feat[:, 1] = get_s2(rho[:, 0], sigma)
         feat[:, 2] = get_alpha(rho[:, 0], sigma, rho[:, 4])
         feat[:, 0] *= self.nspin
         feat[:, 1:3] /= self.nspin ** (2.0 / 3)
+
+    def _fill_feat_nst_(self, rho, feat):
+        assert feat.shape[1] == 3
+        sigma = np.einsum("sxg,sxg->sg", rho[:, 1:4], rho[:, 1:4])
+        feat[:, 0] = rho[:, 0]
+        feat[:, 1] = sigma
+        feat[:, 2] = rho[:, 4]
+        feat[:, 0] *= self.nspin
+        feat[:, 1] *= self.nspin * self.nspin
+        feat[:, 2] *= self.nspin
+
+    def _fill_feat_np_(self, rho, feat):
+        assert feat.shape[1] == 2
+        sigma = np.einsum("sxg,sxg->sg", rho[:, 1:4], rho[:, 1:4])
+        feat[:, 0] = rho[:, 0]
+        feat[:, 1] = get_s2(rho[:, 0], sigma)
+        feat[:, 0] *= self.nspin
+        feat[:, 1] /= self.nspin ** (2.0 / 3)
+
+    def _fill_feat_ns_(self, rho, feat):
+        assert feat.shape[1] == 2
+        sigma = np.einsum("sxg,sxg->sg", rho[:, 1:4], rho[:, 1:4])
+        feat[:, 0] = rho[:, 0]
+        feat[:, 1] = sigma
+        feat[:, 0] *= self.nspin
+        feat[:, 1] *= self.nspin * self.nspin
+
+    def get_feat(self, rho):
+        assert rho.ndim == 3
+        feat = np.empty((rho.shape[0], self.settings.nfeat, rho.shape[2]))
+        if self.settings.mode == "npa":
+            self._fill_feat_npa_(rho, feat)
+        elif self.settings.mode == "nst":
+            self._fill_feat_nst_(rho, feat)
+        elif self.settings.mode == "np":
+            self._fill_feat_np_(rho, feat)
+        else:
+            self._fill_feat_ns_(rho, feat)
         return feat
 
-    def get_vxc(self, rho, vfeat, vxc=None):
-        assert rho.ndim == 3
-        if vxc is None:
-            vxc = np.zeros_like(rho[:, :5])
+    def _fill_vxc_npa_(self, rho, vfeat, vxc):
         sigma = np.einsum("sxg,sxg->sg", rho[:, 1:4], rho[:, 1:4])
         sm23 = self.nspin ** (-2.0 / 3)
         dpdn, dpdsigma = ds2(rho[:, 0], sigma)
@@ -187,6 +220,39 @@ class SemilocalPlan:
             * rho[:, 1:4]
         )
         vxc[:, 4] += sm23 * vfeat[:, 2] * dadtau
+
+    def _fill_vxc_nst_(self, rho, vfeat, vxc):
+        vxc[:, 0] += self.nspin * vfeat[:, 0]
+        vxc[:, 1:4] += (self.nspin * self.nspin * 2 * vfeat[:, 1])[:, None, :] * rho[
+            :, 1:4
+        ]
+        vxc[:, 4] += self.nspin * vfeat[:, 2]
+
+    def _fill_vxc_np_(self, rho, vfeat, vxc):
+        sigma = np.einsum("sxg,sxg->sg", rho[:, 1:4], rho[:, 1:4])
+        sm23 = self.nspin ** (-2.0 / 3)
+        dpdn, dpdsigma = ds2(rho[:, 0], sigma)
+        vxc[:, 0] += self.nspin * vfeat[:, 0] + sm23 * vfeat[:, 1] * dpdn
+        vxc[:, 1:4] += (sm23 * vfeat[:, 1] * dpdsigma)[:, None, :] * 2 * rho[:, 1:4]
+
+    def _fill_vxc_ns_(self, rho, vfeat, vxc):
+        vxc[:, 0] += self.nspin * vfeat[:, 0]
+        vxc[:, 1:4] += (self.nspin * self.nspin * 2 * vfeat[:, 1])[:, None, :] * rho[
+            :, 1:4
+        ]
+
+    def get_vxc(self, rho, vfeat, vxc=None):
+        assert rho.ndim == 3
+        if vxc is None:
+            vxc = np.zeros_like(rho[:, :5])
+        if self.settings.mode == "npa":
+            self._fill_vxc_npa_(rho, vfeat, vxc)
+        elif self.settings.mode == "nst":
+            self._fill_vxc_nst_(rho, vfeat, vxc)
+        elif self.settings.mode == "np":
+            self._fill_vxc_np_(rho, vfeat, vxc)
+        else:
+            self._fill_vxc_ns_(rho, vfeat, vxc)
         return vxc
 
 
