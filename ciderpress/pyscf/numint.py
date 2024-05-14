@@ -514,8 +514,8 @@ def nr_uks_nldf(
             nldf_feat.append(
                 np.stack(
                     [
-                        ni.nldfgen.get_features(rhoa_full[idm]),
-                        ni.nldfgen.get_features(rhob_full[idm]),
+                        ni.nldfgen.get_features(rhoa_full[idm], spin=0),
+                        ni.nldfgen.get_features(rhob_full[idm], spin=1),
                     ]
                 )
             )
@@ -560,8 +560,12 @@ def nr_uks_nldf(
                 wvb_full[idm, :, ip0:ip1] = weight * vxc[1]
             ip0 = ip1
         for idm in range(nset):
-            wva_full[idm, :, :] += ni.nldfgen.get_potential(vxc_nldf_full[idm, 0])
-            wvb_full[idm, :, :] += ni.nldfgen.get_potential(vxc_nldf_full[idm, 1])
+            wva_full[idm, :, :] += ni.nldfgen.get_potential(
+                vxc_nldf_full[idm, 0], spin=0
+            )
+            wvb_full[idm, :, :] += ni.nldfgen.get_potential(
+                vxc_nldf_full[idm, 1], spin=1
+            )
 
     buffers = None
     pair_mask = mol.get_overlap_cond() < -np.log(ni.cutoff)
