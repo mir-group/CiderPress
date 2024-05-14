@@ -151,7 +151,7 @@ class _CiderKS:
         if nldf_init is None and mlxc.settings.has_nldf:
             nldf_init = PySCFNLDFInitializer(mlxc.settings.nldf_settings)
         if sdmx_init is None and mlxc.settings.has_sdmx:
-            sdmx_init = PySCFSDMXInitializer(mlxc.settings.sadm_settings, lowmem=False)
+            sdmx_init = PySCFSDMXInitializer(mlxc.settings.sdmx_settings, lowmem=False)
         old_grids = self.grids
         changed = False
         if mlxc.settings.has_nldf:

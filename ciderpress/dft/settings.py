@@ -1495,7 +1495,7 @@ class FeatureSettings(BaseSettings):
         sl_settings=None,
         nldf_settings=None,
         nlof_settings=None,
-        sadm_settings=None,
+        sdmx_settings=None,
         hyb_settings=None,
         normalizers=None,
     ):
@@ -1509,7 +1509,7 @@ class FeatureSettings(BaseSettings):
                 Nonlocal density feature settings
             nlof_settings (FracLaplSettings or EmptySettings):
                 Nonlocal orbital feature settings
-            sadm_settings (SDMXBaseSettings or EmptySettings):
+            sdmx_settings (SDMXBaseSettings or EmptySettings):
                 Spherically averaged EXX settings
             hyb_settings (HybridSettings or EmptySettings):
                 (Local) hybrid DFT settings
@@ -1518,7 +1518,7 @@ class FeatureSettings(BaseSettings):
         self.sl_settings = EmptySettings() if sl_settings is None else sl_settings
         self.nldf_settings = EmptySettings() if nldf_settings is None else nldf_settings
         self.nlof_settings = EmptySettings() if nlof_settings is None else nlof_settings
-        self.sadm_settings = EmptySettings() if sadm_settings is None else sadm_settings
+        self.sdmx_settings = EmptySettings() if sdmx_settings is None else sdmx_settings
         self.hyb_settings = EmptySettings() if hyb_settings is None else hyb_settings
         self.normalizers = (
             FeatNormalizerList([None] * self.nfeat)
@@ -1542,7 +1542,7 @@ class FeatureSettings(BaseSettings):
 
     @property
     def has_sdmx(self):
-        return not self.sadm_settings.is_empty
+        return not self.sdmx_settings.is_empty
 
     @property
     def nfeat(self):
@@ -1550,7 +1550,7 @@ class FeatureSettings(BaseSettings):
             self.sl_settings.nfeat
             + self.nldf_settings.nfeat
             + self.nlof_settings.nfeat
-            + self.sadm_settings.nfeat
+            + self.sdmx_settings.nfeat
             + self.hyb_settings.nfeat
         )
 
@@ -1561,7 +1561,7 @@ class FeatureSettings(BaseSettings):
                 self.sl_settings.nfeat,
                 self.nldf_settings.nfeat,
                 self.nlof_settings.nfeat,
-                self.sadm_settings.nfeat,
+                self.sdmx_settings.nfeat,
                 self.hyb_settings.nfeat,
             ]
         )
@@ -1583,7 +1583,7 @@ class FeatureSettings(BaseSettings):
                 self.sl_settings.get_feat_usps(),
                 self.nldf_settings.get_feat_usps(),
                 self.nlof_settings.get_feat_usps(),
-                self.sadm_settings.get_feat_usps(),
+                self.sdmx_settings.get_feat_usps(),
                 self.hyb_settings.get_feat_usps(),
             ]
         )
@@ -1597,7 +1597,7 @@ class FeatureSettings(BaseSettings):
                 self.sl_settings.ueg_vector(rho),
                 self.nldf_settings.ueg_vector(rho),
                 self.nlof_settings.ueg_vector(rho),
-                self.sadm_settings.ueg_vector(rho),
+                self.sdmx_settings.ueg_vector(rho),
                 self.hyb_settings.ueg_vector(rho),
             ]
         )
@@ -1610,7 +1610,7 @@ class FeatureSettings(BaseSettings):
             self.sl_settings.get_reasonable_normalizer()
             + self.nldf_settings.get_reasonable_normalizer()
             + self.nlof_settings.get_reasonable_normalizer()
-            + self.sadm_settings.get_reasonable_normalizer()
+            + self.sdmx_settings.get_reasonable_normalizer()
             + self.hyb_settings.get_reasonable_normalizer()
         )
 

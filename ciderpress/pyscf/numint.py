@@ -725,7 +725,7 @@ class CiderNumIntMixin:
         has_sl = not self.settings.sl_settings.is_empty
         has_nldf = not self.settings.nldf_settings.is_empty
         has_nlof = not self.settings.nlof_settings.is_empty
-        has_sdmx = not self.settings.sadm_settings.is_empty
+        has_sdmx = not self.settings.sdmx_settings.is_empty
         if has_sl:
             nfeat_tmp = self.settings.sl_settings.nfeat
             X0T[:, start : start + nfeat_tmp] = self.sl_plan.get_feat(rho[:, :5])
@@ -747,7 +747,7 @@ class CiderNumIntMixin:
                 sdmx_feat = sdmx_feat[None, :]
             assert sdmx_feat.shape[0] == nspin
             assert sdmx_feat.ndim == 3
-            nfeat_tmp = self.settings.sadm_settings.nfeat
+            nfeat_tmp = self.settings.sdmx_settings.nfeat
             X0T[:, start : start + nfeat_tmp] = sdmx_feat
             start += nfeat_tmp
         if start != nfeat:
@@ -781,7 +781,7 @@ class CiderNumIntMixin:
             self.fl_plan.get_vxc(vxc_ml[:, start : start + nfeat_tmp], vxc=vxc)
             start += nfeat_tmp
         if has_sdmx:
-            nfeat_tmp = self.settings.sadm_settings.nfeat
+            nfeat_tmp = self.settings.sdmx_settings.nfeat
             vxc_sdmx = vxc_ml[:, start : start + nfeat_tmp]
             start += nfeat_tmp
         else:
