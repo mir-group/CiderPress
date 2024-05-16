@@ -263,10 +263,11 @@ class FeatNormalizerList:
     def _get_rho_and_inh(self, X0T):
         rho_term = X0T[:, 0]
         grad_term = X0T[:, 1]
-        tau_term = X0T[:, 2]
         if self.slmode == "npa":
+            tau_term = X0T[:, 2]
             inh_term = tau_term + 5.0 / 3 * grad_term
         elif self.slmode == "nst":
+            tau_term = X0T[:, 2]
             inh_term = tau_term / (CFC * rho_term ** (5.0 / 3))
         elif self.slmode == "np":
             inh_term = 5.0 / 3 * grad_term
@@ -328,13 +329,7 @@ class FeatNormalizerList:
         self._check_shape(X0T)
         self._check_shape(df_dX0TN)
         df_dX0T = np.empty_like(X0T)
-        rho_term = X0T[:, 0]
-        grad_term = X0T[:, 1]
-        tau_term = X0T[:, 2]
-        if self.slmode == "npa":
-            inh_term = tau_term + 5.0 / 3 * grad_term
-        else:
-            inh_term = tau_term
+        rho_term, inh_term = self._get_rho_and_inh(X0T)
         dfdrho = np.zeros_like(rho_term)
         dfdinh = np.zeros_like(inh_term)
         cond = rho_term < self.cutoff
@@ -357,8 +352,12 @@ class FeatNormalizerList:
         if self.slmode == "npa":
             df_dX0T[:, 1] += 5.0 / 3 * dfdinh
             df_dX0T[:, 2] += dfdinh
-        else:
+        elif self.slmode == "nst":
             df_dX0T[:, 2] += dfdinh
+        elif self.slmode == "np":
+            df_dX0T[:, 1] += 5.0 / 3 * dfdinh
+        else:
+            raise NotImplementedError
         for s in range(cond.shape[0]):
             df_dX0T[s, ..., cond[s]] = 0.0
         return df_dX0T
