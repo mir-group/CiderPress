@@ -207,11 +207,14 @@ def get_invariant_normalizer_from_exponent_params(power, a0, tau_mul):
     return InhomogeneityNormalizer(const1, const2, power)
 
 
-def get_normalizer_from_exponent_params(rho_pow, exp_pow, a0, tau_mul):
+def get_normalizer_from_exponent_params(rho_pow, exp_pow, a0, tau_mul, gga=False):
     power1 = rho_pow + 2.0 / 3 * exp_pow
     power2 = exp_pow
     tau_fac = tau_mul * 1.2 * (6 * np.pi**2) ** (2.0 / 3) / np.pi
-    B = np.pi / 2 ** (2.0 / 3) * (a0 - tau_fac)
+    if gga:
+        B = np.pi / 2 ** (2.0 / 3) * a0
+    else:
+        B = np.pi / 2 ** (2.0 / 3) * (a0 - tau_fac)
     C = np.pi / 2 ** (2.0 / 3) * tau_fac  # / CFC
     const2 = C / B
     const1 = B**exp_pow
@@ -277,15 +280,24 @@ class FeatNormalizerList:
         return rho_term, inh_term
 
     def _get_drho_and_dinh(self, X0T, DX0T):
+        rho = X0T[0]
         drho = DX0T[0]
-        grad_term = DX0T[1]
-        tau_term = DX0T[2]
+        grad = X0T[1]
+        dgrad = DX0T[1]
         if self.slmode == "npa":
-            dinh = tau_term + 5.0 / 3 * grad_term
+            tau = X0T[2]
+            dtau = DX0T[2]
+            dinh = dtau + 5.0 / 3 * dgrad
         elif self.slmode == "nst":
-            dinh = 0  # TODO
+            tau = X0T[2]
+            dtau = DX0T[2]
+            dinh = dtau / (CFC * rho ** (5.0 / 3))
+            dinh -= 5.0 / 3 * tau / (CFC * rho ** (8.0 / 3)) * drho
         elif self.slmode == "np":
-            dinh = 5.0 / 3 * grad_term
+            dinh = 5.0 / 3 * dgrad
+        else:
+            dinh = dgrad / (8 * CFC * rho ** (8.0 / 3))
+            dinh -= 8.0 / 3 * grad / (8 * CFC * rho ** (11.0 / 3)) * drho
         return drho, dinh
 
     def get_normalized_feature_vector(self, X0T):
@@ -309,13 +321,7 @@ class FeatNormalizerList:
         DX0TN = np.empty_like(DX0T)
         rho, inh = self._get_rho_and_inh(X0T[None, :])
         rho, inh = rho[0], inh[0]
-        drho = DX0T[0]
-        grad_term = DX0T[1]
-        tau_term = DX0T[2]
-        if self.slmode == "npa":
-            dinh = tau_term + 5.0 / 3 * grad_term
-        else:
-            dinh = tau_term
+        drho, dinh = self._get_drho_and_dinh(X0T, DX0T)
         for i in range(self.nfeat):
             if self[i] is not None:
                 DX0TN[i] = self[i].get_normed_feature_deriv(
@@ -353,11 +359,13 @@ class FeatNormalizerList:
             df_dX0T[:, 1] += 5.0 / 3 * dfdinh
             df_dX0T[:, 2] += dfdinh
         elif self.slmode == "nst":
-            df_dX0T[:, 2] += dfdinh
+            df_dX0T[:, 0] -= dfdinh * 5.0 / 3 * inh_term / rho_term
+            df_dX0T[:, 2] += dfdinh / (CFC * rho_term ** (5.0 / 3))
         elif self.slmode == "np":
             df_dX0T[:, 1] += 5.0 / 3 * dfdinh
         else:
-            raise NotImplementedError
+            df_dX0T[:, 0] -= dfdinh * 8.0 / 3 * inh_term / rho_term
+            df_dX0T[:, 1] += dfdinh / (8 * CFC * rho_term ** (8.0 / 3))
         for s in range(cond.shape[0]):
             df_dX0T[s, ..., cond[s]] = 0.0
         return df_dX0T

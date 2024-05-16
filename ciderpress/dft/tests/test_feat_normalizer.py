@@ -47,6 +47,8 @@ class TestFeatNormalizer(unittest.TestCase):
         assert rho_data.shape[0] == 5
         cls.rho = rho_data
         sigma = np.einsum("xg,xg->g", drho, drho)
+        s2 = get_s2(rho, sigma)
+        alpha = get_alpha(rho, sigma, tau)
         cls.norm_list = FeatNormalizerList(
             [
                 None,
@@ -63,15 +65,36 @@ class TestFeatNormalizer(unittest.TestCase):
         np.random.seed(72)
         feat = np.random.normal(size=(cls.norm_list.nfeat - 3, N))
         dfeat = np.random.normal(size=(cls.norm_list.nfeat, N))
-        cls.x = np.stack(
+        dfeat_np = np.concatenate([dfeat[:2], dfeat[3:]], axis=0)
+        dfeat_nst = dfeat.copy()
+        dfeat_ns = dfeat_np.copy()
+        C = 2 * (3 * np.pi**2) ** (1.0 / 3)
+        CF = 0.3 * (3 * np.pi**2) ** (2.0 / 3)
+        dsigma = rho ** (8.0 / 3) * dfeat[1]
+        dsigma += 8.0 / 3 * rho ** (5.0 / 3) * s2 * dfeat[0]
+        dsigma *= C * C
+        dtau = 5.0 / 3 * rho ** (2.0 / 3) * (alpha + 5.0 / 3 * s2) * dfeat[0]
+        dtau += 5.0 / 3 * rho ** (5.0 / 3) * dfeat[1]
+        dtau += rho ** (5.0 / 3) * dfeat[2]
+        dtau *= CF
+        dfeat_ns[1] = dsigma
+        dfeat_nst[1] = dsigma
+        dfeat_nst[2] = dtau
+        feat_list = [feat[i] for i in range(feat.shape[0])]
+        cls.x = cls.x_npa = np.stack(
             [
                 rho,
-                get_s2(rho, sigma),
-                get_alpha(rho, sigma, tau),
+                s2,
+                alpha,
             ]
-            + [feat[i] for i in range(feat.shape[0])]
+            + feat_list
         )[None, :, :]
         cls.dx = dfeat
+        cls.dx_1e = cls.dx.copy()
+        cls.dx_1e[2] = 0
+        cls.dx_np = dfeat_np
+        cls.dx_ns = dfeat_ns
+        cls.dx_nst = dfeat_nst
         cls.ref_norm_list = rho_normalizers.FeatNormalizerList(
             [
                 rho_normalizers.ConstantNormalizer(3.14),
@@ -81,6 +104,50 @@ class TestFeatNormalizer(unittest.TestCase):
                     1.0 * 1.2, 0.0, 0.03125 * 1.2, 1.5, 0.75
                 ),
             ]
+        )
+        cls.x_np = np.stack([rho, s2] + feat_list)[None, :, :]
+        cls.x_1e = np.stack([rho, s2, np.zeros_like(rho)] + feat_list)[None, :, :]
+        cls.x_nst = np.stack([rho, sigma, tau] + feat_list)[None, :, :]
+        cls.x_ns = np.stack([rho, sigma] + feat_list)[None, :, :]
+        cls.norm_list_np = FeatNormalizerList(
+            [
+                None,
+                None,
+                ConstantNormalizer(3.14),
+                DensityNormalizer(1.2, 0.75),
+                get_normalizer_from_exponent_params(0.0, 1.5, 1.0, 0.03125),
+                get_normalizer_from_exponent_params(
+                    0.75, 1.5, 1.0 * 1.2, 0.03125 * 1.2
+                ),
+            ],
+            slmode="np",
+        )
+        cls.norm_list_nst = FeatNormalizerList(
+            [
+                None,
+                DensityNormalizer(0.25 / (3 * np.pi**2) ** (2.0 / 3), -8.0 / 3),
+                DensityNormalizer(10.0 / 3 / (3 * np.pi**2) ** (2.0 / 3), -5.0 / 3),
+                ConstantNormalizer(3.14),
+                DensityNormalizer(1.2, 0.75),
+                get_normalizer_from_exponent_params(0.0, 1.5, 1.0, 0.03125),
+                get_normalizer_from_exponent_params(
+                    0.75, 1.5, 1.0 * 1.2, 0.03125 * 1.2
+                ),
+            ],
+            slmode="nst",
+        )
+        cls.norm_list_ns = FeatNormalizerList(
+            [
+                None,
+                DensityNormalizer(0.25 / (3 * np.pi**2) ** (2.0 / 3), -8.0 / 3),
+                ConstantNormalizer(3.14),
+                DensityNormalizer(1.2, 0.75),
+                get_normalizer_from_exponent_params(0.0, 1.5, 1.0, 0.03125),
+                get_normalizer_from_exponent_params(
+                    0.75, 1.5, 1.0 * 1.2, 0.03125 * 1.2
+                ),
+            ],
+            slmode="ns",
         )
 
     def test_evaluate(self):
@@ -148,6 +215,120 @@ class TestFeatNormalizer(unittest.TestCase):
         scaled_ref = lambd ** (usps[None, :, None]) * feat
         for i in range(scaled_ref.shape[1]):
             assert_almost_equal(scaled_feat[:, i], scaled_ref[:, i])
+
+    def test_evaluate_nst(self):
+        feat_ref = self.norm_list.get_normalized_feature_vector(self.x)
+        feat_ref[:, 2] += 5.0 / 3 * feat_ref[:, 1]
+        feat = self.norm_list_nst.get_normalized_feature_vector(self.x_nst)
+        dfeat_ref = self.norm_list.get_derivative_of_normed_features(self.x[0], self.dx)
+        dfeat_ref[2] += 5.0 / 3 * dfeat_ref[1]
+        dfeat = self.norm_list_nst.get_derivative_of_normed_features(
+            self.x_nst[0], self.dx_nst
+        )
+        featp = self.norm_list_nst.get_normalized_feature_vector(
+            self.x_nst + DELTA * self.dx_nst
+        )
+        featm = self.norm_list_nst.get_normalized_feature_vector(
+            self.x_nst - DELTA * self.dx_nst
+        )
+        dfeat_ref2 = ((featp - featm) / (2 * DELTA))[0]
+        for i in range(self.norm_list.nfeat):
+            assert_almost_equal(feat[:, i], feat_ref[:, i])
+            assert_almost_equal(dfeat[i], dfeat_ref[i])
+            assert_almost_equal(dfeat[i], dfeat_ref2[i])
+        v = 2 * feat
+        vfeat = self.norm_list_nst.get_derivative_wrt_unnormed_features(self.x_nst, v)
+        for i in range(self.norm_list.nfeat):
+            x = self.x_nst.copy()
+            x[:, i] += 0.5 * DELTA
+            featp = self.norm_list_nst.get_normalized_feature_vector(x)
+            ep = (featp**2).sum(axis=1)
+            x[:, i] -= DELTA
+            featm = self.norm_list_nst.get_normalized_feature_vector(x)
+            em = (featm**2).sum(axis=1)
+            assert_almost_equal(vfeat[:, i], (ep - em) / DELTA, 5)
+        usps = self.norm_list_nst.get_usps()
+        usps_ref = self.norm_list.get_usps()
+        muls = [0, 8, 5, 0, 0, 0]
+        for usp, usp_ref, mul in zip(usps, usps_ref, muls):
+            assert usp + mul == usp_ref, "{} {} {}".format(usp, usp_ref, mul)
+
+    def test_evaluate_np(self):
+        feat_ref = self.norm_list.get_normalized_feature_vector(self.x_1e)
+        assert_almost_equal(feat_ref[:, 2], 0)
+        feat_ref = feat_ref[:, [0, 1, 3, 4, 5, 6]]
+        feat = self.norm_list_np.get_normalized_feature_vector(self.x_np)
+        dfeat_ref = self.norm_list.get_derivative_of_normed_features(
+            self.x_1e[0], self.dx_1e
+        )
+        dfeat_ref = dfeat_ref[[0, 1, 3, 4, 5, 6]]
+        dfeat = self.norm_list_np.get_derivative_of_normed_features(
+            self.x_np[0], self.dx_np
+        )
+        featp = self.norm_list_np.get_normalized_feature_vector(
+            self.x_np + DELTA * self.dx_np
+        )
+        featm = self.norm_list_np.get_normalized_feature_vector(
+            self.x_np - DELTA * self.dx_np
+        )
+        dfeat_ref2 = ((featp - featm) / (2 * DELTA))[0]
+        for i in range(self.norm_list_np.nfeat):
+            assert_almost_equal(feat[:, i], feat_ref[:, i])
+            assert_almost_equal(dfeat[i], dfeat_ref[i])
+            assert_almost_equal(dfeat[i], dfeat_ref2[i])
+        v = 2 * feat
+        vfeat = self.norm_list_np.get_derivative_wrt_unnormed_features(self.x_np, v)
+        for i in range(self.norm_list_np.nfeat):
+            x = self.x_np.copy()
+            x[:, i] += 0.5 * DELTA
+            featp = self.norm_list_np.get_normalized_feature_vector(x)
+            ep = (featp**2).sum(axis=1)
+            x[:, i] -= DELTA
+            featm = self.norm_list_np.get_normalized_feature_vector(x)
+            em = (featm**2).sum(axis=1)
+            assert_almost_equal(vfeat[:, i], (ep - em) / DELTA, 5)
+        usps = self.norm_list_np.get_usps()
+        usps_ref = np.array(self.norm_list.get_usps())[[0, 1, 3, 4, 5, 6]]
+        muls = [0, 0, 0, 0, 0, 0]
+        for usp, usp_ref, mul in zip(usps, usps_ref, muls):
+            assert usp + mul == usp_ref, "{} {} {}".format(usp, usp_ref, mul)
+
+    def test_evaluate_ns(self):
+        feat_ref = self.norm_list_np.get_normalized_feature_vector(self.x_np)
+        feat = self.norm_list_ns.get_normalized_feature_vector(self.x_ns)
+        dfeat_ref = self.norm_list_np.get_derivative_of_normed_features(
+            self.x_np[0], self.dx_np
+        )
+        dfeat = self.norm_list_ns.get_derivative_of_normed_features(
+            self.x_ns[0], self.dx_ns
+        )
+        featp = self.norm_list_ns.get_normalized_feature_vector(
+            self.x_ns + DELTA * self.dx_ns
+        )
+        featm = self.norm_list_ns.get_normalized_feature_vector(
+            self.x_ns - DELTA * self.dx_ns
+        )
+        dfeat_ref2 = ((featp - featm) / (2 * DELTA))[0]
+        for i in range(self.norm_list_np.nfeat):
+            assert_almost_equal(feat[:, i], feat_ref[:, i])
+            assert_almost_equal(dfeat[i], dfeat_ref[i])
+            assert_almost_equal(dfeat[i], dfeat_ref2[i])
+        v = 2 * feat
+        vfeat = self.norm_list_ns.get_derivative_wrt_unnormed_features(self.x_ns, v)
+        for i in range(self.norm_list_np.nfeat):
+            x = self.x_ns.copy()
+            x[:, i] += 0.5 * DELTA
+            featp = self.norm_list_ns.get_normalized_feature_vector(x)
+            ep = (featp**2).sum(axis=1)
+            x[:, i] -= DELTA
+            featm = self.norm_list_ns.get_normalized_feature_vector(x)
+            em = (featm**2).sum(axis=1)
+            assert_almost_equal(vfeat[:, i], (ep - em) / DELTA, 5)
+        usps = self.norm_list_ns.get_usps()
+        usps_ref = self.norm_list_np.get_usps()
+        muls = [0, 8, 0, 0, 0]
+        for usp, usp_ref, mul in zip(usps, usps_ref, muls):
+            assert usp + mul == usp_ref, "{} {} {}".format(usp, usp_ref, mul)
 
 
 if __name__ == "__main__":
