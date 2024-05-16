@@ -87,13 +87,11 @@ class LCAONLDFGenerator:
         idx_map = self.grids_indexer.idx_map
         ngrids = self.grids_indexer.idx_map.size
 
-        sigma_in = np.einsum("xg,xg->g", rho_in[1:4], rho_in[1:4])
-        arg_in_g = self.plan.get_interpolation_arguments(
-            rho_in[0], sigma_in, rho_in[4], i=-1
-        )
-        func_in_g = self.plan.get_function_to_convolve(rho_in[0], sigma_in, rho_in[4])
-        arg_in_g, darg_in_g = arg_in_g[0], arg_in_g[1:]
-        func_in_g, dfunc_in_g = func_in_g[0], func_in_g[1:]
+        rho_tuple = self.plan.get_rho_tuple(rho_in)
+        arg_in_g = self.plan.get_interpolation_arguments(rho_tuple, i=-1)
+        func_in_g = self.plan.get_function_to_convolve(rho_tuple)
+        arg_in_g, darg_in_g = arg_in_g[0], arg_in_g[1]
+        func_in_g, dfunc_in_g = func_in_g[0], func_in_g[1]
         arg_g = np.zeros(ngrids_ato)
         func_g = np.zeros(ngrids_ato)
         arg_g[idx_map] = arg_in_g[:ngrids]
@@ -107,9 +105,7 @@ class LCAONLDFGenerator:
         # do contractions to get features
         feat, dfeat = self.plan.eval_rho_full(
             f_gq,
-            rho_in[0],
-            rho_in[1:4],
-            rho_in[4],
+            rho_in,
             apply_transformation=False,
             spin=spin,
         )
@@ -138,13 +134,11 @@ class LCAONLDFGenerator:
         idx_map = self.grids_indexer.idx_map
         ngrids = self.grids_indexer.idx_map.size
 
-        sigma_in = np.einsum("xg,xg->g", rho_in[1:4], rho_in[1:4])
-        arg_in_g = self.plan.get_interpolation_arguments(
-            rho_in[0], sigma_in, rho_in[4], i=-1
-        )
-        func_in_g = self.plan.get_function_to_convolve(rho_in[0], sigma_in, rho_in[4])
-        arg_in_g, darg_in_g = arg_in_g[0], arg_in_g[1:]
-        func_in_g, dfunc_in_g = func_in_g[0], func_in_g[1:]
+        rho_tuple = self.plan.get_rho_tuple(rho_in)
+        arg_in_g = self.plan.get_interpolation_arguments(rho_tuple, i=-1)
+        func_in_g = self.plan.get_function_to_convolve(rho_tuple)
+        arg_in_g, darg_in_g = arg_in_g[0], arg_in_g[1]
+        func_in_g, dfunc_in_g = func_in_g[0], func_in_g[1]
         arg_g = np.zeros(ngrids_ato)
         func_g = np.zeros(ngrids_ato)
         arg_g[idx_map] = arg_in_g[:ngrids]
@@ -156,25 +150,20 @@ class LCAONLDFGenerator:
         f_gq = self._perform_fwd_convolution(theta_gq)
         start = 0 if self.plan.nldf_settings.nldf_type == "i" else self.plan.nalpha
         start += len(self.plan.nldf_settings.l0_feat_specs)
-        feat = self.plan.eval_rho_full(
-            f_gq, rho_out[0], rho_out[1:4], rho_out[4], apply_transformation=False
-        )[0]
+        feat = self.plan.eval_rho_full(f_gq, rho_out, apply_transformation=False)[0]
         occd_feats = []
 
         for iorb in range(orb_rho_in_iorb.shape[0]):
             orb_rho_in = orb_rho_in_iorb[iorb]
             orb_rho_out = orb_rho_out_iorb[iorb]
             occd_sigma_in = 2 * np.einsum("xg,xg", rho_in[1:4], orb_rho_in[1:4])
-            occd_arg_in_g = (
-                orb_rho_in[0] * darg_in_g[0]
-                + occd_sigma_in * darg_in_g[1]
-                + orb_rho_in[4] * darg_in_g[2]
-            )
+            occd_arg_in_g = orb_rho_in[0] * darg_in_g[0] + occd_sigma_in * darg_in_g[1]
             occd_func_in_g = (
-                orb_rho_in[0] * dfunc_in_g[0]
-                + occd_sigma_in * dfunc_in_g[1]
-                + orb_rho_in[4] * dfunc_in_g[2]
+                orb_rho_in[0] * dfunc_in_g[0] + occd_sigma_in * dfunc_in_g[1]
             )
+            if self.plan.nldf_settings.sl_level == "MGGA":
+                occd_arg_in_g[:] += orb_rho_in[4] * darg_in_g[2]
+                occd_func_in_g[:] += orb_rho_in[4] * dfunc_in_g[2]
             occd_arg_g = np.zeros(ngrids_ato)
             occd_func_g = np.zeros(ngrids_ato)
             occd_arg_g[idx_map] = occd_arg_in_g[:ngrids]
@@ -186,13 +175,9 @@ class LCAONLDFGenerator:
             occd_f_gq = self._perform_fwd_convolution(occd_theta_gq)
             occd_feat = self.plan.eval_occd_full(
                 f_gq,
-                rho_out[0],
-                rho_out[1:4],
-                rho_out[4],
+                rho_out,
                 occd_f_gq,
-                orb_rho_out[0],
-                orb_rho_out[1:4],
-                orb_rho_out[4],
+                orb_rho_out,
                 apply_transformation=False,
             )
             occd_feats.append(occd_feat)
@@ -212,13 +197,9 @@ class LCAONLDFGenerator:
         vf_gq = np.zeros((vfeat.shape[1], self.interpolator.num_out))
         vf_gq = self.plan.eval_vxc_full(
             vfeat,
-            vrho_out[0],
-            vrho_out[1:4],
-            vrho_out[4],
+            vrho_out,
             cache["dfeat"],
-            cache["rho_in"][0],
-            cache["rho_in"][1:4],
-            cache["rho_in"][4],
+            cache["rho_in"],
             vf=vf_gq,
             spin=spin,
         )
@@ -240,8 +221,10 @@ class LCAONLDFGenerator:
             * 2
             * cache["rho_in"][1:4]
         )
-        vrho_out[4] += (
-            varg_out_g * cache["darg_in_g"][2] + vfunc_out_g * cache["dfunc_in_g"][2]
-        )
+        if self.plan.nldf_settings.sl_level == "MGGA":
+            vrho_out[4] += (
+                varg_out_g * cache["darg_in_g"][2]
+                + vfunc_out_g * cache["dfunc_in_g"][2]
+            )
         # self._cache[spin] = None
         return vrho_out

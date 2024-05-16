@@ -146,7 +146,7 @@ class PyscfNLDFGenerator(LCAONLDFGenerator):
         grids_indexer,
         nspin,
         nldf_settings,
-        plan_type="spline",
+        plan_type="gaussian",
         lmax=None,
         aux_lambd=1.6,
         aug_beta=None,

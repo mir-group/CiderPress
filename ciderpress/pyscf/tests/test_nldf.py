@@ -61,14 +61,18 @@ class _TestNLDFBase:
         feat_params = [[2.0, 0.0, 0.04] for i in range(4)]
         feat_params[-1].append(2.0)
         cls.vi_settings = NLDFSettingsVI(
+            "MGGA",
             theta_params,
             "one",
             l0_specs,
             l1_specs,
             l1_dots,
         )
-        cls.vj_settings = NLDFSettingsVJ(theta_params, "one", vj_specs, feat_params)
+        cls.vj_settings = NLDFSettingsVJ(
+            "MGGA", theta_params, "one", vj_specs, feat_params
+        )
         cls.vij_settings = NLDFSettingsVIJ(
+            "MGGA",
             theta_params,
             "one",
             l0_specs,
@@ -78,6 +82,7 @@ class _TestNLDFBase:
             feat_params,
         )
         cls.vk_settings = NLDFSettingsVK(
+            "MGGA",
             theta_params,
             "one",
             feat_params[:3],

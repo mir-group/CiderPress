@@ -79,7 +79,7 @@ def nr_rks(
     if relativity != 0:
         raise NotImplementedError
 
-    xctype = "MGGA"
+    xctype = ni.settings.sl_settings.level
     ni.initialize_feature_generators(mol, grids, 1)
 
     make_rho, nset, nao = ni._gen_rho_evaluator(mol, dms, hermi, False, grids)
@@ -182,7 +182,7 @@ def nr_uks(
     if relativity != 0:
         raise NotImplementedError
 
-    xctype = "MGGA"
+    xctype = ni.settings.sl_settings.level
     ni.initialize_feature_generators(mol, grids, 2)
 
     dma, dmb = numint._format_uks_dm(dms)
@@ -323,7 +323,7 @@ def nr_rks_nldf(
     if relativity != 0:
         raise NotImplementedError
 
-    xctype = "MGGA"
+    xctype = ni.settings.sl_settings.level
     ni.initialize_feature_generators(mol, grids, 1)
     assert ni.has_nldf
 
@@ -338,7 +338,7 @@ def nr_rks_nldf(
     nelec = np.zeros(nset)
     excsum = np.zeros(nset)
     vmat = np.zeros((nset, nao, nao))
-    nrho = 5
+    nrho = 5 if xctype == "MGGA" else 4
     if not ni.settings.nlof_settings.is_empty:
         nrho += ni.settings.nlof_settings.nrho
     rho_full = np.zeros((nset, nrho, grids.weights.size), dtype=np.float64, order="C")
@@ -389,7 +389,6 @@ def nr_rks_nldf(
                     )
                 else:
                     sdmx_feat = None
-                print((nldf_feat[idm] * weight).sum(axis=-1))
                 exc, (vxc, vxc_nldf, vxc_sdmx) = ni.eval_xc_cider(
                     xc_code,
                     rho,
@@ -448,7 +447,7 @@ def nr_uks_nldf(
     if relativity != 0:
         raise NotImplementedError
 
-    xctype = "MGGA"
+    xctype = ni.settings.sl_settings.level
     ni.initialize_feature_generators(mol, grids, 2)
 
     dma, dmb = numint._format_uks_dm(dms)
@@ -472,7 +471,7 @@ def nr_uks_nldf(
     nelec = np.zeros((2, nset))
     excsum = np.zeros(nset)
     vmat = np.zeros((2, nset, nao, nao))
-    nrho = 5
+    nrho = 5 if xctype == "MGGA" else 4
     if not ni.settings.nlof_settings.is_empty:
         nrho += ni.settings.nlof_settings.nrho
     rhoa_full = np.zeros((nset, nrho, grids.weights.size), dtype=np.float64, order="C")
@@ -853,14 +852,15 @@ class CiderNumInt(CiderNumIntMixin, numint.NumInt):
         vmat, v1 = vmats
         aow = buffers
         wv[0] *= 0.5
-        wv[4] *= 0.5
         aow = _scale_ao_sparse(ao[:4], wv[:4], mask, ao_loc, out=aow)
         vmat = _dot_ao_ao_sparse(
             ao[0], aow, None, nbins, mask, pair_mask, ao_loc, hermi=0, out=vmat
         )
-        v1 = _tau_dot_sparse(
-            ao, ao, wv[4], nbins, mask, pair_mask, ao_loc, out=v1, aow=aow
-        )
+        if len(wv) > 4:
+            wv[4] *= 0.5
+            v1 = _tau_dot_sparse(
+                ao, ao, wv[4], nbins, mask, pair_mask, ao_loc, out=v1, aow=aow
+            )
         return (vmat, v1), aow
 
     def block_loop(

@@ -260,20 +260,40 @@ class FeatNormalizerList:
         if x.shape[-2] != self.nfeat:
             raise ValueError("Array must have size nfeat")
 
+    def _get_rho_and_inh(self, X0T):
+        rho_term = X0T[:, 0]
+        grad_term = X0T[:, 1]
+        tau_term = X0T[:, 2]
+        if self.slmode == "npa":
+            inh_term = tau_term + 5.0 / 3 * grad_term
+        elif self.slmode == "nst":
+            inh_term = tau_term / (CFC * rho_term ** (5.0 / 3))
+        elif self.slmode == "np":
+            inh_term = 5.0 / 3 * grad_term
+        else:
+            inh_term = grad_term / (8 * CFC * rho_term ** (8.0 / 3))
+        rho_term = np.maximum(rho_term, self.cutoff)
+        return rho_term, inh_term
+
+    def _get_drho_and_dinh(self, X0T, DX0T):
+        drho = DX0T[0]
+        grad_term = DX0T[1]
+        tau_term = DX0T[2]
+        if self.slmode == "npa":
+            dinh = tau_term + 5.0 / 3 * grad_term
+        elif self.slmode == "nst":
+            dinh = 0  # TODO
+        elif self.slmode == "np":
+            dinh = 5.0 / 3 * grad_term
+        return drho, dinh
+
     def get_normalized_feature_vector(self, X0T):
         # This function should be in the settings class, rather than
         # a plan, because it is called from models, which do not
         # require knowledge of the plan.
         self._check_shape(X0T)
         X0TN = np.empty_like(X0T)
-        rho_term = X0T[:, 0]
-        grad_term = X0T[:, 1]
-        tau_term = X0T[:, 2]
-        if self.slmode == "npa":
-            inh_term = tau_term + 5.0 / 3 * grad_term
-        else:
-            inh_term = tau_term
-        rho_term = np.maximum(rho_term, self.cutoff)
+        rho_term, inh_term = self._get_rho_and_inh(X0T)
         nfeat = self.nfeat
         for i in range(nfeat):
             if self[i] is not None:
@@ -286,13 +306,8 @@ class FeatNormalizerList:
         self._check_shape(X0T, ndim=2)
         self._check_shape(DX0T, ndim=2)
         DX0TN = np.empty_like(DX0T)
-        rho = X0T[0]
-        grad_term = X0T[1]
-        tau_term = X0T[2]
-        if self.slmode == "npa":
-            inh = tau_term + 5.0 / 3 * grad_term
-        else:
-            inh = tau_term
+        rho, inh = self._get_rho_and_inh(X0T[None, :])
+        rho, inh = rho[0], inh[0]
         drho = DX0T[0]
         grad_term = DX0T[1]
         tau_term = DX0T[2]

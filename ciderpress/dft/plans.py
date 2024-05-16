@@ -16,6 +16,7 @@ from ciderpress.dft.settings import (
     ds2,
     get_alpha,
     get_cider_exponent,
+    get_cider_exponent_gga,
     get_s2,
 )
 from ciderpress.lib import load_library as load_cider_library
@@ -223,9 +224,12 @@ class SemilocalPlan:
 
     def _fill_vxc_nst_(self, rho, vfeat, vxc):
         vxc[:, 0] += self.nspin * vfeat[:, 0]
-        vxc[:, 1:4] += (self.nspin * self.nspin * 2 * vfeat[:, 1])[:, None, :] * rho[
-            :, 1:4
-        ]
+        # fmt: off
+        vxc[:, 1:4] += (
+            (self.nspin * self.nspin * 2 * vfeat[:, 1])[:, None, :]
+            * rho[:, 1:4]
+        )
+        # fmt: on
         vxc[:, 4] += self.nspin * vfeat[:, 2]
 
     def _fill_vxc_np_(self, rho, vfeat, vxc):
@@ -237,9 +241,12 @@ class SemilocalPlan:
 
     def _fill_vxc_ns_(self, rho, vfeat, vxc):
         vxc[:, 0] += self.nspin * vfeat[:, 0]
-        vxc[:, 1:4] += (self.nspin * self.nspin * 2 * vfeat[:, 1])[:, None, :] * rho[
-            :, 1:4
-        ]
+        # fmt: off
+        vxc[:, 1:4] += (
+            (self.nspin * self.nspin * 2 * vfeat[:, 1])[:, None, :]
+            * rho[:, 1:4]
+        )
+        # fmt: on
 
     def get_vxc(self, rho, vfeat, vxc=None):
         assert rho.ndim == 3
@@ -1226,9 +1233,16 @@ class NLDFAuxiliaryPlan(ABC):
     def _get_extra_args(self, i):
         assert 0 <= i < self.nldf_settings.num_feat_param_sets
         params = self.nldf_settings.feat_params[i]
-        return [] if len(params) < 4 else params[3:]
+        # return [] if len(params) < 4 else params[3:]
+        # TODO this works for GGA and MGGA but not if there are
+        # multiple extra args for the feature specs. This might
+        # need to be revised later on.
+        if self.nldf_settings.feat_spec_list[i] == "se_erf_rinv":
+            return [params[-1]]
+        else:
+            return []
 
-    def get_function_to_convolve(self, rho, sigma, tau):
+    def get_function_to_convolve(self, rho_tuple):
         """
         Returns the function that gets convolved to make the nonlocal
         density features. Usually the density rho (settings.rho_mult='one'),
@@ -1241,29 +1255,35 @@ class NLDFAuxiliaryPlan(ABC):
             tau (np.ndarray): Kinetic energy density
 
         Returns:
-            function to convolve, as well as its derivatives with respect
-            to rho, sigma, and tau. Combined, this makes for a tuple of
-            four arrays.
+            tuple(np.ndarray): function to convolve, as well as its derivatives
+            with respect to rho, sigma, and tau. Combined, this makes for a
+            tuple of four arrays.
         """
+        rho = rho_tuple[0]
         if self.nldf_settings.rho_mult == "one":
-            return (
-                rho,
+            da = [
                 np.ones_like(rho),
-                np.zeros_like(rho),
-                np.zeros_like(rho),
-            )
+            ] + [np.zeros_like(r) for r in rho_tuple[1:]]
+            return rho, tuple(da)
         elif self.nldf_settings.rho_mult == "expnt":
-            a, dadn, dads, dadt = self.eval_feat_exp(rho, sigma, tau, i=-1)
-            dadn[:] *= rho
-            dadn[:] += a
-            dads[:] *= rho
-            dadt[:] *= rho
+            a, da_tuple = self.eval_feat_exp(rho_tuple, i=-1)
+            for da in da_tuple:
+                da[:] *= rho
+            da_tuple[0][:] += a
             a[:] *= rho
-            return a, dadn, dads, dadt
+            return a, da_tuple
         else:
             raise NotImplementedError
 
-    def eval_feat_exp(self, rho, sigma, tau, i=-1):
+    def get_rho_tuple(self, rho_data):
+        drho = rho_data[1:4]
+        sigma = np.einsum("xg,xg->g", drho, drho)
+        if self.nldf_settings.sl_level == "MGGA":
+            return rho_data[0], sigma, rho_data[4]
+        else:
+            return rho_data[0], sigma
+
+    def eval_feat_exp(self, rho_tuple, i=-1):
         """
         Evaluate the exponents that determine the length-scale
         of feature i at each grid point. i can take a range
@@ -1279,22 +1299,42 @@ class NLDFAuxiliaryPlan(ABC):
         Returns:
             the cider exponent array (np.ndarray)
         """
-        if i == -1:
-            a0, grad_mul, tau_mul = self.nldf_settings.theta_params
+        if self.nldf_settings.sl_level == "MGGA":
+            rho, sigma, tau = rho_tuple
+            if i == -1:
+                a0, grad_mul, tau_mul = self.nldf_settings.theta_params
+            else:
+                if not 0 <= i < self.nldf_settings.num_feat_param_sets:
+                    raise ValueError("Feature index out of range")
+                a0, grad_mul, tau_mul = self.nldf_settings.feat_params[i][:3]
+            a, dadn, dadsigma, dadtau = get_cider_exponent(
+                rho,
+                sigma,
+                tau,
+                a0=a0,
+                grad_mul=grad_mul,
+                tau_mul=tau_mul,
+                rhocut=self.rhocut,
+                nspin=self.nspin,
+            )
+            return a, (dadn, dadsigma, dadtau)
         else:
-            if not 0 <= i < self.nldf_settings.num_feat_param_sets:
-                raise ValueError("Feature index out of range")
-            a0, grad_mul, tau_mul = self.nldf_settings.feat_params[i][:3]
-        return get_cider_exponent(
-            rho,
-            sigma,
-            tau,
-            a0=a0,
-            grad_mul=grad_mul,
-            tau_mul=tau_mul,
-            rhocut=self.rhocut,
-            nspin=self.nspin,
-        )
+            rho, sigma = rho_tuple
+            if i == -1:
+                a0, grad_mul = self.nldf_settings.theta_params[:2]
+            else:
+                if not 0 <= i < self.nldf_settings.num_feat_param_sets:
+                    raise ValueError("Feature index out of range")
+                a0, grad_mul = self.nldf_settings.feat_params[i][:2]
+            a, dadn, dadsigma = get_cider_exponent_gga(
+                rho,
+                sigma,
+                a0=a0,
+                grad_mul=grad_mul,
+                rhocut=self.rhocut,
+                nspin=self.nspin,
+            )
+            return a, (dadn, dadsigma)
 
     def _clear_l1_cache(self, s):
         self._cached_l1_data[s] = []
@@ -1372,9 +1412,7 @@ class NLDFAuxiliaryPlan(ABC):
     def eval_rho_full(
         self,
         f,
-        rho,
-        drho,
-        tau,
+        rho_data,
         spin=0,
         feat=None,
         dfeat=None,
@@ -1385,7 +1423,7 @@ class NLDFAuxiliaryPlan(ABC):
 
         Args:
             f:
-            rho:
+            rho: [n, dn/dx, dn/dy, dn/dz, (tau)]
             drho:
             tau:
             feat:
@@ -1400,7 +1438,7 @@ class NLDFAuxiliaryPlan(ABC):
         else:
             f_qg = f.T
         ngrids = f_qg.shape[1]
-        sigma = np.einsum("xg,xg->g", drho, drho)
+        rho_tuple = self.get_rho_tuple(rho_data)
         num_vj = self.nldf_settings.num_feat_param_sets
         if feat is None:
             feat = np.empty((self.nldf_settings.nfeat, f_qg.shape[1]))
@@ -1409,9 +1447,7 @@ class NLDFAuxiliaryPlan(ABC):
         self._clear_p_cache(spin)
         dbuf = self.empty_coefs(ngrids, local=False)
         for i in range(num_vj):
-            a_g, dadrho_g, dadsigma_g, dadtau_g = self.get_interpolation_arguments(
-                rho, sigma, tau, i=i
-            )
+            a_g = self.get_interpolation_arguments(rho_tuple, i=i)[0]
             p, dp = self.get_interpolation_coefficients(a_g, i=i, dbuf=dbuf)
             if apply_transformation:
                 self.get_transformed_interpolation_terms(p, i=i, fwd=True, inplace=True)
@@ -1425,7 +1461,7 @@ class NLDFAuxiliaryPlan(ABC):
         start = 0 if self.nldf_settings.nldf_type == "i" else self.nalpha
         self._clear_l1_cache(spin)
         if "i" in self.nldf_settings.nldf_type:
-            self.eval_rho_vi_(f_qg[start:], drho, feat[num_vj:], spin=spin)
+            self.eval_rho_vi_(f_qg[start:], rho_data[1:4], feat[num_vj:], spin=spin)
         feat[:] *= self.nspin
         # dfeat[:] *= self.nspin
         return feat, dfeat
@@ -1433,13 +1469,9 @@ class NLDFAuxiliaryPlan(ABC):
     def eval_occd_full(
         self,
         f,
-        rho,
-        drho,
-        tau,
+        rho_data,
         occd_f,
-        occd_rho,
-        occd_drho,
-        occd_tau,
+        occd_rho_data,
         apply_transformation=True,
     ):
         spin = 0
@@ -1452,20 +1484,19 @@ class NLDFAuxiliaryPlan(ABC):
             f_qg = f.T
             occd_f_qg = occd_f.T
         ngrids = f_qg.shape[1]
-        sigma = np.einsum("xg,xg->g", drho, drho)
-        occd_sigma = 2 * np.einsum("xg,xg->g", drho, occd_drho)
+        rho_tuple = self.get_rho_tuple(rho_data)
+        occd_sigma = 2 * np.einsum("xg,xg->g", rho_data[1:4], occd_rho_data[1:4])
         num_vj = self.nldf_settings.num_feat_param_sets
         occd1_feat = np.zeros((self.nldf_settings.nfeat, f_qg.shape[1]))
         occd2_feat = np.zeros((self.nldf_settings.nfeat, f_qg.shape[1]))
         dbuf = self.empty_coefs(ngrids, local=False)
         for i in range(num_vj):
-            a_g, dadrho_g, dadsigma_g, dadtau_g = self.get_interpolation_arguments(
-                rho, sigma, tau, i=i
-            )
+            a_g, da_tuple = self.get_interpolation_arguments(rho_tuple, i=i)
             p, dp = self.get_interpolation_coefficients(a_g, i=i, dbuf=dbuf)
-            occd_a_g = (
-                occd_rho * dadrho_g + occd_sigma * dadsigma_g + occd_tau * dadtau_g
-            )
+            occd_a_g = occd_rho_data[0] * da_tuple[0]
+            occd_a_g[:] += occd_sigma * da_tuple[1]
+            if self.nldf_settings.sl_level == "MGGA":
+                occd_a_g[:] += occd_rho_data[4] * da_tuple[2]
             if self.coef_order == "qg":
                 dp *= occd_a_g
             else:
@@ -1479,10 +1510,10 @@ class NLDFAuxiliaryPlan(ABC):
             self.eval_rho_vj_(occd_f_qg[: self.nalpha], [p], occd2_feat[i : i + 1])
         start = 0 if self.nldf_settings.nldf_type == "i" else self.nalpha
         self._clear_l1_cache(spin)
-        self._cache_l1_vectors(f_qg[start:], drho, spin)
+        self._cache_l1_vectors(f_qg[start:], rho_data[1:4], spin)
         l1_vals = [v for v in self._cached_l1_data[spin]]
         self._clear_l1_cache(spin)
-        self._cache_l1_vectors(occd_f_qg[start:], occd_drho, spin)
+        self._cache_l1_vectors(occd_f_qg[start:], occd_rho_data[1:4], spin)
         l1_occd = [v for v in self._cached_l1_data[spin]]
         i = 0
         for loc in self._l0_start_locs:
@@ -1498,13 +1529,9 @@ class NLDFAuxiliaryPlan(ABC):
     def eval_vxc_full(
         self,
         vfeat,
-        vrho,
-        vdrho,
-        vtau,
+        vrho_data,
         dfeat,
-        rho,
-        drho,
-        tau,
+        rho_data,
         spin=0,
         p_i_qg=None,
         vf=None,
@@ -1549,21 +1576,20 @@ class NLDFAuxiliaryPlan(ABC):
             start = self.nalpha
             self.eval_vxc_vj_(vfeat[:num_vj], p_i_qg, vf_qg[:start])
         if "i" in self.nldf_settings.nldf_type:
-            self.eval_vxc_vi_(vfeat[num_vj:], vdrho, vf_qg[start:], spin)
+            self.eval_vxc_vi_(vfeat[num_vj:], vrho_data[1:4], vf_qg[start:], spin)
         num_vj = self.nldf_settings.num_feat_param_sets
-        sigma = np.einsum("xg,xg->g", drho, drho)
+        rho_tuple = self.get_rho_tuple(rho_data)
         for i in range(num_vj):
-            a_g, dadrho_g, dadsigma_g, dadtau_g = self.get_interpolation_arguments(
-                rho, sigma, tau, i=i
-            )
-            vrho[:] += dadrho_g * dfeat[i] * vfeat[i]
-            vdrho[:] += 2 * drho * dadsigma_g * dfeat[i] * vfeat[i]
-            vtau[:] += dadtau_g * dfeat[i] * vfeat[i]
+            da_tuple = self.get_interpolation_arguments(rho_tuple, i=i)[1]
+            vrho_data[0, :] += da_tuple[0] * dfeat[i] * vfeat[i]
+            vrho_data[1:4, :] += 2 * rho_data[1:4] * da_tuple[1] * dfeat[i] * vfeat[i]
+            if self.nldf_settings.sl_level == "MGGA":
+                vrho_data[4, :] += da_tuple[2] * dfeat[i] * vfeat[i]
         # self._clear_p_cache(spin)
         return vf_qg if self.coef_order == "qg" else vf_qg.T
 
     @abstractmethod
-    def _get_interpolation_arguments(self, rho, sigma, tau, i=-1):
+    def _get_interpolation_arguments(self, rho_tuple, i=-1):
         pass
 
     @abstractmethod
@@ -1574,11 +1600,11 @@ class NLDFAuxiliaryPlan(ABC):
     def _get_transformed_interpolation_terms(self, p_xx, i=-1, fwd=True, inplace=False):
         pass
 
-    def get_interpolation_arguments(self, rho, sigma, tau, i=-1):
+    def get_interpolation_arguments(self, rho_tuple, i=-1):
         if i == -1 and self.nldf_settings.nldf_type == "k":
-            return self.eval_feat_exp(rho, sigma, tau, i=i)
+            return self.eval_feat_exp(rho_tuple, i=i)
         else:
-            return self._get_interpolation_arguments(rho, sigma, tau, i=i)
+            return self._get_interpolation_arguments(rho_tuple, i=i)
 
     def get_interpolation_coefficients(self, arg_g, i=-1, vbuf=None, dbuf=None):
         if not (-1 <= i < self.nldf_settings.num_feat_param_sets):
@@ -1655,11 +1681,15 @@ class NLDFGaussianPlan(NLDFAuxiliaryPlan):
             self, self.alphas, i=-1, local=False
         )
         ovlp *= self.alpha_norms[None, :] * self.alpha_norms[:, None]
-        ref = np.identity(ovlp.shape[0]) * self.alpha_norms[:, None]
-        self._alpha_transform = _stable_solve(ovlp, ref)
+        self._dmul = False
+        if self._dmul:
+            ref = np.identity(ovlp.shape[0]) * self.alpha_norms[:, None]
+            self._alpha_transform = _stable_solve(ovlp, ref)
+        else:
+            self._alpha_transform = ovlp
 
-    def _get_interpolation_arguments(self, rho, sigma, tau, i=-1):
-        return self.eval_feat_exp(rho, sigma, tau, i=i)
+    def _get_interpolation_arguments(self, rho_tuple, i=-1):
+        return self.eval_feat_exp(rho_tuple, i=i)
 
     def _get_interpolation_coefficients(
         self, arg_g, i=-1, local=True, vbuf=None, dbuf=None
@@ -1693,11 +1723,25 @@ class NLDFGaussianPlan(NLDFAuxiliaryPlan):
             p_qu = p_xx.transpose()
         else:
             p_qu = p_xx
-        # TODO parallelize with openmp
-        if inplace:
-            p_qu[:] = transform.dot(p_qu)
+        if self._dmul:
+            # TODO parallelize with openmp
+            if inplace:
+                p_qu[:] = transform.dot(p_qu)
+            else:
+                p_qu = transform.dot(p_qu)
         else:
-            p_qu = transform.dot(p_qu)
+            if inplace:
+                if fwd:
+                    p_qu[:] *= self.alpha_norms[:, None]
+                p_qu[:] = _stable_solve(transform, p_qu)
+                if not fwd:
+                    p_qu[:] *= self.alpha_norms[:, None]
+            else:
+                if fwd:
+                    p_qu = self.alpha_norms[:, None] * p_qu
+                p_qu = _stable_solve(transform, p_qu)
+                if not fwd:
+                    p_qu = self.alpha_norms[:, None] * p_qu
         if self.coef_order == "gq":
             p_xx = p_qu.T
         else:
@@ -1804,13 +1848,12 @@ class NLDFSplinePlan(NLDFAuxiliaryPlan):
             derivi[:] *= (self._spline_size - 1) / (self.nalpha - 1)
         return di, derivi
 
-    def _get_interpolation_arguments(self, rho, sigma, tau, i=-1):
-        a_g, dadn_g, dadsigma_g, dadtau_g = self.eval_feat_exp(rho, sigma, tau, i=i)
+    def _get_interpolation_arguments(self, rho_tuple, i=-1):
+        a_g, da_tuple = self.eval_feat_exp(rho_tuple, i=i)
         di, derivi = self.get_a2q_fast(a_g)
-        dadn_g[:] *= derivi
-        dadsigma_g[:] *= derivi
-        dadtau_g[:] *= derivi
-        return di, dadn_g, dadsigma_g, dadtau_g
+        for da in da_tuple:
+            da[:] *= derivi
+        return di, da_tuple
 
     def _get_interpolation_coefficients(
         self, arg_g, i=-1, local=True, vbuf=None, dbuf=None

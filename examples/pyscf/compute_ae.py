@@ -103,6 +103,7 @@ def run_calc(mol, spinpol):
         )
         ks.small_rho_cutoff = 0.0
     ks.grids.level = 3
+    ks = ks.apply(scf.addons.remove_linear_dep_)
     etot = ks.kernel()
     return etot
 

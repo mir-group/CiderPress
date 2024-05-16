@@ -59,6 +59,7 @@ class TestUEGVector(unittest.TestCase):
         feat_params[3].append(2.0)
 
         isettings = NLDFSettingsVI(
+            "MGGA",
             theta_params,
             "one",
             l0_feat_specs=ALLOWED_I_SPECS_L0,
@@ -66,12 +67,14 @@ class TestUEGVector(unittest.TestCase):
             l1_feat_dots=[(-1, 0), (-1, 1), (0, 1)],
         )
         jsettings = NLDFSettingsVJ(
+            "MGGA",
             theta_params,
             "one",
             feat_specs=ALLOWED_J_SPECS,
             feat_params=feat_params,
         )
         ijsettings = NLDFSettingsVIJ(
+            "MGGA",
             theta_params,
             "one",
             l0_feat_specs_i=ALLOWED_I_SPECS_L0,
@@ -81,7 +84,11 @@ class TestUEGVector(unittest.TestCase):
             feat_params_j=feat_params,
         )
         ksettings = NLDFSettingsVK(
-            theta_params, "one", feat_params=feat_params_k, rho_damp="exponential"
+            "MGGA",
+            theta_params,
+            "one",
+            feat_params=feat_params_k,
+            rho_damp="exponential",
         )
 
         zero = np.zeros((1, 3))

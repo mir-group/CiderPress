@@ -182,14 +182,22 @@ class TestNLDFGaussianPlan(unittest.TestCase):
         i1specs = ["se_rvec", "se_grad"]
         i1dots = [(-1, 1), (-1, 0), (1, 0)]
         cls.example_vi_settings = NLDFSettingsVI(
+            "MGGA",
             thetap,
             "one",
             i0specs,
             i1specs,
             i1dots,
         )
-        cls.example_vj_settings = NLDFSettingsVJ(thetap, "one", feat_specs, feat_params)
+        cls.example_vj_settings = NLDFSettingsVJ(
+            "MGGA",
+            thetap,
+            "one",
+            feat_specs,
+            feat_params,
+        )
         cls.example_vij_settings = NLDFSettingsVIJ(
+            "MGGA",
             thetap,
             "one",
             i0specs,
@@ -199,6 +207,7 @@ class TestNLDFGaussianPlan(unittest.TestCase):
             feat_params,
         )
         cls.example_vk_settings = NLDFSettingsVK(
+            "MGGA",
             thetap,
             "one",
             feat_params[:2],
@@ -216,8 +225,15 @@ class TestNLDFGaussianPlan(unittest.TestCase):
         sigma = np.einsum("xg,xg->g", self.rho[1:4], self.rho[1:4])
         results = []
         for i in range(5):
-            results.append(plan.eval_feat_exp(self.rho[0], sigma, self.rho[4], i=i))
-        results.append(plan.eval_feat_exp(self.rho[0], sigma, self.rho[4], i=-1))
+            results.append(plan.eval_feat_exp((self.rho[0], sigma, self.rho[4]), i=i))
+        results.append(plan.eval_feat_exp((self.rho[0], sigma, self.rho[4]), i=-1))
+        for i in range(len(results)):
+            results[i] = [
+                results[i][0],
+                results[i][1][0],
+                results[i][1][1],
+                results[i][1][2],
+            ]
         for j in range(4):
             assert_equal(results[0][j], results[3][j])
             assert_equal(results[1][j], results[4][j])
@@ -227,11 +243,11 @@ class TestNLDFGaussianPlan(unittest.TestCase):
             rho_tmp = self.rho[0].copy()
             sigma_tmp = sigma.copy()
             tau_tmp = self.rho[4].copy()
-            a, dadn, dadsigma, dadtau = plan.eval_feat_exp(
-                rho_tmp, sigma_tmp, tau_tmp, i=i
+            a, (dadn, dadsigma, dadtau) = plan.eval_feat_exp(
+                (rho_tmp, sigma_tmp, tau_tmp), i=i
             )
-            a2, da2dn, da2dsigma, da2dtau = plan2.eval_feat_exp(
-                0.5 * rho_tmp, 0.25 * sigma_tmp, 0.5 * tau_tmp, i=i
+            a2, (da2dn, da2dsigma, da2dtau) = plan2.eval_feat_exp(
+                (0.5 * rho_tmp, 0.25 * sigma_tmp, 0.5 * tau_tmp), i=i
             )
             assert_almost_equal(a2, a, 12)
             assert_almost_equal(da2dn, 2 * dadn, 12)
@@ -241,16 +257,16 @@ class TestNLDFGaussianPlan(unittest.TestCase):
             derivs = [dadn, dadsigma, dadtau]
             for input, deriv in zip(inputs, derivs):
                 input[:] += 0.5 * DELTA
-                ap = plan.eval_feat_exp(rho_tmp, sigma_tmp, tau_tmp, i=i)[0]
+                ap = plan.eval_feat_exp((rho_tmp, sigma_tmp, tau_tmp), i=i)[0]
                 input[:] -= DELTA
-                am = plan.eval_feat_exp(rho_tmp, sigma_tmp, tau_tmp, i=i)[0]
+                am = plan.eval_feat_exp((rho_tmp, sigma_tmp, tau_tmp), i=i)[0]
                 input[:] += 0.5 * DELTA
                 assert_almost_equal(deriv, (ap - am) / DELTA, 7)
             rho_tiny = 5e-11 * np.ones_like(rho_tmp)
             sigma_tiny = sigma_tmp * rho_tiny**2 / rho_tmp**2
             tau_tiny = tau_tmp * rho_tiny / rho_tmp
-            a, dadn, dadsigma, dadtau = plan.eval_feat_exp(
-                rho_tiny, sigma_tiny, tau_tiny, i=i
+            a, (dadn, dadsigma, dadtau) = plan.eval_feat_exp(
+                (rho_tiny, sigma_tiny, tau_tiny), i=i
             )
             assert (dadn == 0).all()
             assert (dadsigma == 0).all()
@@ -271,33 +287,33 @@ class TestNLDFGaussianPlan(unittest.TestCase):
             rho_tmp = rho.copy()
             sigma_tmp = sigma.copy()
             tau_tmp = tau.copy()
-            a, dadn, dadsigma, dadtau = plan.get_interpolation_arguments(
-                rho_tmp, sigma_tmp, tau_tmp, i=i
+            a, (dadn, dadsigma, dadtau) = plan.get_interpolation_arguments(
+                (rho_tmp, sigma_tmp, tau_tmp), i=i
             )
             inputs = [rho_tmp, sigma_tmp, tau_tmp]
             derivs = [dadn, dadsigma, dadtau]
             for input, deriv in zip(inputs, derivs):
                 input[:] += 0.5 * DELTA
-                ap = plan.get_interpolation_arguments(rho_tmp, sigma_tmp, tau_tmp, i=i)[
-                    0
-                ]
+                ap = plan.get_interpolation_arguments(
+                    (rho_tmp, sigma_tmp, tau_tmp), i=i
+                )[0]
                 input[:] -= DELTA
-                am = plan.get_interpolation_arguments(rho_tmp, sigma_tmp, tau_tmp, i=i)[
-                    0
-                ]
+                am = plan.get_interpolation_arguments(
+                    (rho_tmp, sigma_tmp, tau_tmp), i=i
+                )[0]
                 input[:] += 0.5 * DELTA
                 assert_almost_equal(deriv, (ap - am) / DELTA, 7)
             rho_tiny = 5e-11 * np.ones_like(rho_tmp)
             sigma_tiny = sigma_tmp * rho_tiny**2 / rho_tmp**2
             tau_tiny = tau_tmp * rho_tiny / rho_tmp
-            a, dadn, dadsigma, dadtau = plan.eval_feat_exp(
-                rho_tiny, sigma_tiny, tau_tiny, i=i
+            a, (dadn, dadsigma, dadtau) = plan.eval_feat_exp(
+                (rho_tiny, sigma_tiny, tau_tiny), i=i
             )
             assert (dadn == 0).all()
             assert (dadsigma == 0).all()
             assert (dadtau == 0).all()
         try:
-            plan.get_interpolation_arguments(rho, sigma, tau, i=5)
+            plan.get_interpolation_arguments((rho, sigma, tau), i=5)
             raise AssertionError
         except ValueError:
             pass
@@ -310,8 +326,8 @@ class TestNLDFGaussianPlan(unittest.TestCase):
         feat_parts = self._get_feat(plan.alphas[:, None], "se", None)
         feat_parts *= plan.alpha_norms[:, None]
         for i in range(-1, 5):
-            exp_g = plan.eval_feat_exp(rho, sigma, tau, i=i)[0]
-            arg_g = plan.get_interpolation_arguments(rho, sigma, tau, i=i)[0]
+            exp_g = plan.eval_feat_exp((rho, sigma, tau), i=i)[0]
+            arg_g = plan.get_interpolation_arguments((rho, sigma, tau), i=i)[0]
             p, dp = plan.get_interpolation_coefficients(arg_g, i=i)
             p2, dp2 = np.empty_like(p), np.empty_like(p)
             plan.get_interpolation_coefficients(arg_g, i=i, vbuf=p2, dbuf=dp2)
@@ -379,11 +395,11 @@ class TestNLDFGaussianPlan(unittest.TestCase):
                 start = 0
             if isinstance(settings, (NLDFSettingsVI, NLDFSettingsVIJ)):
                 f[start:] = np.linspace(0.5, 1.5, f.shape[1])
-        feat, dfeat = plan.eval_rho_full(f, rho, drho, tau)
+        feat, dfeat = plan.eval_rho_full(f, self.rho)
         assert feat.shape == (plan.nldf_settings.nfeat, rho.size)
         assert dfeat.shape == (plan.nldf_settings.num_feat_param_sets, rho.size)
         for i in range(plan.nldf_settings.num_feat_param_sets):
-            exp_g = plan.eval_feat_exp(rho, sigma, tau, i=i)[0]
+            exp_g = plan.eval_feat_exp((rho, sigma, tau), i=i)[0]
             feat_id = plan.nldf_settings.feat_spec_list[i]
             extra_args = plan._get_extra_args(i) if i > -1 else None
             ref_feat = self._get_feat(exp_g, feat_id, extra_args)
@@ -394,10 +410,11 @@ class TestNLDFGaussianPlan(unittest.TestCase):
             return (energy, feat / energy)
 
         vfeat = get_e_and_vfeat(feat)[1]
-        vrho = np.zeros_like(rho)
-        vdrho = np.zeros_like(drho)
-        vtau = np.zeros_like(tau)
-        plan.eval_vxc_full(vfeat, vrho, vdrho, vtau, dfeat, rho, drho, tau, vf=vf)
+        vrho_data = np.zeros_like(self.rho)
+        vrho = vrho_data[0]
+        vdrho = vrho_data[1:4]
+        vtau = vrho_data[4]
+        plan.eval_vxc_full(vfeat, vrho_data, dfeat, self.rho, vf=vf)
         inputs = [rho, drho[0], drho[1], drho[2], tau]
         derivs = [vrho, vdrho[0], vdrho[1], vdrho[2], vtau]
         if coef_order == "gq":
@@ -410,10 +427,10 @@ class TestNLDFGaussianPlan(unittest.TestCase):
         for target, deriv in zip(inputs, derivs):
             i += 1
             target[:] += 0.5 * DELTA
-            feat_tmp, _ = plan.eval_rho_full(f, rho, drho, tau)
+            feat_tmp, _ = plan.eval_rho_full(f, self.rho)
             ep, _ = get_e_and_vfeat(feat_tmp)
             target[:] -= DELTA
-            feat_tmp, _ = plan.eval_rho_full(f, rho, drho, tau)
+            feat_tmp, _ = plan.eval_rho_full(f, self.rho)
             em, _ = get_e_and_vfeat(feat_tmp)
             target[:] += 0.5 * DELTA
             assert_almost_equal(deriv, (ep - em) / DELTA, 6)
@@ -433,11 +450,11 @@ class TestNLDFGaussianPlan(unittest.TestCase):
         rho = self.rho[0]
         sigma = np.einsum("xg,xg->g", self.rho[1:4], self.rho[1:4])
         tau = self.rho[4]
-        exp_g = plan.eval_feat_exp(rho, sigma, tau, i=0)[0]
+        exp_g = plan.eval_feat_exp((rho, sigma, tau), i=0)[0]
         # make some other exponent for testing
         ref_exp_g = exp_g / (0.4 + exp_g) + 0.5 * exp_g
         # arg1_g = plan.get_interpolation_arguments(rho, sigma, tau, i=-1)[0]
-        arg2_g = plan.get_interpolation_arguments(rho, sigma, tau, i=0)[0]
+        arg2_g = plan.get_interpolation_arguments((rho, sigma, tau), i=0)[0]
         p1, dp1 = plan.get_interpolation_coefficients(ref_exp_g, i=-1)
         p2, dp2 = plan.get_interpolation_coefficients(arg2_g, i=0)
         plan.get_transformed_interpolation_terms(p2, i=0, fwd=True, inplace=True)

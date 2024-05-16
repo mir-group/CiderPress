@@ -38,18 +38,14 @@ def _get_fl_ueg(s):
         return 0.75
     elif np.abs(s - 1.0) < tol:
         return 0.6
+    # fmt: off
     return (
-        sign
-        * 4
-        * np.pi
-        * 3
-        * np.cos(np.pi * s)
-        * gamma_func(-1 - 2 * s)
-        / (3 + 2 * s)
-        * 4**s
+        sign * 4 * np.pi * 3 * np.cos(np.pi * s)
+        * gamma_func(-1 - 2 * s) / (3 + 2 * s) * 4**s
         * gamma_func(1.5 + s)
         / (np.pi**1.5 * np.abs(gamma_func(-s)))
     )
+    # fmt: on
 
 
 def get_cider_exponent(
@@ -93,6 +89,41 @@ def get_cider_exponent(
         dadsigma = dadsigma.item()
         dadtau = dadtau.item()
     return ascale, dadrho, dadsigma, dadtau
+
+
+def get_cider_exponent_gga(rho, sigma, a0=1.0, grad_mul=0.03125, rhocut=1e-10, nspin=1):
+    if nspin > 2:
+        raise ValueError
+    if isinstance(rho, np.ndarray):
+        isarray = True
+    else:
+        isarray = False
+        rho = np.asarray([rho], dtype=np.float64)
+        sigma = np.asarray([sigma], dtype=np.float64)
+    cond = rho < rhocut
+    rho = rho.copy()
+    rho[cond] = rhocut
+    if nspin == 1:
+        B = np.pi / 2 ** (2.0 / 3) * a0
+    else:
+        B = np.pi * a0
+    ascale = B * rho ** (2.0 / 3)
+    dadrho = 2 * B / (3 * rho ** (1.0 / 3))
+    if grad_mul != 0:
+        grad_fac = grad_mul * 1.2 * (6 * np.pi**2) ** (2.0 / 3) / np.pi
+        grad_fac *= np.pi / 2 ** (2.0 / 3) * 0.125 / CFC
+        ascale += grad_fac * sigma / (rho * rho)
+        dadsigma = grad_fac / (rho * rho)
+        dadrho -= 2 * grad_fac * sigma / (rho * rho * rho)
+    else:
+        dadsigma = np.zeros_like(ascale)
+    dadrho[cond] = 0
+    dadsigma[cond] = 0
+    if not isarray:
+        ascale = ascale.item()
+        dadrho = dadrho.item()
+        dadsigma = dadsigma.item()
+    return ascale, dadrho, dadsigma
 
 
 def _get_ueg_expnt(aval, tval, rho):
@@ -919,6 +950,7 @@ class NLDFSettings(BaseSettings):
 
     def __init__(
         self,
+        sl_level,
         theta_params,
         rho_mult,
     ):
@@ -926,15 +958,19 @@ class NLDFSettings(BaseSettings):
         Initialize NLDFSettings.
 
         Args:
-            theta_params (np.ndarray(3)):
+            sl_level (str): "GGA" or "MGGA", the level of semilocal ingredients
+                used to construct the length-scale exponent.
+            theta_params (np.ndarray(2 or 3)):
                 Settings for the squared-exponential kernel exponent for the r'
                 (integrated) coordinate of the features. For version 'k', this
                 'exponent' is not used in the squared-exponential but rather
                 within the density damping scheme (see rho_damp).
                 Should be an array of 3 floats [a0, grad_mul, tau_mul].
+                tau_mul is ignored if sl_level="GGA" and may therefore be excluded.
             rho_mult (str): Multiply the density that gets integrated
                 by a prefactor. Options: None/'one', 'taumix', 'dampmix', 'expnt'
         """
+        self._sl_level = sl_level
         self.theta_params = theta_params
         self.rho_mult = rho_mult
         self.l0_feat_specs = []
@@ -942,8 +978,18 @@ class NLDFSettings(BaseSettings):
         self.l1_feat_dots = []
         self.feat_params = []
         self._check_params(self.theta_params)
+        if self.sl_level not in ["GGA", "MGGA"]:
+            raise ValueError("sl_level must be GGA or MGGA")
         if self.rho_mult not in ALLOWED_RHO_MULTS:
             raise ValueError("Unsupported rho_mult")
+
+    @property
+    def sl_level(self):
+        # backward compatibility
+        if hasattr(self, "_sl_level"):
+            return self._sl_level
+        else:
+            return "MGGA"
 
     @staticmethod
     def _check_params(params, spec="se"):
@@ -1016,6 +1062,7 @@ class NLDFSettingsVI(NLDFSettings):
 
     def __init__(
         self,
+        sl_level,
         theta_params,
         rho_mult,
         l0_feat_specs,
@@ -1026,6 +1073,8 @@ class NLDFSettingsVI(NLDFSettings):
         Initialize NLDFSettingsVI object
 
         Args:
+            sl_level (str): "GGA" or "MGGA", the level of semilocal ingredients
+                used to construct the length-scale exponent.
             theta_params (np.ndarray):
                 Settings for the squared-exponential kernel exponent for the r'
                 (integrated) coordinate of the features. For version 'k', this
@@ -1046,7 +1095,7 @@ class NLDFSettingsVI(NLDFSettings):
                 -1 refers to the semilocal density gradient.
                 l1feat_ig = einsum('xg,xg->g', l1ints_jg, l1ints_kg)
         """
-        super(NLDFSettingsVI, self).__init__(theta_params, rho_mult)
+        super(NLDFSettingsVI, self).__init__(sl_level, theta_params, rho_mult)
         self.l0_feat_specs = l0_feat_specs
         self.l1_feat_specs = l1_feat_specs
         self.l1_feat_dots = l1_feat_dots
@@ -1142,6 +1191,7 @@ class NLDFSettingsVJ(NLDFSettings):
 
     def __init__(
         self,
+        sl_level,
         theta_params,
         rho_mult,
         feat_specs,
@@ -1151,6 +1201,8 @@ class NLDFSettingsVJ(NLDFSettings):
         Initialize NLDFSettingsVJ
 
         Args:
+            sl_level (str): "GGA" or "MGGA", the level of semilocal ingredients
+                used to construct the length-scale exponent.
             theta_params (np.ndarray):
                 Settings for the squared-exponential kernel exponent for the r'
                 (integrated) coordinate of the features. For version 'k', this
@@ -1169,8 +1221,9 @@ class NLDFSettingsVJ(NLDFSettings):
                 has three numbers [a0, grad_mul, tau_mul], except erf_rinv which
                 has an additional parameter erf_mul for the ratio of the
                 erf / rinv exponent to the squared-exponential exponent.
+                tau_mul is ignored if sl_level="GGA" and may therefore be excluded.
         """
-        super(NLDFSettingsVJ, self).__init__(theta_params, rho_mult)
+        super(NLDFSettingsVJ, self).__init__(sl_level, theta_params, rho_mult)
         self.feat_params = feat_params
         self.feat_specs = feat_specs
         self._check_specs(self.feat_specs, ALLOWED_J_SPECS)
@@ -1254,6 +1307,7 @@ class NLDFSettingsVIJ(NLDFSettings):
 
     def __init__(
         self,
+        sl_level,
         theta_params,
         rho_mult,
         l0_feat_specs_i,
@@ -1266,6 +1320,8 @@ class NLDFSettingsVIJ(NLDFSettings):
         Initialize NLDFSettingsVIJ object
 
         Args:
+            sl_level (str): "GGA" or "MGGA", the level of semilocal ingredients
+                used to construct the length-scale exponent.
             theta_params (np.ndarray):
                 Settings for the squared-exponential kernel exponent for the r'
                 (integrated) coordinate of the features. For version 'k', this
@@ -1296,8 +1352,9 @@ class NLDFSettingsVIJ(NLDFSettings):
                 has three numbers [a0, grad_mul, tau_mul], except erf_rinv which
                 has an additional parameter erf_mul for the ratio of the
                 erf / rinv exponent to the squared-exponential exponent.
+                tau_mul is ignored if sl_level="GGA" and may therefore be excluded.
         """
-        super(NLDFSettingsVIJ, self).__init__(theta_params, rho_mult)
+        super(NLDFSettingsVIJ, self).__init__(sl_level, theta_params, rho_mult)
         self.l0_feat_specs = l0_feat_specs_i
         self.l1_feat_specs = l1_feat_specs_i
         self.l1_feat_dots = l1_feat_dots_i
@@ -1365,6 +1422,7 @@ class NLDFSettingsVK(NLDFSettings):
 
     def __init__(
         self,
+        sl_level,
         theta_params,
         rho_mult,
         feat_params,
@@ -1374,6 +1432,8 @@ class NLDFSettingsVK(NLDFSettings):
         Initialize NLDFSettingsVK
 
         Args:
+            sl_level (str): "GGA" or "MGGA", the level of semilocal ingredients
+                used to construct the length-scale exponent.
             theta_params (np.ndarray):
                 Settings for the squared-exponential kernel exponent for the r'
                 (integrated) coordinate of the features. For version 'k', this
@@ -1387,10 +1447,11 @@ class NLDFSettingsVK(NLDFSettings):
                 has three numbers [a0, grad_mul, tau_mul], except erf_rinv which
                 has an additional parameter erf_mul for the ratio of the
                 erf / rinv exponent to the squared-exponential exponent.
+                tau_mul is ignored if sl_level="GGA" and may therefore be excluded.
             rho_damp (str): Specifies the damping for the
                 density. Options: 'none', 'exponential', 'asymptotic_const'
         """
-        super(NLDFSettingsVK, self).__init__(theta_params, rho_mult)
+        super(NLDFSettingsVK, self).__init__(sl_level, theta_params, rho_mult)
         self.feat_specs = ["se"] * len(feat_params)
         self.feat_params = feat_params
         self._check_specs(self.feat_specs, ALLOWED_K_SPECS)
