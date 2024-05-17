@@ -166,11 +166,26 @@ class TestXEDSADM(unittest.TestCase):
         analyzer.grids = grids
         analyzer.perform_full_analysis()
         orbs = {"U": [2, 0], "O": [0, 1]}
-        plan = SADMPlan(SADMSettings(mode), 1, 0.003, 2.0, 30, fit_metric="ovlp")
+        alpha0, lambd, nalpha = 0.003, 1.8, 32
+        plan = SADMPlan(SADMSettings(mode), 1, alpha0, lambd, nalpha, fit_metric="ovlp")
         exxgen = EXXSphGenerator(plan)
-        desc0 = get_descriptors(analyzer, plan.settings, orbs=None)
+        desc0 = get_descriptors(
+            analyzer,
+            plan.settings,
+            orbs=None,
+            alpha0=alpha0,
+            lambd=lambd,
+            nalpha=nalpha,
+        )
         settings = plan.settings
-        desc, ddesc, eigvals = get_descriptors(analyzer, plan.settings, orbs=orbs)
+        desc, ddesc, eigvals = get_descriptors(
+            analyzer,
+            plan.settings,
+            orbs=orbs,
+            alpha0=alpha0,
+            lambd=lambd,
+            nalpha=nalpha,
+        )
         assert_allclose(desc, desc0)
 
         feat_ref = exxgen.get_features(analyzer.dm, analyzer.mol, analyzer.grids.coords)
@@ -205,7 +220,9 @@ class TestXEDSADM(unittest.TestCase):
                     ana_tmp = RHFAnalyzer(analyzer.mol, dmtmp, grids_level=inner_level)
                 ana_tmp.grids = grids
                 ana_tmp.perform_full_analysis()
-                desc_pert = get_descriptors(ana_tmp, settings)
+                desc_pert = get_descriptors(
+                    ana_tmp, settings, alpha0=alpha0, lambd=lambd, nalpha=nalpha
+                )
                 occd_fd = (desc_pert - desc) / delta
                 assert_allclose(occd_pred, occd_fd[0], rtol=rtol, atol=atol)
 
@@ -354,9 +371,24 @@ class _TestSDMXBase(_TestSDMXParams):
         orbs = {"U": [2, 0], "O": [0, 1]}
         plan = self._get_plan()
         exxgen = EXXSphGenerator(plan)
-        desc0 = get_descriptors(analyzer, plan.settings, orbs=None)
+        alpha0, lambd, nalpha = np.min(plan.alphas), plan.lambd, len(plan.alphas)
+        desc0 = get_descriptors(
+            analyzer,
+            plan.settings,
+            orbs=None,
+            alpha0=alpha0,
+            lambd=lambd,
+            nalpha=nalpha,
+        )
         settings = plan.settings
-        desc, ddesc, eigvals = get_descriptors(analyzer, plan.settings, orbs=orbs)
+        desc, ddesc, eigvals = get_descriptors(
+            analyzer,
+            plan.settings,
+            orbs=orbs,
+            alpha0=alpha0,
+            lambd=lambd,
+            nalpha=nalpha,
+        )
         assert_allclose(desc, desc0)
 
         feat_ref = exxgen.get_features(analyzer.dm, analyzer.mol, analyzer.grids.coords)
@@ -392,7 +424,9 @@ class _TestSDMXBase(_TestSDMXParams):
                     ana_tmp = RHFAnalyzer(analyzer.mol, dmtmp, grids_level=inner_level)
                 ana_tmp.grids = grids
                 ana_tmp.perform_full_analysis()
-                desc_pert = get_descriptors(ana_tmp, settings)
+                desc_pert = get_descriptors(
+                    ana_tmp, settings, alpha0=alpha0, lambd=lambd, nalpha=nalpha
+                )
                 occd_fd = (desc_pert - desc) / delta
                 assert_allclose(occd_pred, occd_fd[0], rtol=rtol, atol=atol)
 
@@ -509,7 +543,15 @@ class _TestSDMXBase(_TestSDMXParams):
         grids.cutoff = 0
         analyzer.grids = grids
         analyzer.perform_full_analysis()
-        desc = get_descriptors(analyzer, plan.settings, orbs=None)
+        alpha0, lambd, nalpha = np.min(plan.alphas), plan.lambd, len(plan.alphas)
+        desc = get_descriptors(
+            analyzer,
+            plan.settings,
+            orbs=None,
+            alpha0=alpha0,
+            lambd=lambd,
+            nalpha=nalpha,
+        )
 
         ks = dft.RKS(rot_mol) if rot_mol.spin == 0 else dft.UKS(rot_mol)
         ks.xc = "PBE"
@@ -525,7 +567,14 @@ class _TestSDMXBase(_TestSDMXParams):
         grids.cutoff = 0
         analyzer.grids = grids
         analyzer.perform_full_analysis()
-        rot_desc = get_descriptors(analyzer, plan.settings, orbs=None)
+        rot_desc = get_descriptors(
+            analyzer,
+            plan.settings,
+            orbs=None,
+            alpha0=alpha0,
+            lambd=lambd,
+            nalpha=nalpha,
+        )
 
         assert_allclose(rot_desc, desc, rtol=1e-4, atol=1e-4)
 
@@ -598,7 +647,7 @@ class TestSDMX(unittest.TestCase, _TestSDMXBase):
         if pows is None:
             pows = [1, 0, 2]
         settings = SDMXSettings(pows)
-        plan = SDMXPlan(settings, 1, 0.002, 2.0, 30)
+        plan = SDMXPlan(settings, 1, 0.002, 1.8, 32)
         return plan
 
     def _get_ueg_plan(self):
@@ -668,7 +717,7 @@ class TestSDMXG(unittest.TestCase, _TestSDMXBase):
         if pows is None:
             pows = [1, 0, 2]
         settings = SDMXGSettings(pows, len(pows))
-        plan = SDMXPlan(settings, 1, 0.002, 2.0, 30)
+        plan = SDMXPlan(settings, 1, 0.002, 1.8, 32)
         return plan
 
     def _get_ueg_plan(self):
@@ -718,7 +767,7 @@ class TestSDMX1(unittest.TestCase, _TestSDMXBase):
         if pows is None:
             pows = [1, 0, 2]
         settings = SDMX1Settings(pows, len(pows))
-        plan = SDMXPlan(settings, 1, 0.002, 2.0, 30)
+        plan = SDMXPlan(settings, 1, 0.002, 1.8, 32)
         return plan
 
     def _get_ueg_plan(self):
@@ -761,7 +810,7 @@ class TestSDMXG1(unittest.TestCase, _TestSDMXBase):
         if pows is None:
             pows = [1, 0, 2]
         settings = SDMXG1Settings(pows, len(pows), len(pows))
-        plan = SDMXPlan(settings, 1, 0.002, 2.0, 30)
+        plan = SDMXPlan(settings, 1, 0.002, 1.8, 32)
         return plan
 
     def _get_ueg_plan(self):
@@ -838,7 +887,7 @@ class TestSDMXFull(unittest.TestCase, _TestSDMXBase):
             2.00: (pows, [npow, npow, npow, npow]),
         }
         settings = SDMXFullSettings(settings_dict=settings)
-        plan = SDMXFullPlan(settings, 1, 0.0005, 1.8, 33)
+        plan = SDMXFullPlan(settings, 1, 0.0005, 1.8, 32)
         return plan
 
     def _get_ueg_plan(self, pows=None):

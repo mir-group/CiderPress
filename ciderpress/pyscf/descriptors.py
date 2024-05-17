@@ -97,7 +97,7 @@ def get_descriptors(analyzer, settings, orbs=None, **kwargs):
     elif isinstance(settings, FracLaplSettings):
         my_desc_getter = _fl_desc_getter
     elif isinstance(settings, SDMXBaseSettings):
-        my_desc_getter = _sadm_desc_getter
+        my_desc_getter = _sdmx_desc_getter
     else:
         raise ValueError("Unsupported settings")
 
@@ -444,7 +444,7 @@ def _fl_desc_getter(mol, pgrids, dms, flsettings, coeffs=None, **kwargs):
         return feat[0]
 
 
-def _sadm_desc_getter(mol, pgrids, dm, settings, coeffs=None, **kwargs):
+def _sdmx_desc_getter(mol, pgrids, dm, settings, coeffs=None, **kwargs):
     exxgen = EXXSphGenerator.from_settings_and_mol(settings, 1, mol, **kwargs)
     ni = NumInt()
     ngrids = pgrids.coords.shape[0]

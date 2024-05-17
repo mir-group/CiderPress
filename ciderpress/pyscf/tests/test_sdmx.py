@@ -265,9 +265,7 @@ class TestYlm(unittest.TestCase):
         init0 = NewSDMXInit(settings0)
         init1 = NewSDMXInit(settings1)
         new_inits = {0: init0, 1: init1}
-        # for itype in ['gauss_r2', 'gauss_diff']:
         for itype in ["gauss_diff"]:
-            # for basis in ['def2-svp', 'def2-qzvppd', 'cc-pvtz']:
             for basis in ["def2-svp", "def2-tzvpd", "def2-qzvppd"]:
                 for deriv in [0, 1]:
                     print(basis, deriv, itype)
