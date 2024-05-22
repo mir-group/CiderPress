@@ -31,6 +31,8 @@ typedef struct {
                       // with l-1 used for the principal angular momentum number
     double *gtrans_p; // transformation (inverted overlap) matrix for gammas
                       // with l+1 used for the principal angular momentum number
+    double *gtrans_l; // transformation (inverted overlap) matrix for gammas
+                      // using -laplacian norm
 } atc_atom;
 
 /**

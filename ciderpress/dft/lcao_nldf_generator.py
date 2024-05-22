@@ -22,12 +22,22 @@ class LCAONLDFGenerator:
         self._uq_buf = np.empty((self.ccl.atco_inp.nao, nalpha))
         self._vq_buf = np.empty((self.ccl.atco_out.nao, self.ccl.num_out))
         self._rlmq_buf = self.grids_indexer.empty_rlmq(nalpha)
+        self.timer = None
 
     @property
     def natm(self):
         return self.interpolator.atom_coords.shape[0]
 
+    def _start_timer(self, name):
+        if self.timer is not None:
+            self.timer.start(name)
+
+    def _stop_timer(self, name):
+        if self.timer is not None:
+            self.timer.stop(name)
+
     def _perform_fwd_convolution(self, theta_gq):
+        self._start_timer("Part1")
         theta_rlmq = self._rlmq_buf
         theta_uq = self._uq_buf
         conv_vq = self._vq_buf
@@ -46,12 +56,18 @@ class LCAONLDFGenerator:
         self.plan.get_transformed_interpolation_terms(
             theta_uq, i=-1, fwd=True, inplace=True
         )
+        self._stop_timer("Part1")
+        self._start_timer("Part2")
         self.ccl.multiply_atc_integrals(theta_uq, output=conv_vq, fwd=True)
         if self.plan.nldf_settings.nldf_type != "i":
             self.plan.get_transformed_interpolation_terms(
                 conv_vq[:, : self.plan.nalpha], i=0, fwd=False, inplace=True
             )
-        return self.interpolator.project_orb2grid(conv_vq)
+        self._stop_timer("Part2")
+        self._start_timer("Part3")
+        res = self.interpolator.project_orb2grid(conv_vq)
+        self._stop_timer("Part3")
+        return res
 
     def _perform_bwd_convolution(self, vf_gq):
         vtheta_rlmq = self._rlmq_buf
@@ -59,12 +75,17 @@ class LCAONLDFGenerator:
         vconv_vq = self._vq_buf
         vconv_vq[:] = 0.0
         vtheta_uq[:] = 0.0
+        self._start_timer("Part3")
         self.interpolator.project_grid2orb(vf_gq, f_uq=vconv_vq)
+        self._stop_timer("Part3")
+        self._start_timer("Part2")
         if self.plan.nldf_settings.nldf_type != "i":
             self.plan.get_transformed_interpolation_terms(
                 vconv_vq[:, : self.plan.nalpha], i=0, fwd=True, inplace=True
             )
         self.ccl.multiply_atc_integrals(vconv_vq, output=vtheta_uq, fwd=False)
+        self._stop_timer("Part2")
+        self._start_timer("Part1")
         self.plan.get_transformed_interpolation_terms(
             vtheta_uq, i=-1, fwd=False, inplace=True
         )
@@ -78,6 +99,7 @@ class LCAONLDFGenerator:
         )
         vtheta_gq = self.grids_indexer.empty_gq(self.plan.nalpha)
         self.grids_indexer.reduce_angc_ylm_(vtheta_rlmq, vtheta_gq, a2y=False)
+        self._stop_timer("Part1")
         return vtheta_gq
 
     def get_features(self, rho_in, spin=0):
@@ -228,3 +250,106 @@ class LCAONLDFGenerator:
             )
         # self._cache[spin] = None
         return vrho_out
+
+
+class VINLDFGen(LCAONLDFGenerator):
+    def __init__(self, plan, ccl, interpolator, grids_indexer):
+        """
+
+        Args:
+            plan (NLDFAuxiliaryPlan):
+            ccl (ConvolutionCollection):
+            interpolator (LCAOInterpolator):
+            grids_indexer (AtomicGridsIndexer):
+        """
+        super(VINLDFGen, self).__init__(plan, ccl, interpolator, grids_indexer)
+        self._uq_buf = np.empty((self.ccl.atco_out.nao, self.plan.nalpha))
+        self._vq_buf = np.empty((self.ccl.atco_out.nao, self.ccl.num_out))
+        self.timer = None
+
+    def _perform_fwd_convolution(self, theta_gq):
+        self._start_timer("Part1")
+        theta_rlmq = self._rlmq_buf
+        theta_uq = self._uq_buf
+        conv_vq = self._vq_buf
+        conv_vq[:] = 0.0
+        theta_uq[:] = 0.0
+        theta_rlmq[:] = 0.0
+        self.grids_indexer.reduce_angc_ylm_(theta_rlmq, theta_gq, a2y=True)
+        shape = theta_rlmq.shape
+        theta_rlmq.shape = (-1, theta_rlmq.shape[-1])
+        self.plan.get_transformed_interpolation_terms(
+            theta_rlmq, i=-1, fwd=True, inplace=True
+        )
+        theta_rlmq.shape = shape
+        self._stop_timer("Part1")
+        self._start_timer("Part2")
+        self.ccl.atco_out.convert_rad2orb_conv_(
+            theta_rlmq,
+            theta_uq,
+            self.grids_indexer,
+            self.grids_indexer.rad_arr,
+            self.plan.alphas,
+            rad2orb=True,
+            offset=0,
+        )
+        theta_uq[:] *= self.plan.alpha_norms
+        self.ccl.apply_vi_contractions(conv_vq, theta_uq)
+        theta_uq[:] = 0
+        self.ccl.atco_out.convert_rad2orb_conv_(
+            theta_rlmq,
+            theta_uq,
+            self.grids_indexer,
+            self.grids_indexer.rad_arr,
+            self.plan.alphas,
+            l_add=2,
+            rad2orb=True,
+            offset=0,
+        )
+        theta_uq[:] *= self.plan.alpha_norms
+        self.ccl.apply_vi_contractions(conv_vq, theta_uq, use_r2=True)
+        stride = conv_vq.shape[-1]
+        print(stride, conv_vq.shape)
+        # self.ccl.atco_out._solve_coefs_(conv_vq, stride, stride, 0)
+        self.ccl.solve_coefs_(conv_vq)
+        # print(self.plan.alpha_norms)
+        # conv_vq[:, 0] = (self.plan.alpha_norms * theta_uq).sum(axis=-1)
+        # conv_vq[:, 3] = (self.plan.alphas * self.plan.alpha_norms * theta_uq).sum(
+        #     axis=-1
+        # )
+        # conv_vq[:, :] = (self.plan.alpha_norms * theta_uq).sum(axis=-1)[..., None]
+        # conv_vq[:, 0] = theta_uq.sum(axis=-1)
+        self._stop_timer("Part2")
+        self._start_timer("Part3")
+        res = self.interpolator.project_orb2grid(conv_vq)
+        self._stop_timer("Part3")
+        return res
+
+    def _perform_bwd_convolution(self, vf_gq):
+        vtheta_rlmq = self._rlmq_buf
+        # vtheta_uq = self._uq_buf
+        vconv_vq = self._vq_buf
+        vconv_vq[:] = 0.0
+        # vtheta_uq[:] = 0.0
+        self._start_timer("Part3")
+        self.interpolator.project_grid2orb(vf_gq, f_uq=vconv_vq)
+        self._stop_timer("Part3")
+        self._start_timer("Part2")
+        self.ccl.atco_out.convert_rad2orb_conv_(
+            vtheta_rlmq,
+            vconv_vq,
+            self.grids_indexer,
+            self.grids_indexer.rad_arr,
+            self.plan.alphas,
+            rad2orb=False,
+            offset=0,
+        )
+        self._stop_timer("Part2")
+        self._start_timer("Part1")
+        self.plan.get_transformed_interpolation_terms(
+            vtheta_rlmq, i=-1, fwd=False, inplace=True
+        )
+        vtheta_gq = self.grids_indexer.empty_gq(self.plan.nalpha)
+        self.grids_indexer.reduce_angc_ylm_(vtheta_rlmq, vtheta_gq, a2y=False)
+        self._stop_timer("Part1")
+        return vtheta_gq

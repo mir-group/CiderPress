@@ -12,7 +12,7 @@ from ciderpress.dft.lcao_convolutions import (
     get_gamma_lists_from_bas_and_env,
 )
 from ciderpress.dft.lcao_interpolation import LCAOInterpolator, LCAOInterpolatorDirect
-from ciderpress.dft.lcao_nldf_generator import LCAONLDFGenerator
+from ciderpress.dft.lcao_nldf_generator import LCAONLDFGenerator, VINLDFGen
 from ciderpress.dft.plans import VI_ID_MAP, NLDFGaussianPlan, NLDFSplinePlan
 
 
@@ -128,7 +128,8 @@ class PySCFNLDFInitializer:
         self.settings = settings
         self.kwargs = kwargs
 
-    def initialize_nldf_generator(self, mol, grids_indexer, nspin):
+    def initialize_nldf_generator(self, mol, grids_indexer, nspin, timer=None):
+        self.kwargs["timer"] = timer
         return PyscfNLDFGenerator.from_mol_and_settings(
             mol, grids_indexer, nspin, self.settings, **self.kwargs
         )
@@ -160,6 +161,7 @@ class PyscfNLDFGenerator(LCAONLDFGenerator):
         aparam=0.03,
         dparam=0.04,
         nrad=200,
+        timer=None,
     ):
         if lmax is None:
             lmax = grids_indexer.lmax
@@ -241,9 +243,143 @@ class PyscfNLDFGenerator(LCAONLDFGenerator):
                 nrad=nrad,
                 onsite_direct=onsite_direct,
             )
+        if timer is not None:
+            timer.start("Compute integrals")
         ccl.compute_integrals_()
+        if timer is not None:
+            timer.stop()
+            timer.start("Projection coefs")
         ccl.solve_projection_coefficients()
-        return cls(plan, ccl, interpolator, grids_indexer)
+        if timer is not None:
+            timer.stop("Projection coefs")
+        output = cls(plan, ccl, interpolator, grids_indexer)
+        output.timer = timer
+        return output
+
+    def get_extra_ao(self):
+        return (self.interpolator.nlm + 4) * self.natm
+
+
+class PyscfVIGenerator(VINLDFGen):
+    """
+    A PySCF-specific wrapper for the NLDF feature generator.
+    """
+
+    @classmethod
+    def from_mol_and_settings(
+        cls,
+        mol,
+        grids_indexer,
+        nspin,
+        nldf_settings,
+        plan_type="gaussian",
+        lmax=None,
+        aux_lambd=1.6,
+        aug_beta=None,
+        alpha_max=10000,
+        alpha_min=None,
+        alpha_formula=None,
+        rhocut=1e-10,
+        expcut=1e-10,
+        gbuf=2.0,
+        interpolator_type="onsite_direct",
+        aparam=0.03,
+        dparam=0.04,
+        nrad=200,
+        timer=None,
+    ):
+        if lmax is None:
+            lmax = grids_indexer.lmax
+        if lmax > grids_indexer.lmax:
+            raise ValueError("lmax cannot be larger than grids_indexer.lmax")
+        if interpolator_type not in ["onsite_direct", "onsite_spline", "train_gen"]:
+            raise ValueError
+        if aug_beta is None:
+            aug_beta = aux_lambd
+        if alpha_min is None:
+            alpha_min = nldf_settings.theta_params[0] / 256  # sensible default
+        if plan_type not in ["gaussian", "spline"]:
+            raise ValueError("plan_type must be gaussian or spline")
+        if alpha_formula is None:
+            alpha_formula = "etb" if plan_type == "gaussian" else "zexp"
+        nalpha = int(np.ceil(np.log(alpha_max / alpha_min) / np.log(aux_lambd))) + 1
+        plan_class = NLDFGaussianPlan if plan_type == "gaussian" else NLDFSplinePlan
+        plan = plan_class(
+            nldf_settings,
+            nspin,
+            alpha_min,
+            aux_lambd,
+            nalpha,
+            coef_order="gq",
+            alpha_formula=alpha_formula,
+            proc_inds=None,
+            rhocut=rhocut,
+            expcut=expcut,
+        )
+        basis = aug_etb_for_cider(mol, lmax=lmax, beta=aug_beta)[0]
+        mol = gto.M(
+            atom=mol.atom,
+            basis=basis,
+            spin=mol.spin,
+            charge=mol.charge,
+            unit=mol.unit,
+        )
+        dat = get_gamma_lists_from_mol(mol)
+        atco_inp = ATCBasis(*dat)
+        dat = get_convolution_expnts_from_expnts(
+            plan.alphas, dat[0], dat[1], dat[2], dat[4], gbuf=gbuf
+        )
+        atco_out = ATCBasis(*dat)
+        if plan.nldf_settings.nldf_type == "k":
+            ccl = ConvolutionCollectionK(
+                atco_inp, atco_out, plan.alphas, plan.alpha_norms
+            )
+        else:
+            has_vj = "j" in plan.nldf_settings.nldf_type
+            ifeat_ids = []
+            for spec in plan.nldf_settings.l0_feat_specs:
+                ifeat_ids.append(VI_ID_MAP[spec])
+            for spec in plan.nldf_settings.l1_feat_specs:
+                ifeat_ids.append(VI_ID_MAP[spec])
+            ccl = ConvolutionCollection(
+                atco_inp,
+                atco_out,
+                plan.alphas,
+                plan.alpha_norms,
+                has_vj=has_vj,
+                ifeat_ids=ifeat_ids,
+            )
+        if interpolator_type == "train_gen":
+            interpolator = LCAOInterpolator.from_ccl(
+                mol.atom_coords(unit="Bohr"),
+                ccl,
+                aparam=aparam,
+                dparam=dparam,
+                nrad=nrad,
+            )
+        else:
+            onsite_direct = interpolator_type == "onsite_direct"
+            interpolator = LCAOInterpolatorDirect.from_ccl(
+                grids_indexer,
+                mol.atom_coords(unit="Bohr"),
+                ccl,
+                aparam=aparam,
+                dparam=dparam,
+                nrad=nrad,
+                onsite_direct=onsite_direct,
+            )
+        if timer is not None:
+            timer.start("Compute integrals")
+        ccl.compute_integrals_()
+        if timer is not None:
+            timer.stop()
+            timer.start("Projection coefs")
+        ccl.solve_projection_coefficients()
+        if timer is not None:
+            timer.stop("Projection coefs")
+        output = cls(plan, ccl, interpolator, grids_indexer)
+        output.timer = timer
+        return output
 
     def get_extra_ao(self):
         return (self.interpolator.nlm + 4) * self.natm

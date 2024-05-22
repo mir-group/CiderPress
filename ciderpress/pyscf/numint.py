@@ -317,6 +317,7 @@ def nr_rks_nldf(
     Returns:
 
     """
+    ni.timer.start("nr_rks_nldf")
     if not hasattr(grids, "grids_indexer"):
         raise ValueError("Grids object must have indexer for NLDF evaluation")
 
@@ -362,8 +363,10 @@ def nr_rks_nldf(
     if any(x in xc_code.upper() for x in ("CC06", "CS", "BR89", "MK00")):
         raise NotImplementedError("laplacian in meta-GGA method")
     ao_deriv = 1
+    ni.timer.start("density")
     for i, ip0, ip1, ao, mask, weight, coords in block_loop(ao_deriv):
         rho_full[i, :, ip0:ip1] = make_rho(i, ao, mask, xctype)
+    ni.timer.stop("density")
 
     par_atom = False
     extra_ao = ni.nldfgen.get_extra_ao()
@@ -408,6 +411,7 @@ def nr_rks_nldf(
         for idm in range(nset):
             wv_full[idm, :, :] += ni.nldfgen.get_potential(vxc_nldf_full[idm])
 
+    ni.timer.start("potential")
     buffers = None
     pair_mask = mol.get_overlap_cond() < -np.log(ni.cutoff)
     v1 = np.zeros_like(vmat)
@@ -436,6 +440,8 @@ def nr_rks_nldf(
         dtype = np.result_type(*dms)
     if vmat.dtype != dtype:
         vmat = np.asarray(vmat, dtype=dtype)
+    ni.timer.stop("potential")
+    ni.timer.stop("nr_rks_nldf")
     return nelec, excsum, vmat
 
 
@@ -1109,7 +1115,7 @@ class NLDFNumInt(_NLDFMixin, CiderNumInt):
         cond = cond or self.nldfgen.plan.nspin != nspin
         if cond:
             self.nldfgen = self.nldf_init.initialize_nldf_generator(
-                mol, grids.grids_indexer, nspin
+                mol, grids.grids_indexer, nspin, timer=self.timer
             )
             self.nldfgen.interpolator.set_coords(grids.coords)
         super().initialize_feature_generators(mol, grids, nspin)

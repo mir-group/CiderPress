@@ -11,6 +11,7 @@ from ciderpress.dft.plans import FracLaplPlan
 from ciderpress.dft.settings import (
     FracLaplSettings,
     NLDFSettings,
+    NLDFSettingsVI,
     SDMXBaseSettings,
     SemilocalSettings,
     dalpha,
@@ -21,7 +22,11 @@ from ciderpress.dft.settings import (
 from ciderpress.pyscf.analyzers import UHFAnalyzer
 from ciderpress.pyscf.frac_lapl import FLNumInt
 from ciderpress.pyscf.gen_cider_grid import CiderGrids
-from ciderpress.pyscf.nldf_convolutions import DEFAULT_CIDER_LMAX, PyscfNLDFGenerator
+from ciderpress.pyscf.nldf_convolutions import (
+    DEFAULT_CIDER_LMAX,
+    PyscfNLDFGenerator,
+    PyscfVIGenerator,
+)
 from ciderpress.pyscf.sdmx_slow import EXXSphGenerator
 
 NLDF_VERSION_LIST = ["i", "j", "ij", "k"]
@@ -405,6 +410,10 @@ def _nldf_desc_getter(
     nldf_generator = PyscfNLDFGenerator.from_mol_and_settings(
         mol, grids.grids_indexer, 1, nldf_settings, **kwargs
     )
+    if isinstance(nldf_settings, NLDFSettingsVI):
+        nldf_generator = PyscfVIGenerator.from_mol_and_settings(
+            mol, grids.grids_indexer, 1, nldf_settings, **kwargs
+        )
     nldf_generator.interpolator.set_coords(pgrids.coords)
     ni = NumInt()
     xctype = "MGGA"

@@ -102,9 +102,13 @@ def run_calc(mol, spinpol):
             ckernel="GGA_C_PBE",
         )
         ks.small_rho_cutoff = 0.0
+    else:
+        ks.xc = functional
     ks.grids.level = 3
     ks = ks.apply(scf.addons.remove_linear_dep_)
     etot = ks.kernel()
+    if is_cider:
+        ks._numint.timer.write()
     return etot
 
 

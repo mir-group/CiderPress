@@ -9,6 +9,10 @@ inline double gauss_integral(int l, double a) {
     return 0.5 * pow(a, -1.5 - l) * tgamma(1.5 + l);
 }
 
+inline double gauss_mlapl_integral(int l, double a, double b) {
+    return 2 * a * b * pow(a + b, -2.5 - l) * tgamma(2.5 + l);
+}
+
 // TODO all gauss integrals below should be inline for efficiency,
 // TODO but they cannot be made inline and then assigned to function pointers.
 /**
@@ -175,6 +179,7 @@ void generate_atc_basis_set(atc_basis_set **atco_ptr, int *atom2l0, int *lmaxs,
         atcc->gtrans_0 = (double *)malloc(ngsh2 * sizeof(double));
         atcc->gtrans_m = (double *)malloc(ngsh2 * sizeof(double));
         atcc->gtrans_p = (double *)malloc(ngsh2 * sizeof(double));
+        atcc->gtrans_l = (double *)malloc(ngsh2 * sizeof(double));
         for (int g = 0; g < ngsh; g++) {
             atcc->gammas[g] = all_exps[g + gsh0];
             atcc->gcoefs[g] = all_coefs[g + gsh0];
@@ -194,6 +199,8 @@ void generate_atc_basis_set(atc_basis_set **atco_ptr, int *atom2l0, int *lmaxs,
                         coef0 * coef1 * gauss_integral(l - 1, exp0 + exp1);
                     atcc->gtrans_p[atcc->l_loc2[l] + g0 * ngsh_l + g1] =
                         coef0 * coef1 * gauss_integral(l + 1, exp0 + exp1);
+                    atcc->gtrans_l[atcc->l_loc2[l] + g0 * ngsh_l + g1] =
+                        coef0 * coef1 * gauss_mlapl_integral(l, exp0, exp1);
                 }
             }
             dpotrf_(&(atco->UPLO), &ngsh_l, atcc->gtrans_0 + atcc->l_loc2[l],
@@ -201,6 +208,8 @@ void generate_atc_basis_set(atc_basis_set **atco_ptr, int *atom2l0, int *lmaxs,
             dpotrf_(&(atco->UPLO), &ngsh_l, atcc->gtrans_m + atcc->l_loc2[l],
                     &ngsh_l, &info);
             dpotrf_(&(atco->UPLO), &ngsh_l, atcc->gtrans_p + atcc->l_loc2[l],
+                    &ngsh_l, &info);
+            dpotrf_(&(atco->UPLO), &ngsh_l, atcc->gtrans_l + atcc->l_loc2[l],
                     &ngsh_l, &info);
         }
     }
@@ -247,6 +256,7 @@ void free_atc_atom(atc_atom atcc) {
     free(atcc.gtrans_0);
     free(atcc.gtrans_m);
     free(atcc.gtrans_p);
+    free(atcc.gtrans_l);
 }
 
 /**
@@ -577,7 +587,7 @@ void generate_atc_integrals_vi(convolution_collection *ccl, int featid,
         // k^8_alpha(r, r') = alpha^2 * (r-r')^2 * exp(-alpha*(r-r')^2)
         else if (featid == 8)
             integral_func = &gauss_a2dida;
-        // NOTE: k^9 = 4 * k^8 - 2 * k^7 should given the Laplacian of the k^0
+        // NOTE: k^9 = 4 * k^8 - 2 * k^7 should give the Laplacian of the k^0
         // feature. k^9_alpha(r, r') = \nabla^2 exp(-alpha*(r-r')^2)
         else if (featid == 9)
             integral_func = &gauss_lapli0;
@@ -710,6 +720,114 @@ void solve_atc_coefs(convolution_collection *ccl) {
         }
         free(buf);
         free(buf2);
+    }
+}
+
+void solve_atc_coefs_for_orbs(double *p_uq, atc_basis_set *atco, int nalpha,
+                              int stride, int offset) {
+#pragma omp parallel
+    {
+        double *pp_uq;
+        int ia, dish;
+        int ish0;
+        int one = 1;
+        atc_atom atcc;
+        double *chomat;
+        int aq, q, m;
+        int info;
+        int mstride, u0;
+        int max_dish = 0;
+        for (ia = 0; ia < atco->natm; ia++) {
+            atcc = atco->atc_convs[ia];
+            for (int l = 0; l < atcc.lmax + 1; l++) {
+                ish0 = atcc.global_l_loc[l];
+                dish = atcc.global_l_loc[l + 1] - ish0;
+                max_dish = MAX(dish, max_dish);
+            }
+        }
+        double *buf = (double *)malloc(max_dish * sizeof(double));
+#pragma omp for schedule(dynamic, 4)
+        for (aq = 0; aq < nalpha * atco->natm; aq++) {
+            ia = aq / nalpha;
+            q = aq % nalpha;
+            atcc = atco->atc_convs[ia];
+            for (int l = 0; l < atcc.lmax + 1; l++) {
+                ish0 = atcc.global_l_loc[l];
+                dish = atcc.global_l_loc[l + 1] - ish0;
+                u0 = atco->ao_loc[ish0];
+                mstride = (2 * l + 1) * stride;
+                chomat = atcc.gtrans_0 + atcc.l_loc2[l];
+                for (m = 0; m < 2 * l + 1; m++) {
+                    pp_uq = p_uq + (u0 + m) * stride + q + offset;
+                    for (int sh = 0; sh < dish; sh++) {
+                        buf[sh] = pp_uq[sh * mstride];
+                    }
+                    dpotrs_(&(atco->UPLO), &dish, &one, chomat, &dish, buf,
+                            &dish, &info);
+                    for (int sh = 0; sh < dish; sh++) {
+                        pp_uq[sh * mstride] = buf[sh];
+                    }
+                }
+            }
+        }
+        free(buf);
+    }
+}
+
+void solve_atc_coefs_for_orbs2(double *p_uq, convolution_collection *ccl) {
+#pragma omp parallel
+    {
+        double *pp_uq;
+        int ia, dish;
+        int ish0;
+        int one = 1;
+        atc_basis_set *atco = ccl->atco_out;
+        atc_atom atcc;
+        double *chomat;
+        int aq, q, m;
+        int info;
+        int mstride, u0;
+        int max_dish = 0;
+        int ifeat;
+        for (ia = 0; ia < atco->natm; ia++) {
+            atcc = atco->atc_convs[ia];
+            for (int l = 0; l < atcc.lmax + 1; l++) {
+                ish0 = atcc.global_l_loc[l];
+                dish = atcc.global_l_loc[l + 1] - ish0;
+                max_dish = MAX(dish, max_dish);
+            }
+        }
+        double *buf = (double *)malloc(max_dish * sizeof(double));
+#pragma omp for schedule(dynamic, 4)
+        for (aq = 0; aq < ccl->nfeat_i * atco->natm; aq++) {
+            ia = aq / ccl->nfeat_i;
+            q = aq % ccl->nfeat_i;
+            atcc = atco->atc_convs[ia];
+            for (int l = 0; l < atcc.lmax + 1; l++) {
+                ish0 = atcc.global_l_loc[l];
+                dish = atcc.global_l_loc[l + 1] - ish0;
+                u0 = atco->ao_loc[ish0];
+                mstride = (2 * l + 1) * ccl->nfeat_i;
+                ifeat = ccl->icontrib_ids[q];
+                if (ifeat == 3 || ifeat == 4 || ifeat == 5 || ifeat == 6) {
+                    chomat = atcc.gtrans_l + atcc.l_loc2[l];
+                } else {
+                    chomat = atcc.gtrans_0 + atcc.l_loc2[l];
+                }
+                for (m = 0; m < 2 * l + 1; m++) {
+                    pp_uq = p_uq + (u0 + m) * ccl->nfeat_i + q;
+                    for (int sh = 0; sh < dish; sh++) {
+                        buf[sh] = pp_uq[sh * mstride];
+                    }
+                    dpotrs_(&(atco->UPLO), &dish, &one, chomat, &dish, buf,
+                            &dish, &info);
+                    for (int sh = 0; sh < dish; sh++) {
+                        pp_uq[sh * mstride] = buf[sh];
+                    }
+                }
+            }
+        }
+        free(buf);
     }
 }
 
@@ -984,6 +1102,334 @@ void contract_orb_to_rad(double *theta_rlmq, double *p_uq, int *ar_loc,
             }
         }
     }
+}
+
+/**
+ * Given a radial distribution of functions for each spherical harmonic
+ * lm on each atom, with dimension nalpha, project onto the orbital
+ * basis set given by atco. Note: this computes projections onto each
+ * (non-orthogonal) basis function, not expansion coefficients
+ * theta_rlmq (nrad x nlm x nalpha) : input functions to project onto atco basis
+ * p_uq (atco->nao x nalpha) : output projections
+ * ra_loc (length natm + 1) : Range of rad indices that correspond
+ *                            to each atom
+ * rads (length nrad) : radial coordinates for each radial index
+ * nrad : number of radial coordinates over all atoms
+ * nlm : number of spherical harmonics (lmax + 1)^2
+ * atco : stores the atomic basis set.
+ * nalpha : number of functions stored in the rlm space.
+ */
+void contract_rad_to_orb_conv(double *theta_rlmq, double *p_uq, int *ra_loc,
+                              double *rads, double *alphas, int nrad, int nlm,
+                              atc_basis_set *atco, int nalpha, int stride,
+                              int offset, int l_add) {
+    p_uq = p_uq + offset;
+#pragma omp parallel
+    {
+        double PI = 4.0 * atan(1.0);
+        int ish, i0, L0, nm, l, l_eff, at;
+        double *p_q, *theta_mq;
+        int *bas = atco->bas;
+        int *ao_loc = atco->ao_loc;
+        double *env = atco->env;
+        int nbas = atco->nbas;
+        int *ibas;
+        double coef, beta;
+        int r, m, q, mq;
+        double *exp_list = (double *)malloc(sizeof(double) * nalpha);
+        double *coef_list = (double *)malloc(sizeof(double) * nalpha);
+        double *val_list = (double *)malloc(sizeof(double) * nalpha);
+#pragma omp for schedule(dynamic, 4)
+        for (ish = 0; ish < nbas; ish++) {
+            ibas = bas + ish * BAS_SLOTS;
+            at = ibas[ATOM_OF];
+            l = ibas[ANG_OF];
+            l_eff = l + l_add;
+            coef = env[ibas[PTR_COEFF]];
+            beta = env[ibas[PTR_EXP]];
+            i0 = ao_loc[ish];
+            nm = 2 * l + 1;
+            L0 = l * l;
+            for (q = 0; q < nalpha; q++) {
+                exp_list[q] = beta * alphas[q] / (beta + alphas[q]);
+                coef_list[q] = coef * pow(PI / alphas[q], 1.5) *
+                               pow(alphas[q] / (beta + alphas[q]), 1.5 + l);
+            }
+            for (r = ra_loc[at]; r < ra_loc[at + 1]; r++) {
+                theta_mq = theta_rlmq + nalpha * (r * nlm + L0);
+                p_q = p_uq + i0 * stride;
+                mq = 0;
+                for (q = 0; q < nalpha; q++) {
+                    val_list[q] = coef_list[q] * pow(rads[r], l_eff) *
+                                  exp(-exp_list[q] * rads[r] * rads[r]);
+                }
+                for (m = 0; m < nm; m++) {
+                    for (q = 0; q < nalpha; q++, mq++) {
+                        p_q[q] += val_list[q] * theta_mq[mq];
+                    }
+                    p_q += stride;
+                }
+            }
+        }
+        free(exp_list);
+        free(coef_list);
+        free(val_list);
+    }
+}
+
+/**
+ * Backwards version of contract_rad_to_orb_conv
+ * (i.e. takes p_uq as input and projects the convolved basis
+ * functions out onto the radial coordinates and spherical harmonics).
+ * See contract_rad_to_orb_conv for variable definitions and details.
+ */
+void contract_orb_to_rad_conv(double *theta_rlmq, double *p_uq, int *ar_loc,
+                              double *rads, double *alphas, int nrad, int nlm,
+                              atc_basis_set *atco, int nalpha, int stride,
+                              int offset, int l_add) {
+    p_uq = p_uq + offset;
+    int nbas = atco->nbas;
+    double *exp_list = (double *)malloc(sizeof(double) * nbas * nalpha);
+    double *coef_list = (double *)malloc(sizeof(double) * nbas * nalpha);
+#pragma omp parallel
+    {
+        double PI = 4.0 * atan(1.0);
+        int ish, i0, L0, nm, l, at;
+        double *p_q, *theta_mq;
+        int *bas = atco->bas;
+        int *ao_loc = atco->ao_loc;
+        double *env = atco->env;
+        int *ibas;
+        double coef, beta;
+        int r, m, q, mq;
+        double *val_list = (double *)malloc(sizeof(double) * nalpha);
+#pragma omp for schedule(dynamic, 4)
+        for (ish = 0; ish < nbas; ish++) {
+            ibas = bas + ish * BAS_SLOTS;
+            at = ibas[ATOM_OF];
+            l = ibas[ANG_OF];
+            coef = env[ibas[PTR_COEFF]];
+            beta = env[ibas[PTR_EXP]];
+            for (q = 0; q < nalpha; q++) {
+                exp_list[ish * nalpha + q] =
+                    beta * alphas[q] / (beta + alphas[q]);
+                coef_list[ish * nalpha + q] =
+                    coef * pow(PI / alphas[q], 1.5) *
+                    pow(alphas[q] / (beta + alphas[q]), 1.5 + l);
+            }
+        }
+#pragma omp for schedule(dynamic, 4)
+        for (r = 0; r < nrad; r++) {
+            at = ar_loc[r];
+            for (ish = atco->atom_loc_ao[at]; ish < atco->atom_loc_ao[at + 1];
+                 ish++) {
+                ibas = bas + ish * BAS_SLOTS;
+                l = ibas[ANG_OF];
+                coef = env[ibas[PTR_COEFF]];
+                beta = env[ibas[PTR_EXP]];
+                i0 = ao_loc[ish];
+                nm = 2 * l + 1;
+                L0 = l * l;
+                for (q = 0; q < nalpha; q++) {
+                    val_list[q] =
+                        coef_list[ish * nalpha + q] * pow(rads[r], l) *
+                        exp(-exp_list[ish * nalpha + q] * rads[r] * rads[r]);
+                }
+                theta_mq = theta_rlmq + nalpha * (r * nlm + L0);
+                p_q = p_uq + i0 * stride;
+                mq = 0;
+                for (m = 0; m < nm; m++) {
+                    for (q = 0; q < nalpha; q++, mq++) {
+                        theta_mq[mq] += val_list[q] * p_q[q];
+                    }
+                    p_q += stride;
+                }
+            }
+        }
+    }
+}
+
+double real_se_prefac(int l, double alpha, double beta) { return 1.0; }
+
+double real_se_prefac_r2(int l, double alpha, double beta) { return 0.0; }
+
+double real_se_ap_prefac(int l, double alpha, double beta) { return alpha; }
+
+double real_se_ap_prefac_r2(int l, double alpha, double beta) { return 0.0; }
+
+double real_se_r2_prefac(int l, double alpha, double beta) {
+    return (3 * alpha - 2 * beta * l) / (2 * alpha * (beta + alpha));
+}
+
+double real_se_r2_prefac_r2(int l, double alpha, double beta) {
+    return beta * beta / ((beta + alpha) * (beta + alpha));
+}
+
+double real_se_apr2_prefac(int l, double alpha, double beta) {
+    return alpha * real_se_r2_prefac(l, alpha, beta);
+}
+
+double real_se_apr2_prefac_r2(int l, double alpha, double beta) {
+    return alpha * real_se_r2_prefac_r2(l, alpha, beta);
+}
+
+double real_se_ap2r2_prefac(int l, double alpha, double beta) {
+    return alpha * alpha * real_se_r2_prefac(l, alpha, beta);
+}
+
+double real_se_ap2r2_prefac_r2(int l, double alpha, double beta) {
+    return alpha * alpha * real_se_r2_prefac_r2(l, alpha, beta);
+}
+
+double real_se_lapl_prefac(int l, double alpha, double beta) {
+    return 4 * real_se_ap2r2_prefac(l, alpha, beta) -
+           2 * real_se_ap_prefac(l, alpha, beta);
+}
+
+double real_se_lapl_prefac_r2(int l, double alpha, double beta) {
+    return 4 * real_se_ap2r2_prefac_r2(l, alpha, beta) -
+           2 * real_se_ap_prefac_r2(l, alpha, beta);
+}
+
+double real_se_grad_prefac_m1(int l, double alpha, double beta) {
+    return -0.0 * real_se_lapl_prefac(l, alpha, beta);
+}
+
+double real_se_grad_prefac_r2_m1(int l, double alpha, double beta) {
+    return -0.0 * real_se_lapl_prefac_r2(l, alpha, beta);
+}
+
+double real_se_grad_prefac_p1(int l, double alpha, double beta) {
+    return pow(-1.0, l) * alpha * beta / (alpha + beta) *
+           real_se_lapl_prefac(l, alpha, beta);
+}
+
+double real_se_grad_prefac_r2_p1(int l, double alpha, double beta) {
+    return pow(-1.0, l) * alpha * beta / (alpha + beta) *
+           real_se_lapl_prefac_r2(l, alpha, beta);
+}
+
+double real_se_rvec_prefac_m1(int l, double alpha, double beta) {
+    return real_se_grad_prefac_m1(l, alpha, beta) / alpha;
+}
+
+double real_se_rvec_prefac_p1(int l, double alpha, double beta) {
+    return real_se_grad_prefac_p1(l, alpha, beta) / alpha;
+}
+
+double real_se_rvec_prefac_r2_m1(int l, double alpha, double beta) {
+    return real_se_grad_prefac_r2_m1(l, alpha, beta) / alpha;
+}
+
+double real_se_rvec_prefac_r2_p1(int l, double alpha, double beta) {
+    return real_se_grad_prefac_r2_p1(l, alpha, beta) / alpha;
+}
+
+void get_real_conv_prefacs_vi(double *out, atc_basis_set *atco, double *alphas,
+                              int use_r2, int featid, int num_out, int nalpha) {
+#pragma omp parallel
+    {
+        int sh, q, l;
+        double beta;
+        int *ibas;
+        double (*prefac_func)(int, double, double);
+        // NOTE: This messy if statement can be replaced by
+        // subclassing when converting to C++.
+        if (use_r2) {
+            if (featid == 0)
+                prefac_func = &real_se_prefac_r2;
+            else if (featid == 1)
+                prefac_func = &real_se_r2_prefac_r2;
+            else if (featid == 2)
+                prefac_func = &real_se_apr2_prefac_r2;
+            else if (featid == 3)
+                prefac_func = &real_se_rvec_prefac_r2_m1;
+            else if (featid == 4)
+                prefac_func = &real_se_grad_prefac_r2_m1;
+            else if (featid == 5)
+                prefac_func = &real_se_rvec_prefac_r2_p1;
+            else if (featid == 6)
+                prefac_func = &real_se_grad_prefac_r2_p1;
+            else if (featid == 7)
+                prefac_func = &real_se_ap_prefac_r2;
+            else if (featid == 8)
+                prefac_func = &real_se_ap2r2_prefac_r2;
+            else if (featid == 9)
+                prefac_func = &real_se_lapl_prefac_r2;
+            else {
+                printf("Unsupported featid\n");
+                exit(-1);
+            }
+        } else {
+            if (featid == 0)
+                prefac_func = &real_se_prefac;
+            else if (featid == 1)
+                prefac_func = &real_se_r2_prefac;
+            else if (featid == 2)
+                prefac_func = &real_se_apr2_prefac;
+            else if (featid == 3)
+                prefac_func = &real_se_rvec_prefac_m1;
+            else if (featid == 4)
+                prefac_func = &real_se_grad_prefac_m1;
+            else if (featid == 5)
+                prefac_func = &real_se_rvec_prefac_p1;
+            else if (featid == 6)
+                prefac_func = &real_se_grad_prefac_p1;
+            else if (featid == 7)
+                prefac_func = &real_se_ap_prefac;
+            else if (featid == 8)
+                prefac_func = &real_se_ap2r2_prefac;
+            else if (featid == 9)
+                prefac_func = &real_se_lapl_prefac;
+            else {
+                printf("Unsupported featid\n");
+                exit(-1);
+            }
+        }
+#pragma omp for
+        for (sh = 0; sh < atco->nbas; sh++) {
+            for (q = 0; q < nalpha; q++) {
+                ibas = atco->bas + sh * BAS_SLOTS;
+                l = ibas[ANG_OF];
+                beta = atco->env[ibas[PTR_EXP]];
+                out[sh * nalpha * num_out + q] =
+                    prefac_func(l, alphas[q], beta);
+            }
+        }
+    }
+}
+
+void apply_vi_contractions(double *conv_vo, double *conv_vq,
+                           convolution_collection *ccl, int use_r2) {
+    int ifeat;
+    atc_basis_set *atco = ccl->atco_out;
+    int nalpha = ccl->nalpha;
+    int nbeta = ccl->nfeat_i;
+    int oqstride = nalpha * nbeta;
+    double *ints_soq =
+        (double *)malloc(nalpha * nbeta * atco->nbas * sizeof(double));
+    for (ifeat = 0; ifeat < nbeta; ifeat++) {
+        get_real_conv_prefacs_vi(ints_soq + ifeat * nalpha, atco, ccl->alphas,
+                                 use_r2, ccl->icontrib_ids[ifeat], nbeta,
+                                 nalpha);
+    }
+#pragma omp parallel
+    {
+        int sh, v, b, q;
+#pragma omp for schedule(dynamic, 4)
+        for (sh = 0; sh < atco->nbas; sh++) {
+            for (v = atco->ao_loc[sh]; v < atco->ao_loc[sh + 1]; v++) {
+                for (b = 0; b < ccl->nfeat_i; b++) {
+                    for (q = 0; q < ccl->nalpha; q++) {
+                        conv_vo[v * nbeta + b] +=
+                            ints_soq[sh * oqstride + b * nalpha + q] *
+                            conv_vq[v * nalpha + q];
+                    }
+                }
+            }
+        }
+    }
+    free(ints_soq);
 }
 
 // TODO implementing these functions could be helpful for PAW implementation

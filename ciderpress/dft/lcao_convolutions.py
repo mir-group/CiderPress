@@ -214,43 +214,7 @@ class ATCBasis:
         libcider.get_atco_env(env.ctypes.data_as(ctypes.c_void_p), self._atco)
         return env
 
-    def convert_rad2orb_(
-        self, theta_rlmq, p_uq, loc, rads, rad2orb=True, offset=None, zero_output=True
-    ):
-        """
-        Take a set of functions stored on radial grids and spherical harmonics
-        and project it onto the atomic orbital basis. This is an in-place
-        operation, where theta_rlmq is written if rad2orb is False and
-        p_uq is written if rad2orb is True.
-        - If rad2orb is True, loc has
-          shape (natm + 1,), and theta_rlmq[loc[ia] : loc[ia+1]] is
-          the set of functions on atom ia. This corresponds to
-          the ra_loc member of an AtomicGridsIndexer
-        - If rad2orb is False, loc has shape (nrad,), and theta_rlmq[r]
-          is located on atom loc[r]. This corresponds to the ar_loc
-          member of an AtomicGridsIndexer
-
-        Args:
-            theta_rlmq (np.ndarray): float64, shape (nrad, nlm, nalpha)
-            p_uq (np.ndarray): float64, shape (ngrids, nalpha)
-            loc (np.ndarray, AtomicGridsIndexer):
-                An int32 array whose shape depends on whether rad2orb is True.
-            rads (np.ndarray): float64 list of radial coordinates with size
-                theta_rlmq.shape[0]. Corresponds to rad_arr member of
-                AtomicGridsIndexer.
-            rad2orb (bool): Whether to convert radial coordinates to orbital
-                basis (True) or vice versa (False).
-            offset (int): starting index in p_uq to add to/from
-            zero_output (bool): Whether to set output zero before
-                adding to it. Default to true. Set to False if you
-                want to add to the existing values in the output
-                array.
-        """
-        if isinstance(loc, AtomicGridsIndexer):
-            if rad2orb:
-                loc = loc.ra_loc
-            else:
-                loc = loc.ar_loc
+    def _run_checks(self, theta_rlmq, p_uq, loc, rads, offset):
         nalpha = theta_rlmq.shape[-1]
         stride = p_uq.shape[1]
         if offset is None:
@@ -271,7 +235,49 @@ class ATCBasis:
         assert p_uq.shape[0] == self.nao
         assert p_uq.flags.c_contiguous
         assert p_uq.dtype == np.float64
-        assert offset + nalpha <= stride
+        assert offset + nalpha <= stride, "{} {} {}".format(offset, nalpha, stride)
+        return nalpha, stride, offset, nrad
+
+    def convert_rad2orb_(
+        self, theta_rlmq, p_uq, loc, rads, rad2orb=True, offset=None, zero_output=True
+    ):
+        """
+        Take a set of functions stored on radial grids and spherical harmonics
+        and project it onto the atomic orbital basis. This is an in-place
+        operation, where theta_rlmq is written if rad2orb is False and
+        p_uq is written if rad2orb is True.
+        - If rad2orb is True, loc has
+          shape (natm + 1,), and theta_rlmq[loc[ia] : loc[ia+1]] is
+          the set of functions on atom ia. This corresponds to
+          the ra_loc member of an AtomicGridsIndexer
+        - If rad2orb is False, loc has shape (nrad,), and theta_rlmq[r]
+          is located on atom loc[r]. This corresponds to the ar_loc
+          member of an AtomicGridsIndexer
+
+        Args:
+            theta_rlmq (np.ndarray): float64, shape (nrad, nlm, nalpha)
+            p_uq (np.ndarray): float64, shape (ngrids, stride)
+            loc (np.ndarray, AtomicGridsIndexer):
+                An int32 array whose shape depends on whether rad2orb is True.
+            rads (np.ndarray): float64 list of radial coordinates with size
+                theta_rlmq.shape[0]. Corresponds to rad_arr member of
+                AtomicGridsIndexer.
+            rad2orb (bool): Whether to convert radial coordinates to orbital
+                basis (True) or vice versa (False).
+            offset (int): starting index in p_uq to add to/from
+            zero_output (bool): Whether to set output zero before
+                adding to it. Default to true. Set to False if you
+                want to add to the existing values in the output
+                array.
+        """
+        if isinstance(loc, AtomicGridsIndexer):
+            if rad2orb:
+                loc = loc.ra_loc
+            else:
+                loc = loc.ar_loc
+        nalpha, stride, offset, nrad = self._run_checks(
+            theta_rlmq, p_uq, loc, rads, offset
+        )
         if rad2orb:
             assert loc.size == self.natm + 1
             fn = libcider.contract_rad_to_orb
@@ -294,6 +300,95 @@ class ATCBasis:
             ctypes.c_int(stride),
             ctypes.c_int(offset),
         )
+
+    def _solve_coefs_(self, p_uq, nalpha, stride, offset):
+        assert p_uq.flags.c_contiguous
+        assert p_uq.shape[-1] == stride
+        libcider.solve_atc_coefs_for_orbs(
+            p_uq.ctypes.data_as(ctypes.c_void_p),
+            self.atco_c_ptr,
+            ctypes.c_int(nalpha),
+            ctypes.c_int(stride),
+            ctypes.c_int(offset),
+        )
+
+    def convert_rad2orb_conv_(
+        self,
+        theta_rlmq,
+        p_uq,
+        loc,
+        rads,
+        alphas,
+        l_add=0,
+        rad2orb=True,
+        offset=None,
+        zero_output=True,
+    ):
+        """
+        Take a set of functions stored on radial grids and spherical harmonics,
+        convolve it by the squared-exponentials with exponent parameters `alphas`,
+        and project it onto the atomic orbital basis. This is an in-place
+        operation, where theta_rlmq is written if rad2orb is False and
+        p_uq is written if rad2orb is True. len(alphas) == theta_rlmq.shape[-1]
+        See convert_rad2orb_ for more notes.
+
+        Args:
+            theta_rlmq (np.ndarray): float64, shape (nrad, nlm, nalpha)
+            p_uq (np.ndarray): float64, shape (ngrids, stride)
+            loc (np.ndarray, AtomicGridsIndexer):
+                An int32 array whose shape depends on whether rad2orb is True.
+            rads (np.ndarray): float64 list of radial coordinates with size
+                theta_rlmq.shape[0]. Corresponds to rad_arr member of
+                AtomicGridsIndexer.
+            alphas (np.ndarray): exponents of squared-exponentials for
+                convolution
+            rad2orb (bool): Whether to convert radial coordinates to orbital
+                basis (True) or vice versa (False).
+            offset (int): starting index in p_uq to add to/from
+            zero_output (bool): Whether to set output zero before
+                adding to it. Default to true. Set to False if you
+                want to add to the existing values in the output
+                array.
+        """
+        alphas = np.ascontiguousarray(alphas)
+        if isinstance(loc, AtomicGridsIndexer):
+            if rad2orb:
+                loc = loc.ra_loc
+            else:
+                loc = loc.ar_loc
+        nalpha, stride, offset, nrad = self._run_checks(
+            theta_rlmq, p_uq, loc, rads, offset
+        )
+        if rad2orb:
+            assert loc.size == self.natm + 1
+            fn = libcider.contract_rad_to_orb_conv
+            if zero_output:
+                p_uq[:, offset : offset + nalpha] = 0.0
+        else:
+            assert loc.size == nrad
+            fn = libcider.contract_orb_to_rad_conv
+            if zero_output:
+                theta_rlmq[:] = 0.0
+        # if not rad2orb:
+        #     # orbital to radial grid conversion
+        #     self._solve_coefs_(p_uq, nalpha, stride, offset)
+        fn(
+            theta_rlmq.ctypes.data_as(ctypes.c_void_p),
+            p_uq.ctypes.data_as(ctypes.c_void_p),
+            loc.ctypes.data_as(ctypes.c_void_p),
+            rads.ctypes.data_as(ctypes.c_void_p),
+            alphas.ctypes.data_as(ctypes.c_void_p),
+            ctypes.c_int(rads.size),
+            ctypes.c_int(theta_rlmq.shape[1]),
+            self.atco_c_ptr,
+            ctypes.c_int(nalpha),
+            ctypes.c_int(stride),
+            ctypes.c_int(offset),
+            ctypes.c_int(l_add),
+        )
+        # if rad2orb:
+        #     # radial grid to orbital conversion
+        #     self._solve_coefs_(p_uq, nalpha, stride, offset)
 
 
 class ConvolutionCollection:
@@ -482,6 +577,21 @@ class ConvolutionCollection:
             ctypes.c_int(1 if fwd else 0),
         )
         return output
+
+    def apply_vi_contractions(self, conv_vo, conv_vq, use_r2=False):
+        libcider.apply_vi_contractions(
+            conv_vo.ctypes.data_as(ctypes.c_void_p),
+            conv_vq.ctypes.data_as(ctypes.c_void_p),
+            self._ccl,
+            ctypes.c_int(1 if use_r2 else 0),
+        )
+
+    def solve_coefs_(self, p_uq):
+        print(p_uq.shape)
+        assert p_uq.flags.c_contiguous
+        libcider.solve_atc_coefs_for_orbs2(
+            p_uq.ctypes.data_as(ctypes.c_void_p), self._ccl
+        )
 
 
 class ConvolutionCollectionK(ConvolutionCollection):

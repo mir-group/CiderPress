@@ -169,20 +169,24 @@ class _TestNLDFBase:
             aug_beta=beta,
         )
         # TODO uncomment after fixing vi stability
-        # import traceback as tb
-        # errs = {}
-        # for i in range(ifeat_pred.shape[1]):
-        #     print(i)
-        #     try:
-        #         assert_allclose(ifeat_pred[:, i], ifeat[:, i], rtol=rtol, atol=atol)
-        #     except AssertionError as e:
-        #         errs[i] = ''.join(tb.format_exception(None, e, e.__traceback__))
-        # if len(errs) > 0:
-        #     estr = ''
-        #     for i, err in errs.items():
-        #         print(i, err)
-        #         estr = estr + 'FEATURE {}\n{}\n'.format(i, err)
-        #     raise AssertionError(estr)
+        import traceback as tb
+
+        errs = {}
+        for i in range(ifeat_pred.shape[1]):
+            print(i)
+            try:
+                assert_allclose(
+                    ifeat_pred[:, i], ifeat[:, i], rtol=0.1 * rtol, atol=0.1 * atol
+                )
+            except AssertionError as e:
+                # raise e
+                errs[i] = "".join(tb.format_exception(None, e, e.__traceback__))
+        if len(errs) > 0:
+            estr = ""
+            for i, err in errs.items():
+                print(i, err)
+                estr = estr + "FEATURE {}\n{}\n".format(i, err)
+            raise AssertionError(estr)
         jfeat_pred = get_descriptors(
             analyzer,
             self.vj_settings,
@@ -294,7 +298,7 @@ class _TestNLDFBase:
         )
         assert_almost_equal(rho_pred, rho_ref, 12)
         # TODO uncomment after fixing vi stability
-        # assert_almost_equal(ifeat_pred, ifeat_ref, 12)
+        assert_almost_equal(ifeat_pred, ifeat_ref, 12)
         assert_almost_equal(jfeat_pred, jfeat_ref, 12)
         # TODO uncomment after fixing vi stability
         # assert_almost_equal(ijfeat_pred, ijfeat_ref, 12)
@@ -339,8 +343,9 @@ class _TestNLDFBase:
                 )
                 occd_ifeat_fd = (ifeat_pert - ifeat_ref)[spin] / delta
                 for i in range(self.vi_settings.nfeat):
-                    # TODO uncomment after fixing vi stability
-                    continue
+                    # TODO run this check
+                    # continue
+                    print(i)
                     assert_allclose(
                         occd_pred[i], occd_ifeat_fd[i], rtol=rtol, atol=atol
                     )
@@ -726,6 +731,7 @@ class _TestNLDFBase:
     def test_nldf_occ_derivs(self):
         mols = self.mols
         tols = [(2e-3, 2e-3), (2e-3, 1e-2), (2e-3, 5e-3), (2e-3, 2e-3)]
+        tols = [(1e-3, 1e-3), (1e-3, 1e-3), (1e-3, 1e-3), (1e-3, 1e-3)]
         for mol, (atol, rtol) in zip(mols, tols):
             print(mol.atom)
             ks = dft.RKS(mol) if mol.spin == 0 else dft.UKS(mol)
