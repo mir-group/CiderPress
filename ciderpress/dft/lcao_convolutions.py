@@ -5,6 +5,7 @@ import scipy.special
 
 from ciderpress import lib
 from ciderpress.dft.grids_indexer import AtomicGridsIndexer
+from ciderpress.dft.sph_harm_coeff import get_deriv_ylm_coeff, get_ylm1_coeff
 from ciderpress.lib import load_library as load_cider_library
 
 libcider = load_cider_library("libmcider")
@@ -312,6 +313,9 @@ class ATCBasis:
             ctypes.c_int(offset),
         )
 
+    def solve_atc_coefs_(self, p_uq):
+        self._solve_coefs_(p_uq, p_uq.shape[-1], p_uq.shape[-1], 0)
+
     def convert_rad2orb_conv_(
         self,
         theta_rlmq,
@@ -586,11 +590,88 @@ class ConvolutionCollection:
             ctypes.c_int(1 if use_r2 else 0),
         )
 
+    def apply_vi_contractions_l0(self, conv_vq, use_r2=False, conv_vo=None):
+        ifeats = np.asarray(self._icontrib_ids[: self.n0], dtype=np.int32, order="C")
+        if conv_vo is None:
+            conv_vo = np.zeros((conv_vq.shape[0], self.n0), dtype=np.float64)
+        assert conv_vo.flags.c_contiguous
+        assert conv_vq.flags.c_contiguous
+        libcider.apply_vi_contractions2(
+            conv_vo.ctypes.data_as(ctypes.c_void_p),
+            conv_vq.ctypes.data_as(ctypes.c_void_p),
+            self._ccl,
+            ctypes.c_int(1 if use_r2 else 0),
+            ifeats.ctypes.data_as(ctypes.c_void_p),
+            ctypes.c_int(ifeats.size),
+        )
+        return conv_vo
+
+    def apply_vi_contractions_l1(self, conv_vq, use_r2=False, conv_vo=None):
+        all_l1_ifeats = []
+        for i, ifeat_id in enumerate(self._icontrib1m_ids):
+            all_l1_ifeats.append(ifeat_id + 7)
+        ifeats = np.asarray(all_l1_ifeats, dtype=np.int32, order="C")
+        if conv_vo is None:
+            conv_vo = np.zeros((conv_vq.shape[0], len(ifeats)), dtype=np.float64)
+        assert conv_vo.flags.c_contiguous
+        assert conv_vq.flags.c_contiguous
+        libcider.apply_vi_contractions2(
+            conv_vo.ctypes.data_as(ctypes.c_void_p),
+            conv_vq.ctypes.data_as(ctypes.c_void_p),
+            self._ccl,
+            ctypes.c_int(1 if use_r2 else 0),
+            ifeats.ctypes.data_as(ctypes.c_void_p),
+            ctypes.c_int(ifeats.size),
+        )
+        return conv_vo
+
     def solve_coefs_(self, p_uq):
-        print(p_uq.shape)
         assert p_uq.flags.c_contiguous
         libcider.solve_atc_coefs_for_orbs2(
             p_uq.ctypes.data_as(ctypes.c_void_p), self._ccl
+        )
+
+    def multiply_coefs_for_l1(self, p_uq):
+        assert p_uq.flags.c_contiguous
+        libcider.multiply_coefs_for_l1(p_uq.ctypes.data_as(ctypes.c_void_p), self._ccl)
+
+    def fill_l1_part(self, theta_rlmq, theta_xrlmq, plus=True):
+        nrad, nlm, nalpha = theta_rlmq.shape
+        lmax = int(np.sqrt(nlm + 1e-7)) - 1
+        gaunt_vl = get_ylm1_coeff(lmax, plus=True)
+        if plus:
+            fn = libcider.fill_lp1_orb_fwd
+        else:
+            fn = libcider.fill_lm1_orb_fwd
+        fn(
+            theta_rlmq.ctypes.data_as(ctypes.c_void_p),
+            theta_xrlmq.ctypes.data_as(ctypes.c_void_p),
+            gaunt_vl.ctypes.data_as(ctypes.c_void_p),
+            ctypes.c_int(nlm),
+            ctypes.c_int(nalpha),
+            ctypes.c_int(nalpha),
+            ctypes.c_int(nalpha),
+            ctypes.c_int(0),
+            ctypes.c_int(0),
+            ctypes.c_int(nrad),
+        )
+
+    def fill_l1_part_deriv(self, theta_rlmq, theta_xrlmq):
+        nrad, nlm, nalpha = theta_rlmq.shape
+        lmax = int(np.sqrt(nlm + 1e-7)) - 1
+        gaunt_vl = get_deriv_ylm_coeff(lmax)
+        fn = libcider.fill_lp1_orb_fwd
+        fn(
+            theta_rlmq.ctypes.data_as(ctypes.c_void_p),
+            theta_xrlmq.ctypes.data_as(ctypes.c_void_p),
+            gaunt_vl.ctypes.data_as(ctypes.c_void_p),
+            ctypes.c_int(nlm),
+            ctypes.c_int(nalpha),
+            ctypes.c_int(nalpha),
+            ctypes.c_int(nalpha),
+            ctypes.c_int(0),
+            ctypes.c_int(0),
+            ctypes.c_int(nrad),
         )
 
 

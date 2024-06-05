@@ -190,6 +190,16 @@ class AtomicGridsIndexer:
         """
         return np.empty((self.nrad, self.nlm, nalpha), order="C", dtype=np.float64)
 
+    def empty_xrlmq(self, nalpha=1):
+        """
+        Args:
+            nalpha (int): Number of interpolation points for CIDER kernel.
+
+        Returns:
+            np.ndarray with shape (3, nrad, nlm, nalpha)
+        """
+        return np.empty((3, self.nrad, self.nlm, nalpha), order="C", dtype=np.float64)
+
     def empty_gq(self, nalpha=1):
         """
         Get an empty array for storing theta_gq.

@@ -308,17 +308,7 @@ class VINLDFGen(LCAONLDFGenerator):
         )
         theta_uq[:] *= self.plan.alpha_norms
         self.ccl.apply_vi_contractions(conv_vq, theta_uq, use_r2=True)
-        stride = conv_vq.shape[-1]
-        print(stride, conv_vq.shape)
-        # self.ccl.atco_out._solve_coefs_(conv_vq, stride, stride, 0)
         self.ccl.solve_coefs_(conv_vq)
-        # print(self.plan.alpha_norms)
-        # conv_vq[:, 0] = (self.plan.alpha_norms * theta_uq).sum(axis=-1)
-        # conv_vq[:, 3] = (self.plan.alphas * self.plan.alpha_norms * theta_uq).sum(
-        #     axis=-1
-        # )
-        # conv_vq[:, :] = (self.plan.alpha_norms * theta_uq).sum(axis=-1)[..., None]
-        # conv_vq[:, 0] = theta_uq.sum(axis=-1)
         self._stop_timer("Part2")
         self._start_timer("Part3")
         res = self.interpolator.project_orb2grid(conv_vq)
@@ -353,3 +343,112 @@ class VINLDFGen(LCAONLDFGenerator):
         self.grids_indexer.reduce_angc_ylm_(vtheta_rlmq, vtheta_gq, a2y=False)
         self._stop_timer("Part1")
         return vtheta_gq
+
+
+class VINLDFGen2(VINLDFGen):
+    def __init__(self, plan, ccl, interpolator, grids_indexer):
+        super(VINLDFGen2, self).__init__(plan, ccl, interpolator, grids_indexer)
+        interp = self.interpolator
+        from ciderpress.dft.lcao_interpolation import LCAOInterpolator
+
+        self.interpolator = LCAOInterpolator(
+            interp.atom_coords,
+            ccl.atco_out,
+            self.ccl.n0 + 3 * self.ccl.n1,
+            0,
+            aparam=interp._aparam,
+            dparam=interp._dparam,
+            nrad=interp._nrad,
+            onsite_direct=interp.onsite_direct,
+        )
+        self._xrlmq_buf = self.grids_indexer.empty_xrlmq(self.ccl.nalpha)
+
+    def _perform_fwd_convolution(self, theta_gq):
+        self._start_timer("Part1")
+        theta_rlmq = self._rlmq_buf
+        theta_xrlmq = self._xrlmq_buf
+        theta_uq = self._uq_buf
+        conv_vq = self._vq_buf
+        conv_vq[:] = 0.0
+        theta_uq[:] = 0.0
+        theta_rlmq[:] = 0.0
+        theta_xrlmq[:] = 0.0
+        self.grids_indexer.reduce_angc_ylm_(theta_rlmq, theta_gq, a2y=True)
+        shape = theta_rlmq.shape
+        theta_rlmq.shape = (-1, theta_rlmq.shape[-1])
+        self.plan.get_transformed_interpolation_terms(
+            theta_rlmq, i=-1, fwd=True, inplace=True
+        )
+        theta_rlmq.shape = shape
+        self._stop_timer("Part1")
+        self._start_timer("Part2")
+        args = [
+            theta_rlmq,
+            theta_uq,
+            self.grids_indexer,
+            self.grids_indexer.rad_arr,
+            self.plan.alphas,
+        ]
+        kwargs = {"rad2orb": True, "offset": 0, "l_add": 0}
+        self.ccl.atco_out.convert_rad2orb_conv_(*args, **kwargs)
+        theta_uq[:] *= self.plan.alpha_norms
+        l0_conv_vq = self.ccl.apply_vi_contractions_l0(theta_uq)
+        theta_uq[:] = 0
+        kwargs["l_add"] = 2
+        self.ccl.atco_out.convert_rad2orb_conv_(*args, **kwargs)
+        theta_uq[:] *= self.plan.alpha_norms
+        self.ccl.apply_vi_contractions_l0(theta_uq, use_r2=True, conv_vo=l0_conv_vq)
+
+        theta_xrlmq[:] = 0
+        self.ccl.fill_l1_part(theta_rlmq, theta_xrlmq, plus=True)
+        # self.ccl.fill_l1_part_deriv(theta_rlmq, theta_xrlmq)
+        theta_xrlmq[:] *= -0.5 * np.sqrt(4 * np.pi / 3)
+        l1_conv_vox = np.zeros((l0_conv_vq.shape[0], 2, 3), order="C")
+        for x in range(3):
+            args[0] = theta_xrlmq[x]
+            kwargs["l_add"] = -1
+            theta_uq[:] = 0.0
+            self.ccl.atco_out.convert_rad2orb_conv_(*args, **kwargs)
+            theta_uq[:] *= self.plan.alpha_norms
+            l1_conv_vox[..., x] = self.ccl.apply_vi_contractions_l1(
+                theta_uq, use_r2=False
+            )
+
+        theta_xrlmq[:] = 0.0
+        self.ccl.fill_l1_part(theta_rlmq, theta_xrlmq, plus=True)
+        theta_xrlmq[:] *= 0.5 * np.sqrt(4 * np.pi / 3)
+        for x in range(3):
+            args[0] = theta_xrlmq[x]
+            kwargs["l_add"] = 1
+            theta_uq[:] = 0.0
+            self.ccl.atco_out.convert_rad2orb_conv_(*args, **kwargs)
+            theta_uq[:] *= self.plan.alpha_norms
+            l1_conv_vox[..., x] += self.ccl.apply_vi_contractions_l1(
+                theta_uq, use_r2=True
+            )
+
+        theta_xrlmq[:] = 0.0
+        self.ccl.fill_l1_part(theta_rlmq, theta_xrlmq, plus=False)
+        theta_xrlmq[:] *= 0.5 * np.sqrt(4 * np.pi / 3)
+        for x in range(3):
+            args[0] = theta_xrlmq[x]
+            kwargs["l_add"] = 1
+            theta_uq[:] = 0.0
+            self.ccl.atco_out.convert_rad2orb_conv_(*args, **kwargs)
+            theta_uq[:] *= self.plan.alpha_norms
+            l1_conv_vox[..., x] += self.ccl.apply_vi_contractions_l1(
+                theta_uq, use_r2=True
+            )
+
+        conv_vq = np.ascontiguousarray(
+            np.concatenate(
+                [l0_conv_vq, l1_conv_vox.reshape(l1_conv_vox.shape[0], -1)], axis=-1
+            )
+        )
+
+        self.ccl.atco_out.solve_atc_coefs_(conv_vq)
+        self._stop_timer("Part2")
+        self._start_timer("Part3")
+        res = self.interpolator.project_orb2grid(conv_vq)
+        self._stop_timer("Part3")
+        return res

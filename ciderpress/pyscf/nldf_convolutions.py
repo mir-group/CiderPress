@@ -12,15 +12,15 @@ from ciderpress.dft.lcao_convolutions import (
     get_gamma_lists_from_bas_and_env,
 )
 from ciderpress.dft.lcao_interpolation import LCAOInterpolator, LCAOInterpolatorDirect
-from ciderpress.dft.lcao_nldf_generator import LCAONLDFGenerator, VINLDFGen
+from ciderpress.dft.lcao_nldf_generator import LCAONLDFGenerator, VINLDFGen2
 from ciderpress.dft.plans import VI_ID_MAP, NLDFGaussianPlan, NLDFSplinePlan
 
 
 def aug_etb_for_cider(
     mol,
     beta=DEFAULT_AUX_BETA,
-    upper_fac=1.0,
-    lower_fac=1.0,
+    upper_fac=4.0,
+    lower_fac=0.5,
     lmax=DEFAULT_CIDER_LMAX,
     def_afac_max=4.0,
     def_afac_min=0.5,
@@ -260,7 +260,7 @@ class PyscfNLDFGenerator(LCAONLDFGenerator):
         return (self.interpolator.nlm + 4) * self.natm
 
 
-class PyscfVIGenerator(VINLDFGen):
+class PyscfVIGenerator(VINLDFGen2):
     """
     A PySCF-specific wrapper for the NLDF feature generator.
     """

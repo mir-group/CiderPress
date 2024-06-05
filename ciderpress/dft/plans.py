@@ -865,7 +865,6 @@ class SDMXFullPlan(SDMXBasePlan):
                         + 0.25 * _get_int_d(n, prod, asum)
                         + 0.25 * _get_int_d(n, prod, bsum)
                     )
-                # print(ratio, r, n, rdr, np.linalg.cond(l0mats[-1]))
             for n, rdr in self.settings.iterate_l1_terms(ratio):
                 # num = 0.25 * (ratio ** (0.5 * n) + ratio ** (-0.5 * n))
                 num = 0.5
@@ -881,7 +880,6 @@ class SDMXFullPlan(SDMXBasePlan):
                         + 0.25 * _get_int_1d(n, prod, asum)
                         + 0.25 * _get_int_1d(n, prod, bsum)
                     )
-                # print(ratio, r, n, rdr, np.linalg.cond(l1mats[-1]))
         self._num_l0_feat = len(l0mats)
         self._num_l1_feat = len(l1mats)
         coul_list = [m for m in l0mats + l1mats]
@@ -1380,6 +1378,7 @@ class NLDFAuxiliaryPlan(ABC):
             i += 1
         for j, k in self._l1_dots:
             feat[i] = np.einsum("xg,xg->g", l1cache[j], l1cache[k])
+            # feat[i] = l1cache[j][2] * l1cache[k][2]
             feat[i] *= self.nspin
             i += 1
         return feat

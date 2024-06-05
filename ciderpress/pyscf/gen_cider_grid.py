@@ -67,7 +67,13 @@ class CiderGrids(Grids):
             rad_tab,
             dr_tab,
         ) = gen_atomic_grids_cider(
-            mol, atom_grid, self.radi_method, level, prune, **kwargs
+            mol,
+            atom_grid,
+            self.radi_method,
+            level,
+            prune,
+            full_lmax=self.lmax,
+            **kwargs
         )
         self.grids_indexer = AtomicGridsIndexer.from_tabs(
             mol, self.lmax, rad_loc_tab, ylm_loc_tab, rad_tab, ylm_tab

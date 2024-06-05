@@ -167,6 +167,7 @@ class _TestNLDFBase:
             plan_type=plan_type,
             aux_lambd=lambd,
             aug_beta=beta,
+            lmax=10,
         )
         # TODO uncomment after fixing vi stability
         import traceback as tb
@@ -182,7 +183,7 @@ class _TestNLDFBase:
                 # raise e
                 errs[i] = "".join(tb.format_exception(None, e, e.__traceback__))
         if len(errs) > 0:
-            estr = ""
+            estr = "{}\n\n".format(grids.coords)
             for i, err in errs.items():
                 print(i, err)
                 estr = estr + "FEATURE {}\n{}\n".format(i, err)
@@ -714,6 +715,8 @@ class _TestNLDFBase:
         tols = [(5e-4, 5e-4), (2e-4, 5e-4), (3e-4, 5e-4), (5e-4, 5e-4)]
         for mol, (atol, rtol) in zip(mols, tols):
             print(mol.atom)
+            # if len(mol._atom) > 1:
+            #     continue
             ks = dft.RKS(mol) if mol.spin == 0 else dft.UKS(mol)
             ks.xc = "PBE"
             ks.conv_tol = 1e-12

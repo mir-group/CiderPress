@@ -1,7 +1,7 @@
 import ctypes
 
 import numpy as np
-from sympy.physics.wigner import clebsch_gordan
+from sympy.physics.wigner import clebsch_gordan, real_gaunt
 
 from ciderpress.lib import load_library as load_cider_library
 
@@ -146,6 +146,26 @@ def get_deriv_ylm_coeff(lmax):
             gaunt_coeff[4, lm] = np.sqrt(
                 ((2.0 * l + 3) * l1m * (l + 1 + m) / (2 * l + 1))
             )
+    return gaunt_coeff
+
+
+def get_ylm1_coeff(lmax, plus=True):
+    nlm = (lmax + 1) * (lmax + 1)
+    gaunt_coeff = np.zeros((5, nlm))
+    if plus:
+        sign = 1
+    else:
+        sign = -1
+    for l in range(lmax + 1):
+        for im in range(2 * l + 1):
+            lm = l * l + im
+            m = im - l
+            lp1 = l + sign * 1
+            gaunt_coeff[0, lm] = real_gaunt(1, l, lp1, 1, m, m - 1)
+            gaunt_coeff[1, lm] = real_gaunt(1, l, lp1, 1, m, m + 1)
+            gaunt_coeff[2, lm] = real_gaunt(1, l, lp1, -1, m, m - 1)
+            gaunt_coeff[3, lm] = real_gaunt(1, l, lp1, -1, m, m + 1)
+            gaunt_coeff[4, lm] = real_gaunt(1, l, lp1, 0, m, m)
     return gaunt_coeff
 
 

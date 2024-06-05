@@ -51,6 +51,7 @@ class LCAOInterpolator:
         aparam=0.03,
         dparam=0.04,
         nrad=200,
+        onsite_direct=False,
     ):
         """
         Args:
@@ -123,6 +124,7 @@ class LCAOInterpolator:
             _call_spline_(self.wm_rsp, self._l1bas, self._l1env)
 
         self.is_num_ai_setup = False
+        self.onsite_direct = onsite_direct
 
     @property
     def num_in(self):
@@ -508,7 +510,6 @@ class LCAOInterpolator:
                     ngrids -= self._ga_loc[a + 1] - self._ga_loc[a]
                 if not fwd:
                     self._call_l1_fill(f_gq, self.atom_coords[a], fwd)
-                self._loc_ai[a][-1]
                 fn(
                     f_gq.ctypes.data_as(ctypes.c_void_p),
                     f_arlpq[a].ctypes.data_as(ctypes.c_void_p),
