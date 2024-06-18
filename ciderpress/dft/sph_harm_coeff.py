@@ -163,8 +163,8 @@ def get_ylm1_coeff(lmax, plus=True):
             lp1 = l + sign * 1
             gaunt_coeff[0, lm] = real_gaunt(1, l, lp1, 1, m, m - 1)
             gaunt_coeff[1, lm] = real_gaunt(1, l, lp1, 1, m, m + 1)
-            gaunt_coeff[2, lm] = real_gaunt(1, l, lp1, -1, m, m - 1)
-            gaunt_coeff[3, lm] = real_gaunt(1, l, lp1, -1, m, m + 1)
+            gaunt_coeff[2, lm] = real_gaunt(1, l, lp1, -1, m, -1 - m)
+            gaunt_coeff[3, lm] = real_gaunt(1, l, lp1, -1, m, 1 - m)
             gaunt_coeff[4, lm] = real_gaunt(1, l, lp1, 0, m, m)
     return gaunt_coeff
 

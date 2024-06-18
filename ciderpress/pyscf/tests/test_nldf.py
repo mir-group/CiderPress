@@ -408,7 +408,7 @@ class _TestNLDFBase:
         grids.cutoff = 0
         analyzer.grids = grids
         analyzer.perform_full_analysis()
-        desc = get_descriptors(analyzer, settings, orbs=None)
+        desc = get_descriptors(analyzer, settings, orbs=None, lmax=10)
 
         ks = dft.RKS(rot_mol) if rot_mol.spin == 0 else dft.UKS(rot_mol)
         ks.xc = "PBE"
@@ -426,6 +426,11 @@ class _TestNLDFBase:
         analyzer.perform_full_analysis()
         rot_desc = get_descriptors(analyzer, settings, orbs=None)
 
+        for i in range(rot_desc.shape[1]):
+            print(i)
+            if i == 6:
+                continue
+            assert_allclose(rot_desc[:, i], desc[:, i], rtol=1e-4, atol=1e-4)
         assert_allclose(rot_desc, desc, rtol=1e-4, atol=1e-4)
 
     def test_rotation_invariance(self):
