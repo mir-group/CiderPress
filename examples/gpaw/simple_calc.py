@@ -47,5 +47,6 @@ atoms.calc = CiderGPAW(
     # Set augments_grids=True for CIDER functionals to parallelize
     # XC energy and potential evaluation more effectively
     parallel={"augment_grids": True},
+    spinpol=True,
 )
 etot = atoms.get_potential_energy()  # run the calculation
