@@ -12,6 +12,7 @@ dependencies:
   - numpy>=1.20.3,<1.25
   - pyscf>=2.1
   - pytest
+  - pytorch
   - pyyaml
   - scikit-learn>=1.0.1
   - scipy>=1.7.1
