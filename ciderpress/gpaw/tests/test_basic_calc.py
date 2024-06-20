@@ -1,5 +1,6 @@
 import unittest
 
+import numpy as np
 from ase.build import bulk
 from gpaw import PW
 from numpy.testing import assert_almost_equal
@@ -35,10 +36,11 @@ def run_calc(xc, spinpol):
 
 def generate_test(xcname, e_ref):
     def run_test(self):
-        e_rks = run_calc(xcname, False)
-        e_uks = run_calc(xcname, True)
-        assert_almost_equal(e_rks, e_ref, 6)
-        assert_almost_equal(e_uks, e_ref, 6)
+        with np.errstate(all="warn"):
+            e_rks = run_calc(xcname, False)
+            e_uks = run_calc(xcname, True)
+            assert_almost_equal(e_rks, e_ref, 6)
+            assert_almost_equal(e_uks, e_ref, 6)
 
     return run_test
 
