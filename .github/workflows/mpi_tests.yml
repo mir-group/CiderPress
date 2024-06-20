@@ -49,5 +49,6 @@ jobs:
       run: |
         # See https://github.com/pytest-dev/pytest/issues/1075
         source .github/workflows/load_conda.sh
+        sh .github/workflows/setup_gpaw.sh
         sh .github/workflows/run_mpi_tests.sh
         # PYTHONHASHSEED=0 OMP_NUM_THREADS=2 python -m unittest discover ciderpress/dft/tests/
