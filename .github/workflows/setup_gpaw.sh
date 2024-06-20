@@ -6,6 +6,7 @@ cp $CIDERDIR/.github/workflows/gpaw_siteconfig.py .
 python setup.py build
 python setup.py install
 cd ..
-gpaw install-data --sg15 $PWD
-gpaw install-data $PWD
+gpaw install-data --sg15 --register $PWD
+gpaw install-data --register $PWD
+cat ~/gpaw/rc.py
 cd $CIDERDIR
