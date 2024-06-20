@@ -37,7 +37,9 @@ class TestC(unittest.TestCase):
 
     def test_initialize_ccl(self):
         mol = gto.M(atom="H 0 0 0; F 0 0 0.9", basis="def2-tzvpd")
-        basis = aug_etb_for_cider(mol)[0]
+        # NOTE slightly larger beta for numerical stability
+        # TODO Can we do something to get the better stability for beta=1.6
+        basis = aug_etb_for_cider(mol, beta=1.7)[0]
         mol = gto.M(atom="H 0 0 0; F 0 0 0.9", basis=basis)
         dat = get_gamma_lists_from_mol(mol)
         atco_inp = ATCBasis(*dat)

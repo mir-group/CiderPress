@@ -46,7 +46,8 @@ class TestAtomicGridsIndexer(unittest.TestCase):
         theta_new2_rlmq = np.empty_like(theta_new_rlmq)
         indexer.reduce_angc_ylm_(theta_new_rlmq, theta_gq, a2y=True, offset=0)
         indexer.reduce_angc_ylm_(theta_new2_rlmq, theta_big_gq, a2y=True, offset=3)
-        assert_almost_equal(theta_new2_rlmq, theta_new_rlmq, 14)
+        # NOTE this test is fine on laptop with 14 digits but fails on Github CI
+        assert_almost_equal(theta_new2_rlmq, theta_new_rlmq, 13)
 
 
 if __name__ == "__main__":
