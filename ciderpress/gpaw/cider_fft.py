@@ -32,13 +32,8 @@ from gpaw.xc.libxc import LibXC
 from gpaw.xc.mgga import MGGA
 from scipy.linalg import cho_factor, cho_solve
 
-from ciderpress.dft.cider_kernel import call_xc_kernel_gga, call_xc_kernel_mgga
 from ciderpress.dft.futil import sph_nlxc_mod as fnlxc
-from ciderpress.dft.xc_evaluator import (
-    GGAFunctionalEvaluator,
-    MappedFunctional,
-    MGGAFunctionalEvaluator,
-)
+from ciderpress.dft.plans import SemilocalPlan2
 from ciderpress.gpaw.mp_cider import CiderParallelization
 
 DEFAULT_RHO_TOL = 1e-8
@@ -209,16 +204,100 @@ class CiderKernel(XCKernel):
     def todict(self):
         raise NotImplementedError
 
-    def call_xc_kernel(self, *args):
-        raise NotImplementedError
+    def call_xc_kernel(
+        self,
+        e_g,
+        n_sg,
+        sigma_xg,
+        feat_sg,
+        v_sg,
+        dedsigma_xg,
+        vfeat_sg,
+        tau_sg=None,
+        dedtau_sg=None,
+    ):
+        # make view so we can reshape things
+        e_g = e_g.view()
+        n_sg = n_sg.view()
+        v_sg = v_sg.view()
+        feat_sg = feat_sg.view()
+        vfeat_sg = vfeat_sg.view()
+        if tau_sg is not None:
+            tau_sg = tau_sg.view()
+            dedtau_sg = dedtau_sg.view()
+
+        nspin = n_sg.shape[0]
+        ngrids = n_sg.size // nspin
+        nfeat = self.mlfunc.settings.nfeat
+        X0T = np.empty((nspin, nfeat, ngrids))
+        has_sl = True
+        has_nldf = not self.mlfunc.settings.nldf_settings.is_empty
+        start = 0
+        sigma_sg = sigma_xg[::2]
+        dedsigma_sg = dedsigma_xg[::2].copy()
+        new_shape = (nspin, ngrids)
+        e_g.shape = (ngrids,)
+        n_sg.shape = new_shape
+        v_sg.shape = new_shape
+        sigma_sg.shape = new_shape
+        dedsigma_sg.shape = new_shape
+        feat_sg.shape = (nspin, -1, ngrids)
+        vfeat_sg.shape = (nspin, -1, ngrids)
+        if has_sl:
+            sl_plan = SemilocalPlan2(self.mlfunc.settings.sl_settings, nspin)
+        else:
+            sl_plan = None
+        if tau_sg is not None:
+            tau_sg.shape = new_shape
+            dedtau_sg.shape = new_shape
+        if has_sl:
+            nfeat_tmp = self.mlfunc.settings.sl_settings.nfeat
+            X0T[:, start : start + nfeat_tmp] = sl_plan.get_feat(
+                n_sg, sigma_sg, tau=tau_sg
+            )
+            start += nfeat_tmp
+        if has_nldf:
+            nfeat_tmp = self.mlfunc.settings.nldf_settings.nfeat
+            X0T[:, start : start + nfeat_tmp] = feat_sg
+            start += nfeat_tmp
+
+        X0TN = (
+            X0T  # self.mlfunc.settings.normalizers.get_normalized_feature_vector(X0T)
+        )
+        exc_ml, dexcdX0TN_ml = self.mlfunc(X0TN, rhocut=self.rhocut)
+        xmix = self.xmix  # / rho.shape[0]
+        exc_ml *= xmix
+        dexcdX0TN_ml *= xmix
+        # vxc_ml = self.mlfunc.settings.normalizers.get_derivative_wrt_unnormed_features(
+        #     X0T, dexcdX0TN_ml
+        # )
+        vxc_ml = dexcdX0TN_ml
+        e_g[:] += exc_ml
+
+        start = 0
+        if has_sl:
+            nfeat_tmp = self.mlfunc.settings.sl_settings.nfeat
+            sl_plan.get_vxc(
+                vxc_ml[:, start : start + nfeat_tmp],
+                n_sg,
+                v_sg,
+                sigma_sg,
+                dedsigma_sg,
+                tau=tau_sg,
+                vtau=dedtau_sg,
+            )
+            start += nfeat_tmp
+        if has_nldf:
+            nfeat_tmp = self.mlfunc.settings.nldf_settings.nfeat
+            vfeat_sg[:] += vxc_ml[:, start : start + nfeat_tmp]
+            start += nfeat_tmp
+        dedsigma_xg[::2] = dedsigma_sg.reshape(nspin, *dedsigma_xg.shape[1:])
 
     def calculate(self, *args):
         raise NotImplementedError
 
 
 class CiderGGAHybridKernel(CiderKernel):
-    call_xc_kernel = call_xc_kernel_gga
-
     def __init__(self, mlfunc, xmix, xstr, cstr, rhocut=DEFAULT_RHO_TOL):
         self.type = "GGA"
         self.name = "CiderGGA"
@@ -227,8 +306,6 @@ class CiderGGAHybridKernel(CiderKernel):
         self.xmix = xmix
         self.mlfunc = mlfunc
         self.rhocut = rhocut
-        if isinstance(self.mlfunc, MappedFunctional):
-            self.call_xc_kernel = GGAFunctionalEvaluator(self.mlfunc, amix=xmix)
 
     def todict(self):
         return {
@@ -264,7 +341,6 @@ class CiderGGAHybridKernel(CiderKernel):
             v_sg,
             dedsigma_xg,
             vfeat_sg,
-            RHOCUT=self.rhocut,
         )
         return vfeat_sg
 
@@ -296,14 +372,11 @@ class CiderGGAHybridKernelPBEPot(CiderGGAHybridKernel):
             np.zeros_like(v_sg),
             np.zeros_like(dedsigma_xg),
             vfeat,
-            RHOCUT=self.rhocut,
         )
         return np.zeros_like(vfeat)
 
 
 class CiderMGGAHybridKernel(CiderGGAHybridKernel):
-    call_xc_kernel = call_xc_kernel_mgga
-
     def __init__(self, mlfunc, xmix, xstr, cstr, rhocut=DEFAULT_RHO_TOL):
         self.type = "MGGA"
         self.name = "CiderMGGA"
@@ -312,8 +385,6 @@ class CiderMGGAHybridKernel(CiderGGAHybridKernel):
         self.xmix = xmix
         self.mlfunc = mlfunc
         self.rhocut = rhocut
-        if isinstance(self.mlfunc, MappedFunctional):
-            self.call_xc_kernel = MGGAFunctionalEvaluator(self.mlfunc, amix=xmix)
 
     def calculate(
         self, e_g, n_sg, v_sg, sigma_xg, dedsigma_xg, tau_sg, dedtau_sg, feat_sg
@@ -360,13 +431,12 @@ class CiderMGGAHybridKernel(CiderGGAHybridKernel):
             e_g,
             n_sg,
             sigma_xg,
-            tau_sg,
             feat_sg,
             v_sg,
             dedsigma_xg,
-            dedtau_sg,
             vfeat_sg,
-            RHOCUT=self.rhocut,
+            tau_sg=tau_sg,
+            dedtau_sg=dedtau_sg,
         )
         return vfeat_sg
 
@@ -536,7 +606,6 @@ class _CiderBase:
         world=None,
         **kwargs
     ):
-
         if world is None:
             self.world = mpi.world
         else:
@@ -545,10 +614,7 @@ class _CiderBase:
         self.cider_kernel = cider_kernel
         if Nalpha is None:
             amax = encut
-            mlfunc_x = cider_kernel.mlfunc
-            vmul = mlfunc_x.vvmul
-            amin = mlfunc_x.amin / (2 * np.e)
-            amin = min(amin / 2, amin * vmul)
+            amin = np.min(consts[:, -1]) / (2 * np.e)
             Nalpha = int(np.ceil(np.log(amax / amin) / np.log(lambd))) + 1
             lambd = np.exp(np.log(amax / amin) / (Nalpha - 1))
         self.Nalpha = Nalpha
@@ -1129,25 +1195,27 @@ class _CiderBase:
     @staticmethod
     def from_mlfunc(
         mlfunc,
-        slx="GGA_X_PBE",
-        slc="GGA_C_PBE",
+        xkernel="GGA_X_PBE",
+        ckernel="GGA_C_PBE",
         Nalpha=None,
         encut=300,
         lambd=1.8,
-        xmix=0.25,
+        xmix=1.00,
         debug=False,
     ):
         if mlfunc.desc_version == "b":
             if debug:
                 raise NotImplementedError
             else:
-                cider_kernel = CiderMGGAHybridKernel(mlfunc, xmix, slx, slc)
+                cider_kernel = CiderMGGAHybridKernel(mlfunc, xmix, xkernel, ckernel)
             cls = CiderMGGA
         elif mlfunc.desc_version == "d":
             if debug:
-                cider_kernel = CiderGGAHybridKernelPBEPot(mlfunc, xmix, slx, slc)
+                cider_kernel = CiderGGAHybridKernelPBEPot(
+                    mlfunc, xmix, xkernel, ckernel
+                )
             else:
-                cider_kernel = CiderGGAHybridKernel(mlfunc, xmix, slx, slc)
+                cider_kernel = CiderGGAHybridKernel(mlfunc, xmix, xkernel, ckernel)
             cls = CiderGGA
         else:
             raise ValueError(

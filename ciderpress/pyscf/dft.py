@@ -1,9 +1,7 @@
-import joblib
-import yaml
 from pyscf import lib
 from pyscf.dft.gen_grid import Grids
 
-from ciderpress.dft.xc_evaluator import MappedXC
+from ciderpress.dft.model_utils import get_slxc_settings, load_cider_model
 from ciderpress.pyscf.gen_cider_grid import CiderGrids
 from ciderpress.pyscf.nldf_convolutions import PySCFNLDFInitializer
 from ciderpress.pyscf.numint import CiderNumInt, NLDFNLOFNumInt, NLDFNumInt, NLOFNumInt
@@ -70,40 +68,6 @@ def make_cider_calc(
         nlc_coeff=nlc_coeff,
     )
     return lib.set_class(new_ks, (_CiderKS, ks.__class__))
-
-
-def load_cider_model(mlfunc, mlfunc_format):
-    if isinstance(mlfunc, str):
-        if mlfunc_format is None:
-            if mlfunc.endswith(".yaml"):
-                mlfunc_format = "yaml"
-            elif mlfunc.endswith(".joblib"):
-                mlfunc_format = "joblib"
-            else:
-                raise ValueError("Unsupported file format")
-        if mlfunc_format == "yaml":
-            with open(mlfunc, "r") as f:
-                mlfunc = yaml.load(f, Loader=yaml.CLoader)
-        elif mlfunc_format == "joblib":
-            mlfunc = joblib.load(mlfunc)
-        else:
-            raise ValueError("Unsupported file format")
-    if not isinstance(mlfunc, MappedXC):
-        raise ValueError("mlfunc must be MappedXC")
-    return mlfunc
-
-
-def get_slxc_settings(xc, xkernel, ckernel, xmix):
-    if xc is None:
-        # xc is another way to specify non-mixed part of kernel
-        xc = ""
-    if ckernel is not None:
-        xc = ckernel + " + " + xc
-    if xkernel is not None:
-        xc = "{} * {} + {}".format(1 - xmix, xkernel, xc)
-    if xc.endswith(" + "):
-        xc = xc[:-3]
-    return xc
 
 
 class _CiderKS:

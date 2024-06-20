@@ -1699,6 +1699,8 @@ def get_single_orbital_tau(rho, mag_grad):
 
 
 def get_s2(rho, sigma):
+    # TODO should this cutoff not be needed if everything else is stable?
+    rho = np.maximum(1e-10, rho)
     b = 2 * (3 * np.pi * np.pi) ** (1.0 / 3)
     s = np.sqrt(sigma) / (b * rho ** (4.0 / 3) + 1e-16)
     return s * s
@@ -1706,6 +1708,8 @@ def get_s2(rho, sigma):
 
 def ds2(rho, sigma):
     # s = |nabla n| / (b * n)
+    # TODO should this cutoff not be needed if everything else is stable?
+    rho = np.maximum(1e-10, rho)
     b = 2 * (3 * np.pi * np.pi) ** (1.0 / 3)
     s = np.sqrt(sigma) / (b * rho ** (4.0 / 3) + 1e-16)
     s2 = s**2

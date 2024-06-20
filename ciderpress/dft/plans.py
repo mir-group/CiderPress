@@ -263,6 +263,96 @@ class SemilocalPlan:
         return vxc
 
 
+class SemilocalPlan2:
+    def __init__(self, settings, nspin):
+        """
+
+        Args:
+            settings (SemilocalSettings): Settings for SL features
+            nspin (int): Number of spin channels.
+                1 for non-spin-polarized and 2 for spin-polarized
+        """
+        self.settings = settings
+        self.nspin = nspin
+        if self.settings.mode not in ["npa", "nst", "np", "ns"]:
+            raise NotImplementedError
+
+    def _fill_feat_npa_(self, rho, sigma, tau, feat):
+        assert feat.shape[1] == 3
+        feat[:, 0] = rho
+        feat[:, 1] = get_s2(rho, sigma)
+        feat[:, 2] = get_alpha(rho, sigma, tau)
+        feat[:, 0] *= self.nspin
+        feat[:, 1:3] /= self.nspin ** (2.0 / 3)
+
+    def _fill_feat_nst_(self, rho, sigma, tau, feat):
+        assert feat.shape[1] == 3
+        feat[:, 0] = rho
+        feat[:, 1] = sigma
+        feat[:, 2] = tau
+        feat[:, 0] *= self.nspin
+        feat[:, 1] *= self.nspin * self.nspin
+        feat[:, 2] *= self.nspin
+
+    def _fill_feat_np_(self, rho, sigma, feat):
+        assert feat.shape[1] == 2
+        feat[:, 0] = rho
+        feat[:, 1] = get_s2(rho, sigma)
+        feat[:, 0] *= self.nspin
+        feat[:, 1] /= self.nspin ** (2.0 / 3)
+
+    def _fill_feat_ns_(self, rho, sigma, feat):
+        assert feat.shape[1] == 2
+        feat[:, 0] = rho
+        feat[:, 1] = sigma
+        feat[:, 0] *= self.nspin
+        feat[:, 1] *= self.nspin * self.nspin
+
+    def get_feat(self, rho, sigma, tau=None):
+        for arr in [rho, sigma, tau]:
+            assert arr is None or arr.ndim == 2
+        feat = np.empty((rho.shape[0], self.settings.nfeat, rho.shape[1]))
+        if self.settings.mode == "npa":
+            self._fill_feat_npa_(rho, sigma, tau, feat)
+        elif self.settings.mode == "nst":
+            self._fill_feat_nst_(rho, sigma, tau, feat)
+        elif self.settings.mode == "np":
+            self._fill_feat_np_(rho, sigma, feat)
+        else:
+            self._fill_feat_ns_(rho, sigma, feat)
+        return feat
+
+    def _fill_vxc_npa_(self, vfeat, rho, vrho, sigma, vsigma, tau=None, vtau=None):
+        sm23 = self.nspin ** (-2.0 / 3)
+        dpdn, dpdsigma = ds2(rho, sigma)
+        if tau is not None:
+            assert vtau is not None
+            dadn, dadsigma, dadtau = dalpha(rho, sigma, tau)
+        if vtau is not None:
+            vrho[:] += self.nspin * vfeat[:, 0] + sm23 * (
+                vfeat[:, 1] * dpdn + vfeat[:, 2] * dadn
+            )
+            vsigma[:] += sm23 * (vfeat[:, 1] * dpdsigma + vfeat[:, 2] * dadsigma)
+            vtau[:] += sm23 * vfeat[:, 2] * dadtau
+        else:
+            vrho[:] += self.nspin * vfeat[:, 0] + sm23 * vfeat[:, 1] * dpdn
+            vsigma[:] += sm23 * vfeat[:, 1] * dpdsigma
+
+    def _fill_vxc_nst_(self, vfeat, vrho, vsigma, vtau=None):
+        vrho[:] += self.nspin * vfeat[:, 0]
+        vsigma[:] += self.nspin * self.nspin * vfeat[:, 1]
+        if vtau is not None:
+            vtau[:] += self.nspin * vfeat[:, 2]
+
+    def get_vxc(self, vfeat, rho, vrho, sigma, vsigma, tau=None, vtau=None):
+        for arr in [rho, vrho, sigma, vsigma, tau, vtau]:
+            assert arr is None or arr.ndim == 2
+        if self.settings.mode in ["npa", "np"]:
+            self._fill_vxc_npa_(vfeat, rho, vrho, sigma, vsigma, tau, vtau)
+        elif self.settings.mode in ["nst", "ns"]:
+            self._fill_vxc_nst_(vfeat, vrho, vsigma, vtau)
+
+
 class FracLaplPlan:
     """
     Plan for the Fractional Laplacian features. These features do not

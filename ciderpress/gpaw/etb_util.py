@@ -3,10 +3,10 @@ from pyscf import gto
 from scipy.linalg import cholesky
 from scipy.linalg.lapack import dtrtri
 
-from ciderpress.dft.cider_conv import aug_etb_for_cider
 from ciderpress.dft.sphere_util import gauss_fft, gauss_real
 from ciderpress.gpaw.fit_paw_gauss_pot import get_dv
 from ciderpress.gpaw.gpaw_grids import SBTFullGridDescriptor
+from ciderpress.pyscf.nldf_convolutions import aug_etb_for_cider
 
 
 class ETBProjector:
