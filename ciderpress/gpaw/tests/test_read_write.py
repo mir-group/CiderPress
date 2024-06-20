@@ -7,8 +7,12 @@ from gpaw.mpi import world
 from gpaw.xc.libxc import LibXC
 from numpy.testing import assert_almost_equal, assert_equal
 
-from ciderpress.gpaw.cider_paw import CiderGPAW, get_cider_functional
-from ciderpress.gpaw.interp_paw import DiffGGA, DiffMGGA
+from ciderpress.gpaw.calculator import (
+    CiderGPAW,
+    DiffGGA,
+    DiffMGGA,
+    get_cider_functional,
+)
 
 
 def test_load_write(xc, use_pp=False, is_cider=False, is_nl=False):

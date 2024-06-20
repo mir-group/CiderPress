@@ -3,7 +3,7 @@ import unittest
 from ase import Atoms
 from gpaw import GPAW, PW, FermiDirac
 
-from ciderpress.gpaw.cider_paw import get_cider_functional
+from ciderpress.gpaw.calculator import get_cider_functional
 from ciderpress.gpaw.tests import equal
 
 
@@ -73,7 +73,7 @@ class TestForce(unittest.TestCase):
     def test_sl_gga(self):
         test_cider_forces(get_cider_functional("functionals/CIDER23X_SL_GGA.yaml"))
 
-    def test_nl_gga(self):
+    def test_sl_mgga(self):
         test_cider_forces(get_cider_functional("functionals/CIDER23X_SL_MGGA.yaml"))
 
     def test_nl_gga(self):

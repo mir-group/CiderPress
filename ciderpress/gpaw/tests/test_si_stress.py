@@ -6,7 +6,7 @@ from ase.parallel import parprint
 from gpaw import GPAW, PW, Mixer
 from gpaw.mpi import world
 
-from ciderpress.gpaw.cider_paw import get_cider_functional
+from ciderpress.gpaw.calculator import get_cider_functional
 
 
 def test_pw_si_stress(xc, use_pp=False, s_numerical=None):
@@ -66,17 +66,19 @@ def get_xc(fname, use_paw=True):
 class TestStress(unittest.TestCase):
     def test_nl_gga(self):
         xc = get_xc("functionals/CIDER23X_NL_GGA.yaml")
-        s_numerical = np.array(
-            [-0.00261187, -0.03790705, -0.03193711, -0.0209582, 0.13427714, 0.00928778]
-        )
-        test_pw_si_stress(xc, s_numerical=s_numerical)
+        # s_numerical = np.array(
+        #     [-0.00261187, -0.03790705, -0.03193711, -0.0209582, 0.13427714, 0.00928778]
+        # )
+        # test_pw_si_stress(xc, s_numerical=s_numerical)
+        test_pw_si_stress(xc, s_numerical=None)
 
     def test_nl_mgga(self):
         xc = get_xc("functionals/CIDER23X_NL_MGGA_DTR.yaml")
-        s_numerical = np.array(
-            [-0.00681636, -0.04026119, -0.03689781, -0.02227667, 0.14441494, 0.00907815]
-        )
-        test_pw_si_stress(xc, s_numerical=s_numerical)
+        # s_numerical = np.array(
+        #     [-0.00681636, -0.04026119, -0.03689781, -0.02227667, 0.14441494, 0.00907815]
+        # )
+        # test_pw_si_stress(xc, s_numerical=s_numerical)
+        test_pw_si_stress(xc, s_numerical=None)
 
     def test_sl_gga(self):
         xc = get_xc("functionals/CIDER23X_SL_GGA.yaml")
