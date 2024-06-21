@@ -8,7 +8,7 @@ from ciderpress.dft.futil import fast_sph_harm as fsh
 
 
 class TestSphHarm(unittest.TestCase):
-    def test_sph_harm():
+    def test_sph_harm(self):
         x = np.linspace(-2, 2, 401)
         assert 0 in x
         assert -1 in x
