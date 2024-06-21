@@ -68,6 +68,7 @@ link_directories(${CMAKE_INSTALL_PREFIX}/lib ${CMAKE_INSTALL_PREFIX}/lib64)
 
 add_subdirectory(mod_cider)
 add_subdirectory(numint_cider)
+add_subdirectory(pw_utils)
 add_subdirectory(sbt)
 
 # TODO some other stuff from pyscf CMake file was here

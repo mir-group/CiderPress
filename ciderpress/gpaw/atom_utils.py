@@ -5,8 +5,7 @@ from gpaw.xc.vdw import spline
 from scipy.interpolate import interp1d
 from scipy.linalg import cho_factor, cho_solve
 
-from ciderpress.dft.futil import fast_sph_harm as fsh
-from ciderpress.dft.futil import sph_nlxc_mod as fnlxc
+from ciderpress.dft import pwutil
 from ciderpress.gpaw.etb_util import ETBProjector
 from ciderpress.gpaw.fit_paw_gauss_pot import (
     construct_full_p_matrices,
@@ -1175,17 +1174,17 @@ class AtomPASDWSlice:
             funcs_xtp = self.psetup.ffuncs_jtp
             xlist_i = self.psetup.jlist_i
 
-        radfuncs_gn = fnlxc.eval_cubic_spline(
+        radfuncs_gn = pwutil.eval_cubic_spline(
             funcs_xtp.T,
             self.t_g,
             self.dt_g,
         )
         lmax = self.psetup.lmax
         Lmax = (lmax + 1) * (lmax + 1)
-        ylm = fsh.recursive_sph_harm_t2(Lmax, self.rhat_gv.T)
-        funcs_gi = fnlxc.eval_pasdw_funcs(
-            radfuncs_gn,
-            ylm.T,
+        ylm = pwutil.recursive_sph_harm_t2(Lmax, self.rhat_gv)
+        funcs_gi = pwutil.eval_pasdw_funcs(
+            radfuncs_gn.T,
+            np.ascontiguousarray(ylm.T),
             xlist_i,
             self.psetup.lmlist_i,
         )
@@ -1199,13 +1198,13 @@ class AtomPASDWSlice:
             funcs_xtp = self.psetup.ffuncs_jtp
             xlist_i = self.psetup.jlist_i
 
-        radfuncs_gn = fnlxc.eval_cubic_spline(
+        radfuncs_gn = pwutil.eval_cubic_spline(
             funcs_xtp.T,
             self.t_g,
             self.dt_g,
         )
         radderivs_gn = (
-            fnlxc.eval_cubic_spline_deriv(
+            pwutil.eval_cubic_spline_deriv(
                 funcs_xtp.T,
                 self.t_g,
                 self.dt_g,
@@ -1214,55 +1213,55 @@ class AtomPASDWSlice:
         )
         lmax = self.psetup.lmax
         Lmax = (lmax + 1) * (lmax + 1)
-        ylm, dylm = fsh.recursive_sph_harm_t2_deriv(Lmax, self.rhat_gv.T)
+        ylm, dylm = pwutil.recursive_sph_harm_t2_deriv(Lmax, self.rhat_gv.T)
         dylm /= self.rad_g + 1e-8  # TODO right amount of regularization?
-        rodylm = np.einsum("gv,gLv->gL", self.rhat_gv, dylm.T)
+        rodylm = np.einsum("gv,gvL->Lg", self.rhat_gv, dylm)
         # dylm = np.dot(dylm, drhat_g.T)
-        funcs_gi = fnlxc.eval_pasdw_funcs(
-            radderivs_gn,
-            ylm.T,
+        funcs_gi = pwutil.eval_pasdw_funcs(
+            radderivs_gn.T,
+            np.ascontiguousarray(ylm.T),
             xlist_i,
             self.psetup.lmlist_i,
         )
-        funcs_gi -= fnlxc.eval_pasdw_funcs(
-            radfuncs_gn,
+        funcs_gi -= pwutil.eval_pasdw_funcs(
+            radfuncs_gn.T,
             rodylm,
             xlist_i,
             self.psetup.lmlist_i,
         )
         funcs_vgi = self.rhat_gv.T[:, :, None] * funcs_gi
         for v in range(3):
-            funcs_vgi[v] += fnlxc.eval_pasdw_funcs(
-                radfuncs_gn,
-                dylm[v].T,
+            funcs_vgi[v] += pwutil.eval_pasdw_funcs(
+                radfuncs_gn.T,
+                np.ascontiguousarray(dylm[:, v]),
                 xlist_i,
                 self.psetup.lmlist_i,
             )
         return funcs_vgi
 
     def setup_ovlpt(self):
-        rad_pfuncs_gn = fnlxc.eval_cubic_spline(
+        rad_pfuncs_gn = pwutil.eval_cubic_spline(
             self.psetup.pfuncs_ntp.T,
             self.t_g,
             self.dt_g,
         )
-        rad_ffuncs_jn = fnlxc.eval_cubic_spline(
+        rad_ffuncs_jn = pwutil.eval_cubic_spline(
             self.psetup.ffuncs_jtp.T,
             self.t_g,
             self.dt_g,
         )
         lmax = self.psetup.lmax
         Lmax = (lmax + 1) * (lmax + 1)
-        ylm = fsh.recursive_sph_harm_t2(Lmax, self.rhat_gv.T)
-        pfuncs_gi = fnlxc.eval_pasdw_funcs(
-            rad_pfuncs_gn,
-            ylm.T,
+        ylm = pwutil.recursive_sph_harm_t2(Lmax, self.rhat_gv)
+        pfuncs_gi = pwutil.eval_pasdw_funcs(
+            rad_pfuncs_gn.T,
+            np.ascontiguousarray(ylm.T),
             self.psetup.nlist_i,
             self.psetup.lmlist_i,
         )
-        ffuncs_gi = fnlxc.eval_pasdw_funcs(
-            rad_ffuncs_jn,
-            ylm.T,
+        ffuncs_gi = pwutil.eval_pasdw_funcs(
+            rad_ffuncs_jn.T,
+            np.ascontiguousarray(ylm.T),
             self.psetup.jlist_i,
             self.psetup.lmlist_i,
         )

@@ -32,7 +32,7 @@ from gpaw.xc.libxc import LibXC
 from gpaw.xc.mgga import MGGA
 from scipy.linalg import cho_factor, cho_solve
 
-from ciderpress.dft.futil import sph_nlxc_mod as fnlxc
+from ciderpress.dft import pwutil
 from ciderpress.dft.plans import SemilocalPlan2
 from ciderpress.gpaw.mp_cider import CiderParallelization
 
@@ -826,7 +826,7 @@ class _CiderBase:
                 F_k = np.zeros(self.k2_k.shape, complex)
             for b in self.alphas:
                 aexp = self.bas_exp[a] + self.bas_exp[b]
-                fnlxc.mulexp(
+                pwutil.mulexp(
                     F_k.ravel(),
                     self.theta_ak[b].ravel(),
                     self.k2_k.ravel(),
@@ -872,7 +872,7 @@ class _CiderBase:
             for b in self.alphas:
                 aexp = self.bas_exp[a] + self.bas_exp[b]
                 invexp = 1.0 / (4 * aexp)
-                fnlxc.mulexp(
+                pwutil.mulexp(
                     F_k.ravel(),
                     self.theta_ak[b].ravel(),
                     self.k2_k.ravel(),
@@ -939,7 +939,7 @@ class _CiderBase:
                 self.rbuf_ag[a][:] = 0.0
         self.timer.start("COEFS")
         for ind, a in enumerate(self.alphas):
-            pa_g, dpa_g = fnlxc.eval_cubic_interp(
+            pa_g, dpa_g = pwutil.eval_cubic_interp(
                 i_g.ravel(), dq0_g.ravel(), self.C_aip[ind].T
             )
             pa_g = pa_g.reshape(i_g.shape)
@@ -975,7 +975,7 @@ class _CiderBase:
                 dq0_g = None
             for ind, a in enumerate(self.alphas):
                 self.timer.start("COEFS")
-                pa_g, dpa_g = fnlxc.eval_cubic_interp(
+                pa_g, dpa_g = pwutil.eval_cubic_interp(
                     i_g.ravel(), dq0_g.ravel(), self.C_aip[ind].T
                 )
                 pa_g = pa_g.reshape(i_g.shape)

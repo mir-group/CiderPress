@@ -3,7 +3,7 @@ import numpy as np
 import yaml
 from gpaw.xc.mgga import MGGA
 
-from ciderpress.dft.futil import sph_nlxc_mod as fnlxc
+from ciderpress.dft import pwutil
 from ciderpress.gpaw.atom_utils import AtomPASDWSlice, PASDWCiderKernel
 from ciderpress.gpaw.cider_fft import (
     CiderGGA,
@@ -226,7 +226,7 @@ class _CiderPASDW_MPRoutines:
                 coefs_bi = coefs_abi[a]
                 if atom_slice.sinv_pf is not None:
                     coefs_bi = coefs_bi.dot(atom_slice.sinv_pf.T)
-                fnlxc.pasdw_reduce_i(
+                pwutil.pasdw_reduce_i(
                     coefs_bi[0],
                     funcs_gi,
                     feat_g.T,
@@ -243,7 +243,7 @@ class _CiderPASDW_MPRoutines:
                     coefs_bi = coefs_bi.dot(atom_slice.sinv_pf.T)
                 for ib, b in enumerate(self.alphas):
                     assert self.rbuf_ag[b].flags.c_contiguous
-                    fnlxc.pasdw_reduce_i(
+                    pwutil.pasdw_reduce_i(
                         coefs_bi[ib],
                         funcs_gi,
                         self.rbuf_ag[b].T,
@@ -278,7 +278,7 @@ class _CiderPASDW_MPRoutines:
                 funcs_gi = atom_slice.get_funcs()
                 ni = funcs_gi.shape[1]
                 coefs_bi = np.zeros((1, ni))
-                fnlxc.pasdw_reduce_g(
+                pwutil.pasdw_reduce_g(
                     coefs_bi[0],
                     funcs_gi,
                     feat_g.T,
@@ -295,7 +295,7 @@ class _CiderPASDW_MPRoutines:
                 ni = funcs_gi.shape[1]
                 coefs_bi = np.zeros((Nalpha_r, ni))
                 for ib, b in enumerate(self.alphas):
-                    fnlxc.pasdw_reduce_g(
+                    pwutil.pasdw_reduce_g(
                         coefs_bi[ib],
                         funcs_gi,
                         self.rbuf_ag[b].T,
@@ -369,7 +369,7 @@ class _CiderPASDW_MPRoutines:
                 if stress:
                     if aug:
                         tmp_i = np.zeros(ni)
-                        fnlxc.pasdw_reduce_g(
+                        pwutil.pasdw_reduce_g(
                             tmp_i,
                             funcs_gi,
                             feat_g.T,
@@ -378,28 +378,28 @@ class _CiderPASDW_MPRoutines:
                         P += self.gd.dv * tmp_i.dot(coefs_bi[0])
                     for v in range(3):
                         dx_g = atom_slice.rad_g * atom_slice.rhat_gv[:, v]
-                        fnlxc.pasdw_reduce_g(
+                        pwutil.pasdw_reduce_g(
                             stress_vv[v],
                             (dx_g * intb_vg).T,
                             feat_g.T,
                             atom_slice.indset,
                         )
                         if has_ofit:
-                            fnlxc.pasdw_reduce_g(
+                            pwutil.pasdw_reduce_g(
                                 stress_vv[v],
                                 ft_xbg[v, :, 0].T,
                                 feat_g.T,
                                 atom_slice.indset,
                             )
                 else:
-                    fnlxc.pasdw_reduce_g(
+                    pwutil.pasdw_reduce_g(
                         F_av[a],
                         intb_vg.T,
                         feat_g.T,
                         atom_slice.indset,
                     )
                     if has_ofit:
-                        fnlxc.pasdw_reduce_g(
+                        pwutil.pasdw_reduce_g(
                             F_av[a],
                             ft_xbg[:, 0].T,
                             feat_g.T,
@@ -427,7 +427,7 @@ class _CiderPASDW_MPRoutines:
                     if stress:
                         if aug:
                             tmp_i = np.zeros(ni)
-                            fnlxc.pasdw_reduce_g(
+                            pwutil.pasdw_reduce_g(
                                 tmp_i,
                                 funcs_gi,
                                 c_ag[b].T,
@@ -436,28 +436,28 @@ class _CiderPASDW_MPRoutines:
                             P += self.gd.dv * tmp_i.dot(coefs_bi[ib])
                         for v in range(3):
                             dx_g = atom_slice.rad_g * atom_slice.rhat_gv[:, v]
-                            fnlxc.pasdw_reduce_g(
+                            pwutil.pasdw_reduce_g(
                                 stress_vv[v],
                                 (dx_g * intb_vg).T,
                                 c_ag[b].T,
                                 atom_slice.indset,
                             )
                             if has_ofit:
-                                fnlxc.pasdw_reduce_g(
+                                pwutil.pasdw_reduce_g(
                                     stress_vv[v],
                                     ft_xbg[v, :, ib].T,
                                     c_ag[b].T,
                                     atom_slice.indset,
                                 )
                     else:
-                        fnlxc.pasdw_reduce_g(
+                        pwutil.pasdw_reduce_g(
                             F_av[a],
                             intb_vg.T,
                             c_ag[b].T,
                             atom_slice.indset,
                         )
                         if has_ofit:
-                            fnlxc.pasdw_reduce_g(
+                            pwutil.pasdw_reduce_g(
                                 F_av[a],
                                 ft_xbg[:, ib].T,
                                 c_ag[b].T,
