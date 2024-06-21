@@ -948,7 +948,7 @@ class _SLCiderBase:
         }
 
     def get_mlfunc_data(self):
-        return yaml.dump(self.kernel.mlfunc.to_dict(), Dumper=yaml.CDumper)
+        return yaml.dump(self.kernel.mlfunc, Dumper=yaml.CDumper)
 
     @classmethod
     def from_joblib(cls, fname, **kwargs):

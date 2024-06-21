@@ -1,5 +1,6 @@
 import unittest
 
+import numpy as np
 from ase.build import bulk
 from ase.parallel import parprint
 from gpaw import GPAW, PW, Mixer, restart
@@ -15,7 +16,7 @@ from ciderpress.gpaw.calculator import (
 )
 
 
-def test_load_write(xc, use_pp=False, is_cider=False, is_nl=False):
+def run_load_write(xc, use_pp=False, is_cider=False, is_nl=False):
     k = 3
     si = bulk("Si")
     kwargs = dict(
@@ -63,6 +64,9 @@ def test_load_write(xc, use_pp=False, is_cider=False, is_nl=False):
     si.calc = GPAW(**kwargs)
     e5 = si.get_potential_energy()
     assert_almost_equal(e0, e5)
+    del si
+    del calc
+    del calc1
 
 
 def get_xc(fname, use_paw=True, force_nl=False):
@@ -87,7 +91,8 @@ class TestReadWrite(unittest.TestCase):
             for use_paw in [False, True]:
                 xc = get_xc(fname, use_paw)
                 parprint("TEST", fname, use_paw)
-                test_load_write(xc, use_pp=not use_paw, is_cider=True, is_nl=True)
+                with np.errstate(all="ignore"):
+                    run_load_write(xc, use_pp=not use_paw, is_cider=True, is_nl=True)
 
     def test_sl_ml(self):
         for fname in [
@@ -96,7 +101,8 @@ class TestReadWrite(unittest.TestCase):
         ]:
             xc = get_xc(fname)
             parprint("TEST", fname)
-            test_load_write(xc, is_cider=True)
+            with np.errstate(all="ignore"):
+                run_load_write(xc, is_cider=True)
 
     def test_sl_ne(self):
         for xc in [
@@ -104,11 +110,13 @@ class TestReadWrite(unittest.TestCase):
             DiffMGGA(LibXC("MGGA_X_R2SCAN+MGGA_C_R2SCAN")),
         ]:
             parprint("TEST", xc.kernel.name)
-            test_load_write(xc)
+            with np.errstate(all="ignore"):
+                run_load_write(xc)
 
         for xc in ["PBE", "MGGA_X_R2SCAN+MGGA_C_R2SCAN"]:
             parprint("TEST", xc)
-            test_load_write(xc)
+            with np.errstate(all="ignore"):
+                run_load_write(xc)
 
 
 if __name__ == "__main__":

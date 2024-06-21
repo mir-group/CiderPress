@@ -291,7 +291,6 @@ def cider_functional_from_dict(d):
 
     if "Cider" in cider_type:
         mlfunc = yaml.load(d["mlfunc"], Loader=yaml.CLoader)
-        const_list = _get_const_list(mlfunc)
         nexp = 4
         # kernel_params should be xmix, xkernel, ckernel
         cider_kernel = kcls(mlfunc, **(d["kernel_params"]))
@@ -300,6 +299,7 @@ def cider_functional_from_dict(d):
         else:
             # xc_params should have Nalpha, lambd, encut.
             # For PAW, it should also have pasdw_ovlp_fit, pasdw_store_funcs.
+            const_list = _get_const_list(mlfunc)
             xc = cls(cider_kernel, nexp, const_list, **(d["xc_params"]))
     else:
         xc = cls(LibXC(d["name"]))
@@ -314,5 +314,4 @@ def _get_const_list(mlfunc):
     fac_mul = thetap[2] if mlfunc.settings.sl_settings.level == "MGGA" else thetap[1]
     consts = np.array([0.00, thetap[0], fac_mul, thetap[0] / 64]) / vvmul
     const_list = np.stack([0.5 * consts, 1.0 * consts, 2.0 * consts, consts * vvmul])
-    print("CONSTS", const_list)
     return const_list

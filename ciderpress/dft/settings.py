@@ -12,6 +12,7 @@ from ciderpress.dft.feat_normalizer import (
 
 LDA_FACTOR = -3.0 / 4.0 * (3.0 / np.pi) ** (1.0 / 3)
 CFC = (3.0 / 10) * (3 * np.pi**2) ** (2.0 / 3)
+ALPHA_TOL = 1e-10
 
 
 def _check_l1_dots(l1_dots, nl1):
@@ -1709,18 +1710,19 @@ def get_s2(rho, sigma):
 def ds2(rho, sigma):
     # s = |nabla n| / (b * n)
     # TODO should this cutoff not be needed if everything else is stable?
-    rho = np.maximum(1e-10, rho)
+    cond = rho < ALPHA_TOL
+    rho = np.maximum(ALPHA_TOL, rho)
     b = 2 * (3 * np.pi * np.pi) ** (1.0 / 3)
     s = np.sqrt(sigma) / (b * rho ** (4.0 / 3) + 1e-16)
     s2 = s**2
-    return -8.0 * s2 / (3 * rho + 1e-16), 1 / (b * rho ** (4.0 / 3) + 1e-16) ** 2
-
-
-ALPHA_TOL = 1e-10
+    res = -8.0 * s2 / (3 * rho + 1e-16), 1 / (b * rho ** (4.0 / 3) + 1e-16) ** 2
+    res[0][cond] = 0.0
+    res[1][cond] = 0.0
+    return res
 
 
 def get_alpha(rho, sigma, tau):
-    rho = rho + ALPHA_TOL
+    rho = np.maximum(ALPHA_TOL, rho)
     tau0 = get_uniform_tau(rho)
     tauw = get_single_orbital_tau(rho, np.sqrt(sigma))
     # TODO this numerical stability trick is a bit of a hack.
@@ -1730,14 +1732,15 @@ def get_alpha(rho, sigma, tau):
 
 
 def dalpha(rho, sigma, tau):
-    rho = rho + ALPHA_TOL
+    cond = rho < ALPHA_TOL
+    rho = np.maximum(ALPHA_TOL, rho)
     tau0 = get_uniform_tau(rho)
     tauw = sigma / (8 * rho)
     dwdn, dwds = -sigma / (8 * rho * rho), 1 / (8 * rho)
     dadn = 5.0 * (tauw - tau) / (3 * tau0 * rho) - dwdn / tau0
     dadsigma = -dwds / tau0
     dadtau = 1 / tau0
-    cond = (tau - tauw) / tau0 < -0.1
+    # cond = (tau - tauw) / tau0 < -0.1
     dadn[cond] = 0
     dadsigma[cond] = 0
     dadtau[cond] = 0

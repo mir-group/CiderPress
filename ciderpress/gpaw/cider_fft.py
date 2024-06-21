@@ -643,7 +643,7 @@ class _CiderBase:
         }
 
     def get_mlfunc_data(self):
-        return yaml.dump(self.cider_kernel.mlfunc.to_dict(), Dumper=yaml.CDumper)
+        return yaml.dump(self.cider_kernel.mlfunc, Dumper=yaml.CDumper)
 
     def get_setup_name(self):
         return self.setup_name

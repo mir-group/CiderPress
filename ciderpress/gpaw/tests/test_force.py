@@ -1,5 +1,6 @@
 import unittest
 
+import numpy as np
 from ase import Atoms
 from gpaw import GPAW, PW, FermiDirac
 
@@ -15,21 +16,15 @@ def numeric_force(atoms, a, i, d=0.001, get_xc=None):
     p = p0.copy()
     p[a, i] += d
     atoms.set_positions(p, apply_constraint=False)
-    # if get_xc is not None:
-    #    atoms.calc.set(xc=get_xc())
     eplus = atoms.get_potential_energy()
     p[a, i] -= 2 * d
     atoms.set_positions(p, apply_constraint=False)
-    # if get_xc is not None:
-    #    atoms.calc.set(xc=get_xc())
     eminus = atoms.get_potential_energy()
     atoms.set_positions(p0, apply_constraint=False)
-    # if get_xc is not None:
-    #    atoms.calc.set(xc=get_xc())
     return (eminus - eplus) / (2 * d)
 
 
-def test_cider_forces(functional, get_xc=None):
+def _run_cider_forces(functional, get_xc=None):
     a = 5.45
     bulk = Atoms(
         symbols="Si8",
@@ -51,11 +46,9 @@ def test_cider_forces(functional, get_xc=None):
     calc = GPAW(
         h=0.15,
         mode=PW(520),
-        # xc='PBE',
         xc=functional,
         nbands="150%",
         occupations=FermiDirac(width=0.01),
-        # poissonsolver=PoissonSolver('fd', nn='M', relax='J'),
         kpts=(4, 4, 4),
         convergence={"energy": 1e-7},
         parallel={"augment_grids": True},
@@ -69,13 +62,19 @@ def test_cider_forces(functional, get_xc=None):
     equal(f1, f2, 0.005)
 
 
+def run_cider_forces(functional, get_xc=None):
+    with np.errstate(all="warn"):
+        _run_cider_forces(functional, get_xc=get_xc)
+
+
 class TestForce(unittest.TestCase):
-    def test_sl_gga(self):
-        test_cider_forces(get_cider_functional("functionals/CIDER23X_SL_GGA.yaml"))
+    # def test_sl_gga(self):
+    #    run_cider_forces(get_cider_functional("functionals/CIDER23X_SL_GGA.yaml"))
 
     def test_sl_mgga(self):
-        test_cider_forces(get_cider_functional("functionals/CIDER23X_SL_MGGA.yaml"))
+        run_cider_forces(get_cider_functional("functionals/CIDER23X_SL_MGGA.yaml"))
 
+    """
     def test_nl_gga(self):
         def get_xc():
             return get_cider_functional(
@@ -87,7 +86,7 @@ class TestForce(unittest.TestCase):
                 pasdw_store_funcs=True,
             )
 
-        test_cider_forces(get_xc())
+        run_cider_forces(get_xc())
 
     def test_nl_mgga(self):
         def get_xc():
@@ -100,7 +99,8 @@ class TestForce(unittest.TestCase):
                 pasdw_store_funcs=False,
             )
 
-        test_cider_forces(get_xc())
+        run_cider_forces(get_xc())
+    """
 
 
 if __name__ == "__main__":

@@ -8,8 +8,10 @@ from gpaw.mpi import world
 
 from ciderpress.gpaw.calculator import get_cider_functional
 
+USE_STORED_REF = True
 
-def test_pw_si_stress(xc, use_pp=False, s_numerical=None):
+
+def _run_pw_si_stress(xc, use_pp=False, s_numerical=None):
     # This is based on a test from GPAW
     k = 3
     si = bulk("Si")
@@ -51,6 +53,11 @@ def test_pw_si_stress(xc, use_pp=False, s_numerical=None):
     assert np.all(abs(s_err) < 1e-4)
 
 
+def run_pw_si_stress(xc, use_pp=False, s_numerical=None):
+    with np.errstate(all="warn"):
+        _run_pw_si_stress(xc, use_pp=use_pp, s_numerical=s_numerical)
+
+
 def get_xc(fname, use_paw=True):
     return get_cider_functional(
         fname,
@@ -66,45 +73,93 @@ def get_xc(fname, use_paw=True):
 class TestStress(unittest.TestCase):
     def test_nl_gga(self):
         xc = get_xc("functionals/CIDER23X_NL_GGA.yaml")
-        # s_numerical = np.array(
-        #     [-0.00261187, -0.03790705, -0.03193711, -0.0209582, 0.13427714, 0.00928778]
-        # )
-        # test_pw_si_stress(xc, s_numerical=s_numerical)
-        test_pw_si_stress(xc, s_numerical=None)
+        if USE_STORED_REF:
+            s_numerical = np.array(
+                [
+                    0.00114318,
+                    -0.03307031,
+                    -0.03026228,
+                    -0.0205634,
+                    0.12848806,
+                    0.01003085,
+                ]
+            )
+            run_pw_si_stress(xc, s_numerical=s_numerical)
+        else:
+            run_pw_si_stress(xc, s_numerical=None)
 
     def test_nl_mgga(self):
         xc = get_xc("functionals/CIDER23X_NL_MGGA_DTR.yaml")
-        # s_numerical = np.array(
-        #     [-0.00681636, -0.04026119, -0.03689781, -0.02227667, 0.14441494, 0.00907815]
-        # )
-        # test_pw_si_stress(xc, s_numerical=s_numerical)
-        test_pw_si_stress(xc, s_numerical=None)
+        if USE_STORED_REF:
+            s_numerical = np.array(
+                [
+                    -0.00745386,
+                    -0.0408426,
+                    -0.03763706,
+                    -0.02227136,
+                    0.14448068,
+                    0.00911011,
+                ]
+            )
+            run_pw_si_stress(xc, s_numerical=s_numerical)
+        else:
+            run_pw_si_stress(xc, s_numerical=None)
 
     def test_sl_gga(self):
         xc = get_xc("functionals/CIDER23X_SL_GGA.yaml")
-        # s_numerical = np.array([-0.00261187, -0.03790705, -0.03193711,
-        #                        -0.0209582,   0.13427714,  0.00928778])
-        test_pw_si_stress(xc, s_numerical=None)
+        if USE_STORED_REF:
+            s_numerical = np.array(
+                [
+                    -0.01818833,
+                    -0.05194489,
+                    -0.04841279,
+                    -0.02068873,
+                    0.13185673,
+                    0.0095163,
+                ]
+            )
+            run_pw_si_stress(xc, s_numerical=s_numerical)
+        else:
+            run_pw_si_stress(xc, s_numerical=None)
 
     def test_sl_mgga(self):
         xc = get_xc("functionals/CIDER23X_SL_MGGA.yaml")
-        # s_numerical = np.array([-0.00681636, -0.04026119, -0.03689781,
-        #                        -0.02227667,  0.14441494,  0.00907815])
-        test_pw_si_stress(xc, s_numerical=None)
+        if USE_STORED_REF:
+            s_numerical = np.array(
+                [
+                    -0.01197671,
+                    -0.04729093,
+                    -0.043479,
+                    -0.02241506,
+                    0.1438053,
+                    0.00938071,
+                ]
+            )
+            run_pw_si_stress(xc, s_numerical=s_numerical)
+        else:
+            run_pw_si_stress(xc, s_numerical=None)
 
     def test_nl_gga_pp(self):
         xc = get_xc("functionals/CIDER23X_NL_GGA.yaml", use_paw=False)
-        s_numerical = np.array(
-            [0.00205983, -0.03604186, -0.02808641, -0.02021089, 0.1333823, 0.00980205]
-        )
-        test_pw_si_stress(xc, use_pp=True, s_numerical=s_numerical)
+        if USE_STORED_REF:
+            s_numerical = np.array(
+                [
+                    0.02106118,
+                    -0.0177691,
+                    -0.00961465,
+                    -0.01995931,
+                    0.12498599,
+                    0.01063785,
+                ]
+            )
+            run_pw_si_stress(xc, use_pp=True, s_numerical=s_numerical)
+        else:
+            run_pw_si_stress(xc, use_pp=True, s_numerical=None)
 
     def test_nl_mgga_pp(self):
         with self.assertRaises(NotImplementedError):
             xc = get_xc("functionals/CIDER23X_NL_MGGA.yaml", use_paw=False)
-            # s_numerical = np.array([-0.00681636, -0.04026119, -0.03689781,
-            #                        -0.02227667,  0.14441494,  0.00907815])
-            test_pw_si_stress(xc, use_pp=True, s_numerical=None)
+            run_pw_si_stress(xc, use_pp=True, s_numerical=None)
 
 
 if __name__ == "__main__":
