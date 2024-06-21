@@ -261,17 +261,15 @@ class CiderKernel(XCKernel):
             X0T[:, start : start + nfeat_tmp] = nspin * feat_sg
             start += nfeat_tmp
 
-        X0TN = (
-            X0T  # self.mlfunc.settings.normalizers.get_normalized_feature_vector(X0T)
-        )
+        X0TN = self.mlfunc.settings.normalizers.get_normalized_feature_vector(X0T)
         exc_ml, dexcdX0TN_ml = self.mlfunc(X0TN, rhocut=self.rhocut)
         xmix = self.xmix  # / rho.shape[0]
         exc_ml *= xmix
         dexcdX0TN_ml *= xmix
-        # vxc_ml = self.mlfunc.settings.normalizers.get_derivative_wrt_unnormed_features(
-        #     X0T, dexcdX0TN_ml
-        # )
-        vxc_ml = dexcdX0TN_ml
+        vxc_ml = self.mlfunc.settings.normalizers.get_derivative_wrt_unnormed_features(
+            X0T, dexcdX0TN_ml
+        )
+        # vxc_ml = dexcdX0TN_ml
         e_g[:] += exc_ml
 
         start = 0
@@ -975,8 +973,6 @@ class _CiderBase:
             else:
                 i_g = None
                 dq0_g = None
-            const = ((self.consts[i, 1] + self.consts[-1, 1]) / 2) ** 1.5
-            const = const + self.consts[i, 0] / (self.consts[i, 0] + const)
             for ind, a in enumerate(self.alphas):
                 self.timer.start("COEFS")
                 pa_g, dpa_g = fnlxc.eval_cubic_interp(
@@ -987,8 +983,8 @@ class _CiderBase:
                 self.timer.stop()
                 p_iag[i, a] = pa_g
 
-                feat[i, :] += const * pa_g * self.rbuf_ag[a]
-                dfeat[i, :] += const * dpa_g * self.rbuf_ag[a]
+                feat[i, :] += pa_g * self.rbuf_ag[a]
+                dfeat[i, :] += dpa_g * self.rbuf_ag[a]
 
         self.timer.start("6d comm fwd")
         if n_g is not None:
@@ -1041,11 +1037,9 @@ class _CiderBase:
             for a in self.alphas:
                 self.rbuf_ag[a][:] = 0.0
         for i in range(nexp - 1):
-            const = ((self.consts[i, 1] + self.consts[-1, 1]) / 2) ** 1.5
-            const = const + self.consts[i, 0] / (self.consts[i, 0] + const)
             vfeati_g = self.domain_world2cider(vfeat_g[i])
             for a in alphas:
-                self.rbuf_ag[a][:] += vfeati_g * const * p_iag[i, a]
+                self.rbuf_ag[a][:] += vfeati_g * p_iag[i, a]
         self.timer.stop()
         if compute_stress:
             self.calculate_6d_stress_integral()

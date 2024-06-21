@@ -580,6 +580,7 @@ class _FeatureMixin:
         if n_g is not None:
             dfeatdf = np.zeros([nexp - 1] + list(n_g.shape))
         for i in range(nexp - 1):
+            # TODO this should be changed to use the feature normalizers
             const = ((self.consts[i, 1] + self.consts[-1, 1]) / 2) ** 1.5
             const = const + self.consts[i, 0] / (self.consts[i, 0] + const)
             for ind, a in enumerate(self.alphas):

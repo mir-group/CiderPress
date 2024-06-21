@@ -173,9 +173,9 @@ class PAWCiderContribUtils:
                     x_sig[s, i] += pa_g * y_sbg[s, a]
                     xd_sig[s, i] += dpa_g * y_sbg[s, a]
                     p_siag[s, i, a] = pa_g
-                x_sig[s, i] *= ((self.consts[i, 1] + self.consts[-1, 1]) / 2) ** 1.5
-                xd_sig[s, i] *= ((self.consts[i, 1] + self.consts[-1, 1]) / 2) ** 1.5
-                p_siag[s, i] *= ((self.consts[i, 1] + self.consts[-1, 1]) / 2) ** 1.5
+                # x_sig[s, i] *= ((self.consts[i, 1] + self.consts[-1, 1]) / 2) ** 1.5
+                # xd_sig[s, i] *= ((self.consts[i, 1] + self.consts[-1, 1]) / 2) ** 1.5
+                # p_siag[s, i] *= ((self.consts[i, 1] + self.consts[-1, 1]) / 2) ** 1.5
                 dgdn_sig[s, i] = xd_sig[s, i] * dadn
                 dgdsigma_sig[s, i] = xd_sig[s, i] * dadsigma
 

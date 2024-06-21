@@ -389,6 +389,7 @@ def _get_paw_helper2(
         dydf_obg = dFdf_oag
     Nalpha = self.Nalpha
 
+    # TODO consts should be removed to make use of feat normalizers
     x_sig = np.zeros((nspin, nfeat, ngrid))
     dxdf_oig = np.zeros((norb, nfeat, ngrid))
     for s in range(nspin):
