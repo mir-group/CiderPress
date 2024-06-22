@@ -1213,8 +1213,8 @@ class AtomPASDWSlice:
         )
         lmax = self.psetup.lmax
         Lmax = (lmax + 1) * (lmax + 1)
-        ylm, dylm = pwutil.recursive_sph_harm_t2_deriv(Lmax, self.rhat_gv.T)
-        dylm /= self.rad_g + 1e-8  # TODO right amount of regularization?
+        ylm, dylm = pwutil.recursive_sph_harm_t2_deriv(Lmax, self.rhat_gv)
+        dylm /= self.rad_g[:, None, None] + 1e-8  # TODO right amount of regularization?
         rodylm = np.einsum("gv,gvL->Lg", self.rhat_gv, dylm)
         # dylm = np.dot(dylm, drhat_g.T)
         funcs_ig = pwutil.eval_pasdw_funcs(
@@ -1225,7 +1225,7 @@ class AtomPASDWSlice:
         )
         funcs_ig -= pwutil.eval_pasdw_funcs(
             radfuncs_gn.T,
-            rodylm,
+            np.ascontiguousarray(rodylm),
             xlist_i,
             self.psetup.lmlist_i,
         )
@@ -1233,7 +1233,7 @@ class AtomPASDWSlice:
         for v in range(3):
             funcs_vig[v] += pwutil.eval_pasdw_funcs(
                 radfuncs_gn.T,
-                np.ascontiguousarray(dylm[:, v]),
+                np.ascontiguousarray(dylm[:, v].T),
                 xlist_i,
                 self.psetup.lmlist_i,
             )

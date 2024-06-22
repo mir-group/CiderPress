@@ -96,7 +96,7 @@ def recursive_sph_harm_t2_deriv(nlm, rhat_gv):
     res = np.empty((n, nlm), order="C")
     dres = np.empty((n, 3, nlm), order="C")
     assert rhat_gv.flags.c_contiguous
-    pw_cutil.recursive_sph_harm_vec(
+    pw_cutil.recursive_sph_harm_deriv_vec(
         ctypes.c_int(nlm),
         ctypes.c_int(n),
         rhat_gv.ctypes.data_as(ctypes.c_void_p),

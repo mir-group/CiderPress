@@ -54,7 +54,7 @@ def _run_pw_si_stress(xc, use_pp=False, s_numerical=None):
 
 
 def run_pw_si_stress(xc, use_pp=False, s_numerical=None):
-    with np.errstate(all="warn"):
+    with np.errstate(all="ignore"):
         _run_pw_si_stress(xc, use_pp=use_pp, s_numerical=s_numerical)
 
 
