@@ -28,15 +28,38 @@ def eval_pasdw_funcs(radfuncs_ng, ylm_lg, nlist_i, lmlist_i):
         ctypes.c_int(ng),
         ctypes.c_int(nlm),
     )
-    return funcs_ig.T
+    return funcs_ig
 
 
-def pasdw_reduce_i(*args):
-    return fnlxc.pasdw_reduce_i(*args)
+def pasdw_reduce(fn, coefs_i, funcs_ig, augfeat_g, indset):
+    assert coefs_i.flags.c_contiguous
+    assert funcs_ig.flags.c_contiguous
+    assert augfeat_g.flags.c_contiguous
+    assert indset.flags.c_contiguous
+    ni, ng = funcs_ig.shape
+    assert coefs_i.size == ni
+    assert indset.shape == (ng, 3)
+    assert indset.dtype == np.int32
+    n1, n2, n3 = augfeat_g.shape
+    fn(
+        coefs_i.ctypes.data_as(ctypes.c_void_p),
+        funcs_ig.ctypes.data_as(ctypes.c_void_p),
+        augfeat_g.ctypes.data_as(ctypes.c_void_p),
+        indset.ctypes.data_as(ctypes.c_void_p),
+        ctypes.c_int(ni),
+        ctypes.c_int(ng),
+        ctypes.c_int(n1),
+        ctypes.c_int(n2),
+        ctypes.c_int(n3),
+    )
 
 
-def pasdw_reduce_g(*args):
-    return fnlxc.pasdw_reduce_g(*args)
+def pasdw_reduce_i(coefs_i, funcs_ig, augfeat_g, indset):
+    pasdw_reduce(pw_cutil.pasdw_reduce_i, coefs_i, funcs_ig, augfeat_g, indset)
+
+
+def pasdw_reduce_g(coefs_i, funcs_ig, augfeat_g, indset):
+    pasdw_reduce(pw_cutil.pasdw_reduce_g, coefs_i, funcs_ig, augfeat_g, indset)
 
 
 def eval_cubic_spline(*args):

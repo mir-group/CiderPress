@@ -65,6 +65,7 @@ void eval_pasdw_funcs(double *radfuncs_ng, double *ylm_lg, double *funcs_ig,
 void pasdw_reduce_i(double *coefs_i, double *funcs_ig, double *augfeat_g,
                     int *indlist, int ni, int ng, int n1, int n2, int n3) {
     // NOTE n1 is the first index in row-major, i.e. long stride
+    // TODO should the order of the loops be flipped to minimize jumping?
     int i, g, index, ind1, ind2, ind3;
     for (i = 0; i < ni; i++) {
         for (g = 0; g < ng; g++) {

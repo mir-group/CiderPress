@@ -1093,7 +1093,7 @@ class AtomPASDWSlice:
         ovlp_fit=False,
         store_funcs=False,
     ):
-        self.indset = np.asfortranarray(np.stack(indset) + 1)
+        self.indset = np.ascontiguousarray(np.stack(indset).T.astype(np.int32))
         self.t_g = g
         self.dt_g = dg
         self.rad_g = rad_g
@@ -1182,13 +1182,13 @@ class AtomPASDWSlice:
         lmax = self.psetup.lmax
         Lmax = (lmax + 1) * (lmax + 1)
         ylm = pwutil.recursive_sph_harm_t2(Lmax, self.rhat_gv)
-        funcs_gi = pwutil.eval_pasdw_funcs(
+        funcs_ig = pwutil.eval_pasdw_funcs(
             radfuncs_gn.T,
             np.ascontiguousarray(ylm.T),
             xlist_i,
             self.psetup.lmlist_i,
         )
-        return funcs_gi
+        return funcs_ig
 
     def get_grads(self, pfunc=True):
         if pfunc:
@@ -1217,27 +1217,27 @@ class AtomPASDWSlice:
         dylm /= self.rad_g + 1e-8  # TODO right amount of regularization?
         rodylm = np.einsum("gv,gvL->Lg", self.rhat_gv, dylm)
         # dylm = np.dot(dylm, drhat_g.T)
-        funcs_gi = pwutil.eval_pasdw_funcs(
+        funcs_ig = pwutil.eval_pasdw_funcs(
             radderivs_gn.T,
             np.ascontiguousarray(ylm.T),
             xlist_i,
             self.psetup.lmlist_i,
         )
-        funcs_gi -= pwutil.eval_pasdw_funcs(
+        funcs_ig -= pwutil.eval_pasdw_funcs(
             radfuncs_gn.T,
             rodylm,
             xlist_i,
             self.psetup.lmlist_i,
         )
-        funcs_vgi = self.rhat_gv.T[:, :, None] * funcs_gi
+        funcs_vig = self.rhat_gv.T[:, None, :] * funcs_ig
         for v in range(3):
-            funcs_vgi[v] += pwutil.eval_pasdw_funcs(
+            funcs_vig[v] += pwutil.eval_pasdw_funcs(
                 radfuncs_gn.T,
                 np.ascontiguousarray(dylm[:, v]),
                 xlist_i,
                 self.psetup.lmlist_i,
             )
-        return funcs_vgi
+        return funcs_vig
 
     def setup_ovlpt(self):
         rad_pfuncs_gn = pwutil.eval_cubic_spline(
@@ -1253,19 +1253,19 @@ class AtomPASDWSlice:
         lmax = self.psetup.lmax
         Lmax = (lmax + 1) * (lmax + 1)
         ylm = pwutil.recursive_sph_harm_t2(Lmax, self.rhat_gv)
-        pfuncs_gi = pwutil.eval_pasdw_funcs(
+        pfuncs_ig = pwutil.eval_pasdw_funcs(
             rad_pfuncs_gn.T,
             np.ascontiguousarray(ylm.T),
             self.psetup.nlist_i,
             self.psetup.lmlist_i,
         )
-        ffuncs_gi = pwutil.eval_pasdw_funcs(
+        ffuncs_ig = pwutil.eval_pasdw_funcs(
             rad_ffuncs_jn.T,
             np.ascontiguousarray(ylm.T),
             self.psetup.jlist_i,
             self.psetup.lmlist_i,
         )
-        ovlp_pf = np.einsum("gp,gf->pf", pfuncs_gi, ffuncs_gi) * self.dv
+        ovlp_pf = np.einsum("pg,fg->pf", pfuncs_ig, ffuncs_ig) * self.dv
         self.sinv_pf = np.linalg.solve(ovlp_pf.T, self.psetup.exact_ovlp_pf)
 
     def get_ovlp_deriv(self, pfuncs_gi, pgrads_vgi, stress=False):

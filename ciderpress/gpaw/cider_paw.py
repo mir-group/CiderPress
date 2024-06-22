@@ -222,14 +222,14 @@ class _CiderPASDW_MPRoutines:
             feat_g = self.gdfft.zeros(global_array=True)
             for a in self.aalist:
                 atom_slice = atom_slices[a]
-                funcs_gi = atom_slice.get_funcs()
+                funcs_ig = atom_slice.get_funcs()
                 coefs_bi = coefs_abi[a]
                 if atom_slice.sinv_pf is not None:
                     coefs_bi = coefs_bi.dot(atom_slice.sinv_pf.T)
                 pwutil.pasdw_reduce_i(
                     coefs_bi[0],
-                    funcs_gi,
-                    feat_g.T,
+                    funcs_ig,
+                    feat_g,
                     atom_slice.indset,
                 )
             self.gdfft.comm.sum(feat_g, root=0)
@@ -237,7 +237,7 @@ class _CiderPASDW_MPRoutines:
         elif len(self.aalist) == len(self.setups):  # For small systems w/o atom par
             for a in self.aalist:
                 atom_slice = atom_slices[a]
-                funcs_gi = atom_slice.get_funcs()
+                funcs_ig = atom_slice.get_funcs()
                 coefs_bi = coefs_abi[a]
                 if atom_slice.sinv_pf is not None:
                     coefs_bi = coefs_bi.dot(atom_slice.sinv_pf.T)
@@ -245,8 +245,8 @@ class _CiderPASDW_MPRoutines:
                     assert self.rbuf_ag[b].flags.c_contiguous
                     pwutil.pasdw_reduce_i(
                         coefs_bi[ib],
-                        funcs_gi,
-                        self.rbuf_ag[b].T,
+                        funcs_ig,
+                        self.rbuf_ag[b],
                         atom_slice.indset,
                     )
         else:
@@ -275,13 +275,13 @@ class _CiderPASDW_MPRoutines:
             feat_g = self.gdfft.collect(self.rbuf_ag[self.alphas[0]], broadcast=True)
             for a in self.aalist:
                 atom_slice = atom_slices[a]
-                funcs_gi = atom_slice.get_funcs()
-                ni = funcs_gi.shape[1]
+                funcs_ig = atom_slice.get_funcs()
+                ni = funcs_ig.shape[0]
                 coefs_bi = np.zeros((1, ni))
                 pwutil.pasdw_reduce_g(
                     coefs_bi[0],
-                    funcs_gi,
-                    feat_g.T,
+                    funcs_ig,
+                    feat_g,
                     atom_slice.indset,
                 )
                 coefs_bi *= self.gd.dv
@@ -291,14 +291,14 @@ class _CiderPASDW_MPRoutines:
         elif len(self.aalist) == len(self.setups):  # For small systems w/o atom par
             for a in self.aalist:
                 atom_slice = atom_slices[a]
-                funcs_gi = atom_slice.get_funcs()
-                ni = funcs_gi.shape[1]
+                funcs_ig = atom_slice.get_funcs()
+                ni = funcs_ig.shape[0]
                 coefs_bi = np.zeros((Nalpha_r, ni))
                 for ib, b in enumerate(self.alphas):
                     pwutil.pasdw_reduce_g(
                         coefs_bi[ib],
-                        funcs_gi,
-                        self.rbuf_ag[b].T,
+                        funcs_ig,
+                        self.rbuf_ag[b],
                         atom_slice.indset,
                     )
                 coefs_bi *= self.gd.dv
@@ -350,29 +350,29 @@ class _CiderPASDW_MPRoutines:
             feat_g = self.gdfft.collect(c_ag[self.alphas[0]], broadcast=True)
             for a in self.aalist:
                 atom_slice = atom_slices[a]
-                grads_vgi = atom_slice.get_grads()
-                ni = grads_vgi.shape[-1]
+                grads_vig = atom_slice.get_grads()
+                ni = grads_vig.shape[1]
                 coefs_bi = coefs_abi[a]
                 has_ofit = atom_slice.sinv_pf is not None
                 if stress or has_ofit:
-                    funcs_gi = atom_slice.get_funcs()
+                    funcs_ig = atom_slice.get_funcs()
                 if has_ofit:
                     coefs_bi = coefs_bi.dot(atom_slice.sinv_pf.T)
                     X_xii = atom_slice.get_ovlp_deriv(
-                        funcs_gi, grads_vgi, stress=stress
+                        funcs_ig.T, grads_vig.transpose(0, 2, 1), stress=stress
                     )
                     ft_xbi = np.einsum("bi,...ji->...bj", coefs_bi, X_xii)
-                    ft_xbg = np.einsum("...bi,gi->...bg", ft_xbi, funcs_gi)
+                    ft_xbg = np.einsum("...bi,gi->...bg", ft_xbi, funcs_ig)
                     ft_xbg *= self.gd.dv
                 # NOTE account for dv here
-                intb_vg = grads_vgi.dot(self.gd.dv * coefs_bi[0])
+                intb_vg = grads_vig.transpose(0, 2, 1).dot(self.gd.dv * coefs_bi[0])
                 if stress:
                     if aug:
                         tmp_i = np.zeros(ni)
                         pwutil.pasdw_reduce_g(
                             tmp_i,
-                            funcs_gi,
-                            feat_g.T,
+                            funcs_ig,
+                            feat_g,
                             atom_slice.indset,
                         )
                         P += self.gd.dv * tmp_i.dot(coefs_bi[0])
@@ -380,57 +380,59 @@ class _CiderPASDW_MPRoutines:
                         dx_g = atom_slice.rad_g * atom_slice.rhat_gv[:, v]
                         pwutil.pasdw_reduce_g(
                             stress_vv[v],
-                            (dx_g * intb_vg).T,
-                            feat_g.T,
+                            (dx_g * intb_vg),
+                            feat_g,
                             atom_slice.indset,
                         )
                         if has_ofit:
                             pwutil.pasdw_reduce_g(
                                 stress_vv[v],
-                                ft_xbg[v, :, 0].T,
-                                feat_g.T,
+                                ft_xbg[v, :, 0],
+                                feat_g,
                                 atom_slice.indset,
                             )
                 else:
                     pwutil.pasdw_reduce_g(
                         F_av[a],
-                        intb_vg.T,
-                        feat_g.T,
+                        intb_vg,
+                        feat_g,
                         atom_slice.indset,
                     )
                     if has_ofit:
                         pwutil.pasdw_reduce_g(
                             F_av[a],
-                            ft_xbg[:, 0].T,
-                            feat_g.T,
+                            ft_xbg[:, 0],
+                            feat_g,
                             atom_slice.indset,
                         )
         elif len(self.aalist) == len(self.setups):  # For small systems w/o atom par
             for a in self.aalist:
                 atom_slice = atom_slices[a]
-                grads_vgi = atom_slice.get_grads()
-                ni = grads_vgi.shape[-1]
+                grads_vig = atom_slice.get_grads()
+                ni = grads_vig.shape[1]
                 coefs_bi = coefs_abi[a]
                 has_ofit = atom_slice.sinv_pf is not None
                 if stress or has_ofit:
-                    funcs_gi = atom_slice.get_funcs()
+                    funcs_ig = atom_slice.get_funcs()
                 if has_ofit:
                     coefs_bi = coefs_bi.dot(atom_slice.sinv_pf.T)
                     X_xii = atom_slice.get_ovlp_deriv(
-                        funcs_gi, grads_vgi, stress=stress
+                        funcs_ig.T, grads_vig.transpose(0, 2, 1), stress=stress
                     )
                     ft_xbi = np.einsum("bi,...ji->...bj", coefs_bi, X_xii)
-                    ft_xbg = np.einsum("...bi,gi->...bg", ft_xbi, funcs_gi)
+                    ft_xbg = np.einsum("...bi,gi->...bg", ft_xbi, funcs_ig.T)
                     ft_xbg *= self.gd.dv
                 for ib, b in enumerate(self.alphas):
-                    intb_vg = grads_vgi.dot(self.gd.dv * coefs_bi[ib])
+                    intb_vg = grads_vig.transpose(0, 2, 1).dot(
+                        self.gd.dv * coefs_bi[ib]
+                    )
                     if stress:
                         if aug:
                             tmp_i = np.zeros(ni)
                             pwutil.pasdw_reduce_g(
                                 tmp_i,
-                                funcs_gi,
-                                c_ag[b].T,
+                                funcs_ig,
+                                c_ag[b],
                                 atom_slice.indset,
                             )
                             P += self.gd.dv * tmp_i.dot(coefs_bi[ib])
@@ -438,29 +440,29 @@ class _CiderPASDW_MPRoutines:
                             dx_g = atom_slice.rad_g * atom_slice.rhat_gv[:, v]
                             pwutil.pasdw_reduce_g(
                                 stress_vv[v],
-                                (dx_g * intb_vg).T,
-                                c_ag[b].T,
+                                (dx_g * intb_vg),
+                                c_ag[b],
                                 atom_slice.indset,
                             )
                             if has_ofit:
                                 pwutil.pasdw_reduce_g(
                                     stress_vv[v],
-                                    ft_xbg[v, :, ib].T,
-                                    c_ag[b].T,
+                                    ft_xbg[v, :, ib],
+                                    c_ag[b],
                                     atom_slice.indset,
                                 )
                     else:
                         pwutil.pasdw_reduce_g(
                             F_av[a],
-                            intb_vg.T,
-                            c_ag[b].T,
+                            intb_vg,
+                            c_ag[b],
                             atom_slice.indset,
                         )
                         if has_ofit:
                             pwutil.pasdw_reduce_g(
                                 F_av[a],
-                                ft_xbg[:, ib].T,
-                                c_ag[b].T,
+                                ft_xbg[:, ib],
+                                c_ag[b],
                                 atom_slice.indset,
                             )
                         # inds = tuple((atom_slice.indset-1).astype(int).tolist())
