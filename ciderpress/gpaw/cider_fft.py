@@ -926,7 +926,7 @@ class _CiderBase:
             q0_g = 0.5 * cider_exp[i]
             amin_inv = 1.0 / self.dense_bas_exp[0]
             llinv = 1.0 / np.log(self.dense_lambd)
-            i_g = (np.log(q0_g * amin_inv) * llinv).astype(int)
+            i_g = (np.log(q0_g * amin_inv) * llinv).astype(np.int32)
             dq0_g = q0_g - self.q_a[i_g]
             self.timer.stop("hmm1")
         else:
@@ -940,7 +940,7 @@ class _CiderBase:
         self.timer.start("COEFS")
         for ind, a in enumerate(self.alphas):
             pa_g, dpa_g = pwutil.eval_cubic_interp(
-                i_g.ravel(), dq0_g.ravel(), self.C_aip[ind].T
+                i_g.ravel(), dq0_g.ravel(), self.C_aip[ind]
             )
             pa_g = pa_g.reshape(i_g.shape)
             dpa_g = dpa_g.reshape(i_g.shape)
@@ -967,7 +967,7 @@ class _CiderBase:
                 # i_g = (np.log(q0_g/self.dense_bas_exp[0])/np.log(self.dense_lambd)).astype(int)
                 amin_inv = 1.0 / self.dense_bas_exp[0]
                 llinv = 1.0 / np.log(self.dense_lambd)
-                i_g = (np.log(q0_g * amin_inv) * llinv).astype(int)
+                i_g = (np.log(q0_g * amin_inv) * llinv).astype(np.int32)
                 dq0_g = q0_g - self.q_a[i_g]
                 self.timer.stop("hmm1")
             else:
@@ -976,7 +976,7 @@ class _CiderBase:
             for ind, a in enumerate(self.alphas):
                 self.timer.start("COEFS")
                 pa_g, dpa_g = pwutil.eval_cubic_interp(
-                    i_g.ravel(), dq0_g.ravel(), self.C_aip[ind].T
+                    i_g.ravel(), dq0_g.ravel(), self.C_aip[ind]
                 )
                 pa_g = pa_g.reshape(i_g.shape)
                 dpa_g = dpa_g.reshape(i_g.shape)

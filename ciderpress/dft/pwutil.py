@@ -2,7 +2,6 @@ import ctypes
 
 import numpy as np
 
-from ciderpress.dft.futil import sph_nlxc_mod as fnlxc
 from ciderpress.lib import load_library
 
 pw_cutil = load_library("libpwutil.so")
@@ -62,20 +61,71 @@ def pasdw_reduce_g(coefs_i, funcs_ig, augfeat_g, indset):
     pasdw_reduce(pw_cutil.pasdw_reduce_g, coefs_i, funcs_ig, augfeat_g, indset)
 
 
-def eval_cubic_spline(*args):
-    return fnlxc.eval_cubic_spline(*args)
+def _eval_cubic_spline(fn, funcs_ntp, t_g, dt_g):
+    nn, nt, _np = funcs_ntp.shape
+    assert _np == 4
+    ng = t_g.size
+    assert dt_g.size == ng
+    assert funcs_ntp.flags.c_contiguous
+    assert t_g.flags.c_contiguous
+    assert dt_g.flags.c_contiguous
+    radfuncs_ng = np.empty((nn, ng), order="C")
+    fn(
+        funcs_ntp.ctypes.data_as(ctypes.c_void_p),
+        radfuncs_ng.ctypes.data_as(ctypes.c_void_p),
+        t_g.ctypes.data_as(ctypes.c_void_p),
+        dt_g.ctypes.data_as(ctypes.c_void_p),
+        ctypes.c_int(nn),
+        ctypes.c_int(nt),
+        ctypes.c_int(ng),
+    )
+    return radfuncs_ng
 
 
-def eval_cubic_spline_deriv(*args):
-    return fnlxc.eval_cubic_spline_deriv(*args)
+def eval_cubic_spline(funcs_ntp, t_g, dt_g):
+    return _eval_cubic_spline(pw_cutil.eval_cubic_spline, funcs_ntp, t_g, dt_g)
 
 
-def eval_cubic_interp(*args):
-    return fnlxc.eval_cubic_interp(*args)
+def eval_cubic_spline_deriv(funcs_ntp, t_g, dt_g):
+    return _eval_cubic_spline(pw_cutil.eval_cubic_spline, funcs_ntp, t_g, dt_g)
 
 
-def eval_cubic_interp_noderiv(*args):
-    return fnlxc.eval_cubic_interp_noderiv(*args)
+def _eval_cubic_interp(i_g, t_g, c_ip, with_deriv):
+    for arr, dtype in zip([i_g, t_g, c_ip], [np.int32, np.float64, np.float64]):
+        assert arr.dtype == dtype
+        assert arr.flags.c_contiguous
+    ng = i_g.size
+    ni = c_ip.shape[0]
+    assert c_ip.shape[1] == 4
+    y_g = np.empty(ng, order="C")
+    args = [
+        i_g.ctypes.data_as(ctypes.c_void_p),
+        t_g.ctypes.data_as(ctypes.c_void_p),
+        c_ip.ctypes.data_as(ctypes.c_void_p),
+        y_g.ctypes.data_as(ctypes.c_void_p),
+    ]
+    if with_deriv:
+        dy_g = np.empty(ng, order="C")
+        args.append(dy_g.ctypes.data_as(ctypes.c_void_p))
+        res = (y_g, dy_g)
+        fn = pw_cutil.eval_cubic_interp
+    else:
+        res = y_g
+        fn = pw_cutil.eval_cubic_interp_noderiv
+    args += [
+        ctypes.c_int(ng),
+        ctypes.c_int(ni),
+    ]
+    fn(*args)
+    return res
+
+
+def eval_cubic_interp(i_g, t_g, c_ip):
+    return _eval_cubic_interp(i_g, t_g, c_ip, True)
+
+
+def eval_cubic_interp_noderiv(i_g, t_g, c_ip):
+    return _eval_cubic_interp(i_g, t_g, c_ip, False)
 
 
 def recursive_sph_harm_t2(nlm, rhat_gv):
@@ -96,7 +146,7 @@ def recursive_sph_harm_t2_deriv(nlm, rhat_gv):
     res = np.empty((n, nlm), order="C")
     dres = np.empty((n, 3, nlm), order="C")
     assert rhat_gv.flags.c_contiguous
-    pw_cutil.recursive_sph_harm_vec(
+    pw_cutil.recursive_sph_harm_deriv_vec(
         ctypes.c_int(nlm),
         ctypes.c_int(n),
         rhat_gv.ctypes.data_as(ctypes.c_void_p),

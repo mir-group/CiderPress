@@ -63,7 +63,7 @@ def _run_cider_forces(functional, get_xc=None):
 
 
 def run_cider_forces(functional, get_xc=None):
-    with np.errstate(all="warn"):
+    with np.errstate(all="ignore"):
         _run_cider_forces(functional, get_xc=get_xc)
 
 

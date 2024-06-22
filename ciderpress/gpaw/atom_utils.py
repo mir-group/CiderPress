@@ -1094,8 +1094,8 @@ class AtomPASDWSlice:
         store_funcs=False,
     ):
         self.indset = np.ascontiguousarray(np.stack(indset).T.astype(np.int32))
-        self.t_g = g
-        self.dt_g = dg
+        self.t_g = np.ascontiguousarray(g.astype(np.int32))
+        self.dt_g = np.ascontiguousarray(dg.astype(np.float64))
         self.rad_g = rad_g
         self.h = h
         self.rhat_gv = rhat_gv
@@ -1174,8 +1174,8 @@ class AtomPASDWSlice:
             funcs_xtp = self.psetup.ffuncs_jtp
             xlist_i = self.psetup.jlist_i
 
-        radfuncs_gn = pwutil.eval_cubic_spline(
-            funcs_xtp.T,
+        radfuncs_ng = pwutil.eval_cubic_spline(
+            funcs_xtp,
             self.t_g,
             self.dt_g,
         )
@@ -1183,7 +1183,7 @@ class AtomPASDWSlice:
         Lmax = (lmax + 1) * (lmax + 1)
         ylm = pwutil.recursive_sph_harm_t2(Lmax, self.rhat_gv)
         funcs_ig = pwutil.eval_pasdw_funcs(
-            radfuncs_gn.T,
+            radfuncs_ng,
             np.ascontiguousarray(ylm.T),
             xlist_i,
             self.psetup.lmlist_i,
@@ -1198,14 +1198,14 @@ class AtomPASDWSlice:
             funcs_xtp = self.psetup.ffuncs_jtp
             xlist_i = self.psetup.jlist_i
 
-        radfuncs_gn = pwutil.eval_cubic_spline(
-            funcs_xtp.T,
+        radfuncs_ng = pwutil.eval_cubic_spline(
+            funcs_xtp,
             self.t_g,
             self.dt_g,
         )
-        radderivs_gn = (
+        radderivs_ng = (
             pwutil.eval_cubic_spline_deriv(
-                funcs_xtp.T,
+                funcs_xtp,
                 self.t_g,
                 self.dt_g,
             )
@@ -1213,18 +1213,18 @@ class AtomPASDWSlice:
         )
         lmax = self.psetup.lmax
         Lmax = (lmax + 1) * (lmax + 1)
-        ylm, dylm = pwutil.recursive_sph_harm_t2_deriv(Lmax, self.rhat_gv.T)
-        dylm /= self.rad_g + 1e-8  # TODO right amount of regularization?
-        rodylm = np.einsum("gv,gvL->Lg", self.rhat_gv, dylm)
+        ylm, dylm = pwutil.recursive_sph_harm_t2_deriv(Lmax, self.rhat_gv)
+        dylm /= self.rad_g[:, None, None] + 1e-8  # TODO right amount of regularization?
+        rodylm = np.ascontiguousarray(np.einsum("gv,gvL->Lg", self.rhat_gv, dylm))
         # dylm = np.dot(dylm, drhat_g.T)
         funcs_ig = pwutil.eval_pasdw_funcs(
-            radderivs_gn.T,
+            radderivs_ng,
             np.ascontiguousarray(ylm.T),
             xlist_i,
             self.psetup.lmlist_i,
         )
         funcs_ig -= pwutil.eval_pasdw_funcs(
-            radfuncs_gn.T,
+            radfuncs_ng,
             rodylm,
             xlist_i,
             self.psetup.lmlist_i,
@@ -1232,21 +1232,21 @@ class AtomPASDWSlice:
         funcs_vig = self.rhat_gv.T[:, None, :] * funcs_ig
         for v in range(3):
             funcs_vig[v] += pwutil.eval_pasdw_funcs(
-                radfuncs_gn.T,
-                np.ascontiguousarray(dylm[:, v]),
+                radfuncs_ng,
+                np.ascontiguousarray(dylm[:, v].T),
                 xlist_i,
                 self.psetup.lmlist_i,
             )
         return funcs_vig
 
     def setup_ovlpt(self):
-        rad_pfuncs_gn = pwutil.eval_cubic_spline(
-            self.psetup.pfuncs_ntp.T,
+        rad_pfuncs_ng = pwutil.eval_cubic_spline(
+            self.psetup.pfuncs_ntp,
             self.t_g,
             self.dt_g,
         )
-        rad_ffuncs_jn = pwutil.eval_cubic_spline(
-            self.psetup.ffuncs_jtp.T,
+        rad_ffuncs_nj = pwutil.eval_cubic_spline(
+            self.psetup.ffuncs_jtp,
             self.t_g,
             self.dt_g,
         )
@@ -1254,13 +1254,13 @@ class AtomPASDWSlice:
         Lmax = (lmax + 1) * (lmax + 1)
         ylm = pwutil.recursive_sph_harm_t2(Lmax, self.rhat_gv)
         pfuncs_ig = pwutil.eval_pasdw_funcs(
-            rad_pfuncs_gn.T,
+            rad_pfuncs_ng,
             np.ascontiguousarray(ylm.T),
             self.psetup.nlist_i,
             self.psetup.lmlist_i,
         )
         ffuncs_ig = pwutil.eval_pasdw_funcs(
-            rad_ffuncs_jn.T,
+            rad_ffuncs_nj,
             np.ascontiguousarray(ylm.T),
             self.psetup.jlist_i,
             self.psetup.lmlist_i,
@@ -1268,14 +1268,14 @@ class AtomPASDWSlice:
         ovlp_pf = np.einsum("pg,fg->pf", pfuncs_ig, ffuncs_ig) * self.dv
         self.sinv_pf = np.linalg.solve(ovlp_pf.T, self.psetup.exact_ovlp_pf)
 
-    def get_ovlp_deriv(self, pfuncs_gi, pgrads_vgi, stress=False):
-        ffuncs_gi = self.get_funcs(False)
-        fgrads_vgi = self.get_grads(False)
+    def get_ovlp_deriv(self, pfuncs_ig, pgrads_vig, stress=False):
+        ffuncs_ig = self.get_funcs(False)
+        fgrads_vig = self.get_grads(False)
         if stress:
-            ovlp_pf = np.einsum("gp,gf->pf", pfuncs_gi, ffuncs_gi) * self.dv
+            ovlp_pf = np.einsum("pg,fg->pf", pfuncs_ig, ffuncs_ig) * self.dv
             dr_vg = self.rad_g * self.rhat_gv.T
-            dovlp_vvpf = np.einsum("ug,gp,vgf->uvpf", dr_vg, pfuncs_gi, fgrads_vgi)
-            dovlp_vvpf += np.einsum("ug,vgp,gf->uvpf", dr_vg, pgrads_vgi, ffuncs_gi)
+            dovlp_vvpf = np.einsum("ug,pg,vfg->uvpf", dr_vg, pfuncs_ig, fgrads_vig)
+            dovlp_vvpf += np.einsum("ug,vpg,fg->uvpf", dr_vg, pgrads_vig, ffuncs_ig)
             dovlp_vvpf *= self.dv
             for v in range(3):
                 dovlp_vvpf[v, v] += ovlp_pf
@@ -1287,9 +1287,9 @@ class AtomPASDWSlice:
                     X_vvpq[v1, v2] = np.linalg.solve(ovlp_pf.T, B_vvfq[v1, v2])
             return X_vvpq
         else:
-            ovlp_pf = np.einsum("gp,gf->pf", pfuncs_gi, ffuncs_gi) * self.dv
-            dovlp_vpf = np.einsum("gp,vgf->vpf", pfuncs_gi, fgrads_vgi) + np.einsum(
-                "vgp,gf->vpf", pgrads_vgi, ffuncs_gi
+            ovlp_pf = np.einsum("pg,fg->pf", pfuncs_ig, ffuncs_ig) * self.dv
+            dovlp_vpf = np.einsum("pg,vfg->vpf", pfuncs_ig, fgrads_vig) + np.einsum(
+                "vpg,fg->vpf", pgrads_vig, ffuncs_ig
             )
             dovlp_vpf *= self.dv
             B_vfq = -1 * np.einsum("vpf,pq->vfq", dovlp_vpf, self.sinv_pf)
