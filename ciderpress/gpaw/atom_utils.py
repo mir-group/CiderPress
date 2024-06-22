@@ -1268,14 +1268,14 @@ class AtomPASDWSlice:
         ovlp_pf = np.einsum("pg,fg->pf", pfuncs_ig, ffuncs_ig) * self.dv
         self.sinv_pf = np.linalg.solve(ovlp_pf.T, self.psetup.exact_ovlp_pf)
 
-    def get_ovlp_deriv(self, pfuncs_gi, pgrads_vgi, stress=False):
-        ffuncs_gi = self.get_funcs(False)
-        fgrads_vgi = self.get_grads(False)
+    def get_ovlp_deriv(self, pfuncs_ig, pgrads_vig, stress=False):
+        ffuncs_ig = self.get_funcs(False)
+        fgrads_vig = self.get_grads(False)
         if stress:
-            ovlp_pf = np.einsum("gp,gf->pf", pfuncs_gi, ffuncs_gi) * self.dv
+            ovlp_pf = np.einsum("pg,fg->pf", pfuncs_ig, ffuncs_ig) * self.dv
             dr_vg = self.rad_g * self.rhat_gv.T
-            dovlp_vvpf = np.einsum("ug,gp,vgf->uvpf", dr_vg, pfuncs_gi, fgrads_vgi)
-            dovlp_vvpf += np.einsum("ug,vgp,gf->uvpf", dr_vg, pgrads_vgi, ffuncs_gi)
+            dovlp_vvpf = np.einsum("ug,pg,vfg->uvpf", dr_vg, pfuncs_ig, fgrads_vig)
+            dovlp_vvpf += np.einsum("ug,vpg,fg->uvpf", dr_vg, pgrads_vig, ffuncs_ig)
             dovlp_vvpf *= self.dv
             for v in range(3):
                 dovlp_vvpf[v, v] += ovlp_pf
@@ -1287,9 +1287,9 @@ class AtomPASDWSlice:
                     X_vvpq[v1, v2] = np.linalg.solve(ovlp_pf.T, B_vvfq[v1, v2])
             return X_vvpq
         else:
-            ovlp_pf = np.einsum("gp,gf->pf", pfuncs_gi, ffuncs_gi) * self.dv
-            dovlp_vpf = np.einsum("gp,vgf->vpf", pfuncs_gi, fgrads_vgi) + np.einsum(
-                "vgp,gf->vpf", pgrads_vgi, ffuncs_gi
+            ovlp_pf = np.einsum("pg,fg->pf", pfuncs_ig, ffuncs_ig) * self.dv
+            dovlp_vpf = np.einsum("pg,vfg->vpf", pfuncs_ig, fgrads_vig) + np.einsum(
+                "vpg,fg->vpf", pgrads_vig, ffuncs_ig
             )
             dovlp_vpf *= self.dv
             B_vfq = -1 * np.einsum("vpf,pq->vfq", dovlp_vpf, self.sinv_pf)
