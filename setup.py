@@ -3,17 +3,8 @@ import sys
 
 from numpy.distutils.command.build import build
 from numpy.distutils.command.build_ext import build_ext
-from numpy.distutils.core import Extension as NPExtension
 from numpy.distutils.core import setup
 from setuptools import find_packages
-
-fext_dir = "ciderpress/lib/gpaw_utils_src"
-fsources = ["gpaw_utils.f90", "fast_sph_harm.f90"]
-fext = NPExtension(
-    name="ciderpress.dft.futil",
-    sources=[os.path.join(fext_dir, fsrc) for fsrc in fsources],
-    f2py_options=["--quiet"],
-)
 
 
 class CMakeBuildExt(build_ext):
@@ -73,7 +64,6 @@ setup(
     description=description,
     version="0.0.10",
     packages=find_packages(exclude=["*test*", "*examples*"]),
-    ext_modules=[fext],
     cmdclass={"build_ext": CMakeBuildExt},
     setup_requires=["numpy"],
     install_requires=requirements,
