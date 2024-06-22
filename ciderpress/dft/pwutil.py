@@ -87,7 +87,7 @@ def eval_cubic_spline(funcs_ntp, t_g, dt_g):
 
 
 def eval_cubic_spline_deriv(funcs_ntp, t_g, dt_g):
-    return _eval_cubic_spline(pw_cutil.eval_cubic_spline, funcs_ntp, t_g, dt_g)
+    return _eval_cubic_spline(pw_cutil.eval_cubic_spline_deriv, funcs_ntp, t_g, dt_g)
 
 
 def _eval_cubic_interp(i_g, t_g, c_ip, with_deriv):

@@ -47,11 +47,11 @@ def generate_test(xcname, e_ref):
 
 class TestEnergy(unittest.TestCase):
 
-    # test_sl_gga = generate_test("CIDER23X_SL_GGA", -12.868728302199766)
+    test_sl_gga = generate_test("CIDER23X_SL_GGA", -12.868728302199766)
 
-    # test_nl_gga = generate_test("CIDER23X_NL_GGA", -13.044519201764654)
+    test_nl_gga = generate_test("CIDER23X_NL_GGA", -13.044519201764654)
 
-    # test_sl_mgga = generate_test("CIDER23X_SL_MGGA", -12.267997644473239)
+    test_sl_mgga = generate_test("CIDER23X_SL_MGGA", -12.267997644473239)
 
     test_nl_mgga = generate_test("CIDER23X_NL_MGGA_DTR", -12.380374553337576)
 

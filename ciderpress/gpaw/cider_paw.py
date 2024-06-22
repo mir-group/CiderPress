@@ -420,8 +420,8 @@ class _CiderPASDW_MPRoutines:
                         funcs_ig, grads_vig, stress=stress
                     )
                     ft_xbi = np.einsum("bi,...ji->...bj", coefs_bi, X_xii)
-                    ft_vbvg = np.einsum("uvbi,ig->ubvg", ft_xbi, funcs_ig)
-                    ft_vbvg *= self.gd.dv
+                    ft_xbg = np.einsum("...bi,gi->...bg", ft_xbi, funcs_ig.T)
+                    ft_xbg *= self.gd.dv
                 for ib, b in enumerate(self.alphas):
                     intb_vg = grads_vig.transpose(0, 2, 1).dot(
                         self.gd.dv * coefs_bi[ib]
@@ -447,7 +447,7 @@ class _CiderPASDW_MPRoutines:
                             if has_ofit:
                                 pwutil.pasdw_reduce_g(
                                     stress_vv[v],
-                                    np.ascontiguousarray(ft_vbvg[v, ib]),
+                                    np.ascontiguousarray(ft_xbg[v, :, ib]),
                                     c_ag[b],
                                     atom_slice.indset,
                                 )

@@ -68,7 +68,6 @@ def run_cider_forces(functional, get_xc=None):
 
 
 class TestForce(unittest.TestCase):
-    """
     def test_sl_gga(self):
         run_cider_forces(get_cider_functional("functionals/CIDER23X_SL_GGA.yaml"))
 
@@ -87,7 +86,6 @@ class TestForce(unittest.TestCase):
             )
 
         run_cider_forces(get_xc())
-    """
 
     def test_nl_mgga(self):
         def get_xc():
