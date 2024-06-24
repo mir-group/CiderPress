@@ -3,7 +3,7 @@ from gpaw.sphere.lebedev import R_nv, Y_nL, weight_n
 from gpaw.xc.pawcorrection import rnablaY_nLv
 from numpy import pi, sqrt
 
-from ciderpress.dft.cider_kernel import dalpha, ds2, get_alpha, get_s2
+from ciderpress.dft.settings import dalpha, ds2, get_alpha, get_s2
 from ciderpress.gpaw.atom_utils import get_atomic_convolution
 from ciderpress.gpaw.fit_paw_gauss_pot import get_dv
 from ciderpress.gpaw.interp_paw import (
