@@ -187,7 +187,9 @@ class PAWCiderContribUtils:
             n_sg, sigma_xg, y_sbg, F_sbg, ae=ae
         )
         if include_density:
-            from ciderpress.gpaw.atom_analysis_utils import get_features_with_sl_noderiv
+            from ciderpress.gpaw.atom_descriptor_utils import (
+                get_features_with_sl_noderiv,
+            )
 
             feat_sig = get_features_with_sl_noderiv(feat_sig, n_sg, sigma_xg, None)
             # _feat_sig = feat_sig
@@ -353,7 +355,9 @@ class MetaPAWCiderContribUtils(PAWCiderContribUtils):
             n_sg, tau_xg, y_sbg, F_sbg, ae=ae
         )
         if include_density:
-            from ciderpress.gpaw.atom_analysis_utils import get_features_with_sl_noderiv
+            from ciderpress.gpaw.atom_descriptor_utils import (
+                get_features_with_sl_noderiv,
+            )
 
             feat_sig = get_features_with_sl_noderiv(feat_sig, n_sg, sigma_xg, tau_sg)
             # _feat_sig = feat_sig

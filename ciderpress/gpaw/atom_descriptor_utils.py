@@ -389,7 +389,6 @@ def _get_paw_helper2(
         dydf_obg = dFdf_oag
     Nalpha = self.Nalpha
 
-    # TODO consts should be removed to make use of feat normalizers
     x_sig = np.zeros((nspin, nfeat, ngrid))
     dxdf_oig = np.zeros((norb, nfeat, ngrid))
     for s in range(nspin):
@@ -406,7 +405,7 @@ def _get_paw_helper2(
                 C_pg = self.C_aip[a, i_g].T
                 pa_g = C_pg[0] + dq0_g * (C_pg[1] + dq0_g * (C_pg[2] + dq0_g * C_pg[3]))
                 x_sig[s, i] += pa_g * y_sbg[s, a]
-            x_sig[s, i] *= ((self.consts[i, 1] + self.consts[-1, 1]) / 2) ** 1.5
+            # x_sig[s, i] *= ((self.consts[i, 1] + self.consts[-1, 1]) / 2) ** 1.5
     for o in range(norb):
         s = p_o[o][0]
         for i in range(nfeat):
@@ -425,7 +424,7 @@ def _get_paw_helper2(
                 dpa_g = 0.5 * (C_pg[1] + dq0_g * (2 * C_pg[2] + dq0_g * 3 * C_pg[3]))
                 dxdf_oig[o, i] += dpa_g * dadf_g * y_sbg[s, a]
                 dxdf_oig[o, i] += pa_g * dydf_obg[o, a]
-            dxdf_oig[o, i] *= ((self.consts[i, 1] + self.consts[-1, 1]) / 2) ** 1.5
+            # dxdf_oig[o, i] *= ((self.consts[i, 1] + self.consts[-1, 1]) / 2) ** 1.5
 
     return x_sig, dxdf_oig
 

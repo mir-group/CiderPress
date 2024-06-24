@@ -1237,8 +1237,8 @@ class _CiderBase:
 
 class CiderGGA(_CiderBase, GGA):
     def __init__(self, cider_kernel, nexp, consts, **kwargs):
-        if cider_kernel.mlfunc.desc_version != "d":
-            raise ValueError("Wrong mlfunc version")
+        if cider_kernel.mlfunc.settings.sl_settings.level != "GGA":
+            raise ValueError("CiderGGA only supports GGA functionals!")
         _CiderBase.__init__(self, cider_kernel, nexp, consts, **kwargs)
 
         GGA.__init__(self, LibXC("PBE"), stencil=2)
@@ -1335,9 +1335,8 @@ class CiderGGA(_CiderBase, GGA):
 
 class CiderMGGA(_CiderBase, MGGA):
     def __init__(self, cider_kernel, nexp, consts, **kwargs):
-
-        if cider_kernel.mlfunc.desc_version != "b":
-            raise ValueError("Wrong mlfunc version")
+        if cider_kernel.mlfunc.settings.sl_settings.level != "MGGA":
+            raise ValueError("CiderMGGA only supports MGGA functionals!")
         _CiderBase.__init__(self, cider_kernel, nexp, consts, **kwargs)
 
         MGGA.__init__(self, LibXC("PBE"), stencil=2)

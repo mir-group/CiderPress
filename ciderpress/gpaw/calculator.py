@@ -40,7 +40,7 @@ def get_cider_functional(
     _force_nonlocal=False,
 ):
     """
-    Initialize a CIDER surrogate hybrid exchange function of the form
+    Initialize a CIDER surrogate hybrid XC functional of the form
     E_xc = E_x^sl * (1 - xmix) + E_c^sl + xmix * E_x^CIDER
     where E_x^sl is given by the xkernel parameter, E_c^sl is given by the ckernel
     parameter, and E_x^CIDER is the ML exchange energy contains in mlfunc.
@@ -50,9 +50,9 @@ def get_cider_functional(
     but correctness is not guaranteed because the nonlocal features will
     not be correct due to the lack of core electrons.
 
-    NOTE: If the mlfunc is determined to be semi-local, all the
+    NOTE: If the mlfunc is determined to be semilocal, all the
     internal settings are ignored, and a simpler, more efficient
-    class is returned to evaluate the semi-local functional.
+    class is returned to evaluate the semilocal functional.
 
     Args:
         mlfunc (MappedXC, str): An ML functional object or a str
@@ -162,7 +162,7 @@ def get_cider_functional(
         msg = "Only implemented for b and d version, found {}"
         raise ValueError(msg.format(mlfunc.desc_version))
 
-    const_list = _get_const_list(mlfunc)
+    const_list = get_const_list(mlfunc.settings.nldf_settings)
     nexp = 4
 
     if use_paw:
@@ -299,7 +299,7 @@ def cider_functional_from_dict(d):
         else:
             # xc_params should have Nalpha, lambd, encut.
             # For PAW, it should also have pasdw_ovlp_fit, pasdw_store_funcs.
-            const_list = _get_const_list(mlfunc)
+            const_list = get_const_list(mlfunc.settings.nldf_settings)
             xc = cls(cider_kernel, nexp, const_list, **(d["xc_params"]))
     else:
         xc = cls(LibXC(d["name"]))
@@ -307,11 +307,13 @@ def cider_functional_from_dict(d):
     return xc
 
 
-def _get_const_list(mlfunc):
-    settings = mlfunc.settings.nldf_settings
+def get_const_list(settings):
+    """
+    settings should be NLDFSettings object
+    """
     thetap = 2 * np.array(settings.theta_params)
     vvmul = thetap[0] / (2 * settings.feat_params[1][0])
-    fac_mul = thetap[2] if mlfunc.settings.sl_settings.level == "MGGA" else thetap[1]
+    fac_mul = thetap[2] if settings.sl_level == "MGGA" else thetap[1]
     consts = np.array([0.00, thetap[0], fac_mul, thetap[0] / 64]) / vvmul
     const_list = np.stack([0.5 * consts, 1.0 * consts, 2.0 * consts, consts * vvmul])
     return const_list
