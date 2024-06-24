@@ -210,7 +210,6 @@ def run_drho_test(spinpol=False, use_pp=False):
 
 
 def run_nl_feature_test(xc, use_pp=False, spinpol=False, baseline="PBE"):
-    nspin = 2 if spinpol else 1
     k = 3
     si = bulk("Si")
     if use_pp is False:
@@ -244,7 +243,7 @@ def run_nl_feature_test(xc, use_pp=False, spinpol=False, baseline="PBE"):
 
     calc = si.calc
     gap, p_vbm, p_cbm = bandgap(si.calc)
-    delta = 1e-6
+    delta = 1e-4
     run_constant_occ_calculation_(si.calc)
 
     ediff = si.calc.get_xc_difference(baseline) / Ha
@@ -316,8 +315,8 @@ def run_nl_feature_test(xc, use_pp=False, spinpol=False, baseline="PBE"):
     # TODO why is this not consistent depending on symmetry?
     parprint(xmix * etst, xmix * etst2, eigdiff_gap)
     assert_almost_equal(xmix * etst, eigdiff_gap, 5)
-    assert_almost_equal(xmix * etst2, xmix * etst, 4)
-    assert_almost_equal(xmix * etst2, eigdiff_gap, 4)
+    assert_almost_equal(xmix * etst2, xmix * etst, 5)
+    assert_almost_equal(xmix * etst2, eigdiff_gap, 5)
 
 
 def run_sl_feature_test(use_pp=False, spinpol=False):
