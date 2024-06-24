@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools >= 61.0", "wheel", "cmake"]
+build-backend = "setuptools.build_meta"
+
+["project"]
+name = "ciderpress"
+dynamic = ["version"]
+description = "CiderPress: DFT Calculations with Machine-Learned XC Functionals"
+readme = "README.md"
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  'Intended Audience :: Science/Research',
+  'Intended Audience :: Developers',
+  'Programming Language :: C',
+  'Programming Language :: Python',
+  'Topic :: Scientific/Engineering',
+  'Operating System :: POSIX',
+  'Operating System :: Unix',
+]
+
+maintainers = [{ name = "Kyle Bystrom", email = "kylebystrom@gmail.com" }]
+
+authors = [{ name = "Kyle Bystrom", email = "kylebystrom@gmail.com" }]
+
+dependencies = [
+  "mkl",
+  "mkl-devel",
+  "mkl-include",
+  "mkl_fft",
+  "ase>=3.22.0",
+  "h5py>=3.6.0",
+  "interpolation==2.2.1",
+  "numba<=0.58",
+  "numpy>=1.20.3,<1.25",
+  "pyscf>=2.1",
+  "pytest",
+  "pyyaml",
+  "scikit-learn>=1.0.1",
+  "scipy>=1.7.1",
+  "sympy",
+  "torch",
+]
+
+[project.urls]
+Repository = "https://github.com/pyscf/pyscf"

@@ -43,7 +43,7 @@ jobs:
     - name: Build things
       run: |
         source .github/workflows/load_conda.sh
-        python setup.py build_ext --inplace
+        pip install -e .
         python scripts/download_functionals.py
     - name: Test with unittest
       run: |
