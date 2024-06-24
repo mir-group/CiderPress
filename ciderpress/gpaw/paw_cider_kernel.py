@@ -110,12 +110,10 @@ class PAWCiderContribUtils:
         x_sag = np.zeros((nspin, self.Nalpha, n_sg.shape[-1]))
         xd_sag = np.zeros((nspin, self.Nalpha, n_sg.shape[-1]))
         for s in range(nspin):
-            # TODO factor of half for CIDER, would be ideal to remove the weird
-            # factor of half issue for convenience
-            # TODO if factor of 0.5 is removed and function to compute i_g is
+            # TODO if function to compute i_g is
             # added, then get_paw_atom_contribs and get_paw_atom_contribs_cider
             # will be the same and can be combined
-            q0_g = 0.5 * self.get_q_func(n_sg[s], sigma_xg[2 * s])
+            q0_g = self.get_q_func(n_sg[s], sigma_xg[2 * s])
             i_g = (
                 np.log(q0_g / self.dense_bas_exp[0]) / np.log(self.dense_lambd)
             ).astype(int)
@@ -123,8 +121,9 @@ class PAWCiderContribUtils:
             # TODO need more coefs for core region?
             for a in range(self.Nalpha):
                 C_pg = self.C_aip[a, i_g].T
+                # TODO use C function here
                 pa_g = C_pg[0] + dq0_g * (C_pg[1] + dq0_g * (C_pg[2] + dq0_g * C_pg[3]))
-                dpa_g = 0.5 * (C_pg[1] + dq0_g * (2 * C_pg[2] + dq0_g * 3 * C_pg[3]))
+                dpa_g = C_pg[1] + dq0_g * (2 * C_pg[2] + dq0_g * 3 * C_pg[3])
                 x_sag[s, a] = pa_g * n_sg[s]
                 xd_sag[s, a] = dpa_g * n_sg[s]
         return x_sag, xd_sag
@@ -149,15 +148,12 @@ class PAWCiderContribUtils:
         dgdsigma_sig = np.zeros_like(dgdn_sig)
         for s in range(nspin):
             for i in range(nfeat):
-                # TODO factor of half for CIDER, would be ideal to remove the weird
-                # factor of half issue for convenience
-                # TODO if factor of 0.5 is removed and function to compute i_g is
+                # TODO if function to compute i_g is
                 # added, then get_paw_atom_contribs and get_paw_atom_contribs_cider
                 # will be the same and can be combined
                 q0_g, dadn, dadsigma = self.get_q_func(
                     n_sg[s], sigma_xg[2 * s], i=i, return_derivs=True
                 )
-                q0_g *= 0.5
                 i_g = (
                     np.log(q0_g / self.dense_bas_exp[0]) / np.log(self.dense_lambd)
                 ).astype(int)
@@ -167,9 +163,7 @@ class PAWCiderContribUtils:
                     pa_g = C_pg[0] + dq0_g * (
                         C_pg[1] + dq0_g * (C_pg[2] + dq0_g * C_pg[3])
                     )
-                    dpa_g = 0.5 * (
-                        C_pg[1] + dq0_g * (2 * C_pg[2] + dq0_g * 3 * C_pg[3])
-                    )
+                    dpa_g = C_pg[1] + dq0_g * (2 * C_pg[2] + dq0_g * 3 * C_pg[3])
                     x_sig[s, i] += pa_g * y_sbg[s, a]
                     xd_sig[s, i] += dpa_g * y_sbg[s, a]
                     p_siag[s, i, a] = pa_g
@@ -243,15 +237,15 @@ class PAWCiderContribUtils:
             q0_g, dadn, dadsigma = self.get_q_func(
                 n_sg[s], sigma_xg[2 * s], i=i, return_derivs=True
             )
-            q0_g *= 0.5
             i_g = (
                 np.log(q0_g / self.dense_bas_exp[0]) / np.log(self.dense_lambd)
             ).astype(int)
             dq0_g = q0_g - self.q_a[i_g]
             for a in range(Nalpha):
                 C_pg = self.C_aip[a, i_g].T
+                # TODO use C function here
                 pa_g = C_pg[0] + dq0_g * (C_pg[1] + dq0_g * (C_pg[2] + dq0_g * C_pg[3]))
-                dpa_g = 0.5 * (C_pg[1] + dq0_g * (2 * C_pg[2] + dq0_g * 3 * C_pg[3]))
+                dpa_g = C_pg[1] + dq0_g * (2 * C_pg[2] + dq0_g * 3 * C_pg[3])
                 dedn_sg[s] += pa_g * y_sbg[s, a]
                 dedsigma_sg[s] += dpa_g * y_sbg[s, a]
             dedn_sg[s] += dedsigma_sg[s] * n_sg[s] * dadn

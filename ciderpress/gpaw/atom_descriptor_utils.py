@@ -323,22 +323,20 @@ def _get_paw_helper1(self, p_o, n_sg, sigma_xg, dndf_og, dsigmadf_og):
     norb = len(dndf_og)
     x_oag = np.zeros((norb + nspin, self.Nalpha, n_sg.shape[-1]))
     for s in range(nspin):
-        # TODO factor of half for CIDER, would be ideal to remove the weird
-        # factor of half issue for convenience
-        # TODO if factor of 0.5 is removed and function to compute i_g is
+        # TODO if function to compute i_g is
         # added, then get_paw_atom_contribs and get_paw_atom_contribs_cider
         # will be the same and can be combined
         # q0_g = 0.5*self.get_q_func(n_sg[s], sigma_xg[2*s])
         q0_g, dadn, dadsigma = self.get_q_func(
             n_sg[s], sigma_xg[2 * s], return_derivs=True
         )
-        q0_g *= 0.5
         i_g = (np.log(q0_g / self.dense_bas_exp[0]) / np.log(self.dense_lambd)).astype(
             int
         )
         dq0_g = q0_g - self.q_a[i_g]
         for a in range(self.Nalpha):
             C_pg = self.C_aip[a, i_g].T
+            # TODO use C function here
             pa_g = C_pg[0] + dq0_g * (C_pg[1] + dq0_g * (C_pg[2] + dq0_g * C_pg[3]))
             x_oag[s, a] = pa_g * n_sg[s]
     for o in range(norb):
@@ -347,15 +345,15 @@ def _get_paw_helper1(self, p_o, n_sg, sigma_xg, dndf_og, dsigmadf_og):
             n_sg[s], sigma_xg[2 * s], return_derivs=True
         )
         dadf_g = dadn * dndf_og[o] + dadsigma * dsigmadf_og[o]
-        q0_g *= 0.5
         i_g = (np.log(q0_g / self.dense_bas_exp[0]) / np.log(self.dense_lambd)).astype(
             int
         )
         dq0_g = q0_g - self.q_a[i_g]
         for a in range(self.Nalpha):
             C_pg = self.C_aip[a, i_g].T
+            # TODO use C function here
             pa_g = C_pg[0] + dq0_g * (C_pg[1] + dq0_g * (C_pg[2] + dq0_g * C_pg[3]))
-            dpa_g = 0.5 * (C_pg[1] + dq0_g * (2 * C_pg[2] + dq0_g * 3 * C_pg[3]))
+            dpa_g = C_pg[1] + dq0_g * (2 * C_pg[2] + dq0_g * 3 * C_pg[3])
             x_oag[nspin + o, a] = dpa_g * dadf_g * n_sg[s]
             x_oag[nspin + o, a] += pa_g * dndf_og[o]
     return x_oag
@@ -396,13 +394,13 @@ def _get_paw_helper2(
             q0_g, dadn, dadsigma = self.get_q_func(
                 n_sg[s], sigma_xg[2 * s], i=i, return_derivs=True
             )
-            q0_g *= 0.5
             i_g = (
                 np.log(q0_g / self.dense_bas_exp[0]) / np.log(self.dense_lambd)
             ).astype(int)
             dq0_g = q0_g - self.q_a[i_g]
             for a in range(Nalpha):
                 C_pg = self.C_aip[a, i_g].T
+                # TODO call C function here
                 pa_g = C_pg[0] + dq0_g * (C_pg[1] + dq0_g * (C_pg[2] + dq0_g * C_pg[3]))
                 x_sig[s, i] += pa_g * y_sbg[s, a]
             # x_sig[s, i] *= ((self.consts[i, 1] + self.consts[-1, 1]) / 2) ** 1.5
@@ -413,15 +411,15 @@ def _get_paw_helper2(
                 n_sg[s], sigma_xg[2 * s], i=i, return_derivs=True
             )
             dadf_g = dadn * dndf_og[o] + dadsigma * dsigmadf_og[o]
-            q0_g *= 0.5
             i_g = (
                 np.log(q0_g / self.dense_bas_exp[0]) / np.log(self.dense_lambd)
             ).astype(int)
             dq0_g = q0_g - self.q_a[i_g]
             for a in range(Nalpha):
                 C_pg = self.C_aip[a, i_g].T
+                # TODO call C function here
                 pa_g = C_pg[0] + dq0_g * (C_pg[1] + dq0_g * (C_pg[2] + dq0_g * C_pg[3]))
-                dpa_g = 0.5 * (C_pg[1] + dq0_g * (2 * C_pg[2] + dq0_g * 3 * C_pg[3]))
+                dpa_g = C_pg[1] + dq0_g * (2 * C_pg[2] + dq0_g * 3 * C_pg[3])
                 dxdf_oig[o, i] += dpa_g * dadf_g * y_sbg[s, a]
                 dxdf_oig[o, i] += pa_g * dydf_obg[o, a]
             # dxdf_oig[o, i] *= ((self.consts[i, 1] + self.consts[-1, 1]) / 2) ** 1.5

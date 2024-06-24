@@ -103,7 +103,7 @@ void eval_cubic_interp(int *i_g, double *t_g, double *c_ip, double *y_g,
         t = t_g[g];
         c_p = c_ip + i * np;
         y_g[g] = c_p[0] + t * (c_p[1] + t * (c_p[2] + t * c_p[3]));
-        dy_g[g] = 0.5 * c_p[1] + t * (c_p[2] + 1.5 * t * c_p[3]);
+        dy_g[g] = c_p[1] + t * (2.0 * c_p[2] + 3.0 * t * c_p[3]);
     }
 }
 

@@ -311,8 +311,8 @@ def get_const_list(settings):
     """
     settings should be NLDFSettings object
     """
-    thetap = 2 * np.array(settings.theta_params)
-    vvmul = thetap[0] / (2 * settings.feat_params[1][0])
+    thetap = np.array(settings.theta_params)
+    vvmul = thetap[0] / settings.feat_params[1][0]
     fac_mul = thetap[2] if settings.sl_level == "MGGA" else thetap[1]
     consts = np.array([0.00, thetap[0], fac_mul, thetap[0] / 64]) / vvmul
     const_list = np.stack([0.5 * consts, 1.0 * consts, 2.0 * consts, consts * vvmul])

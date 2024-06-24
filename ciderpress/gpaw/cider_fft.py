@@ -612,7 +612,7 @@ class _CiderBase:
         self.cider_kernel = cider_kernel
         if Nalpha is None:
             amax = encut
-            amin = np.min(consts[:, -1]) / (2 * np.e)
+            amin = np.min(consts[:, -1]) / np.e
             Nalpha = int(np.ceil(np.log(amax / amin) / np.log(lambd))) + 1
             lambd = np.exp(np.log(amax / amin) / (Nalpha - 1))
         self.Nalpha = Nalpha
@@ -923,7 +923,7 @@ class _CiderBase:
         i = -1
         if self.alphas:
             self.timer.start("hmm1")
-            q0_g = 0.5 * cider_exp[i]
+            q0_g = cider_exp[i]
             amin_inv = 1.0 / self.dense_bas_exp[0]
             llinv = 1.0 / np.log(self.dense_lambd)
             i_g = (np.log(q0_g * amin_inv) * llinv).astype(np.int32)
@@ -963,7 +963,7 @@ class _CiderBase:
         for i in range(nexp - 1):
             if self.alphas:
                 self.timer.start("hmm1")
-                q0_g = 0.5 * cider_exp[i]
+                q0_g = cider_exp[i]
                 # i_g = (np.log(q0_g/self.dense_bas_exp[0])/np.log(self.dense_lambd)).astype(int)
                 amin_inv = 1.0 / self.dense_bas_exp[0]
                 llinv = 1.0 / np.log(self.dense_lambd)
