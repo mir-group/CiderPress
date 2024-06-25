@@ -54,6 +54,49 @@ def _perturb_calc_density_(calc, p, delta):
     calc.density.interpolate_pseudo_density()
 
 
+def _rotate_orbs_(calc, s, k, n1, n2, delta):
+    nspin = calc.density.nt_sg.shape[0]
+    wfs = calc.wfs
+    rank, q = wfs.kd.who_has(k)
+    if wfs.kd.comm.rank == rank:
+        u = q * nspin + s
+        kpt = wfs.kpt_u[u]
+        assert kpt.s == s
+        assert kpt.k == k
+    else:
+        return
+    # TODO not sure if indexing is correct for band parallelization
+    psi1 = kpt.psit_nG[n1].copy()
+    psi2 = kpt.psit_nG[n2].copy()
+    norm = np.sqrt(1 + delta * delta)
+    kpt.psit_nG[n1] += delta * psi2
+    kpt.psit_nG[n2] -= delta * psi1
+    kpt.psit_nG[n1] /= norm
+    kpt.psit_nG[n2] /= norm
+    calc.wfs.calculate_atomic_density_matrices(calc.density.D_asp)
+    calc.density.calculate_pseudo_density(calc.wfs)
+    calc.density.interpolate_pseudo_density()
+    return psi1, psi2, 2 * kpt.weight
+
+
+def _reset_orbs_(calc, s, k, n1, n2, psi1, psi2):
+    nspin = calc.density.nt_sg.shape[0]
+    wfs = calc.wfs
+    rank, q = wfs.kd.who_has(k)
+    if wfs.kd.comm.rank == rank:
+        u = q * nspin + s
+        kpt = wfs.kpt_u[u]
+        assert kpt.s == s
+        assert kpt.k == k
+    else:
+        return
+    kpt.psit_nG[n1] = psi1
+    kpt.psit_nG[n2] = psi2
+    calc.wfs.calculate_atomic_density_matrices(calc.density.D_asp)
+    calc.density.calculate_pseudo_density(calc.wfs)
+    calc.density.interpolate_pseudo_density()
+
+
 def run_fd_deriv_test(xc, use_pp=False, spinpol=False):
     k = 3
     si = bulk("Si")
@@ -76,6 +119,68 @@ def run_fd_deriv_test(xc, use_pp=False, spinpol=False):
     assert_almost_equal(dev, vbm, 5)
     assert_almost_equal(dec, cbm, 5)
     return etot
+
+
+def run_vxc_test(xc0, xc1, spinpol=False, use_pp=False, safe=True):
+    if use_pp is False:
+        from ciderpress.gpaw.interp_paw import DiffGGA
+
+        if isinstance(xc0, str):
+            xc0 = DiffGGA(XC(xc0).kernel)
+        if isinstance(xc1, str):
+            xc1 = DiffGGA(XC(xc1).kernel)
+
+    k = 3
+    si = bulk("Si")
+    si.calc = GPAW(
+        mode=PW(250),
+        mixer=Mixer(0.7, 5, 50.0),
+        xc=xc0,
+        kpts=(k, k, k),
+        convergence={"energy": 1e-8, "density": 1e-10},
+        parallel={"domain": min(2, world.size)},
+        occupations={"name": "fermi-dirac", "width": 0.0},
+        spinpol=spinpol,
+        setups="sg15" if use_pp else "paw",
+        txt="si.txt",
+    )
+    delta = 1e-5
+    si.get_potential_energy()
+    gap, p_vbm, p_cbm = bandgap(si.calc)
+    run_constant_occ_calculation_(si.calc)
+
+    # CIDER changes the xc_corrections and uses different grids,
+    # so we need to check this.
+    psi1, psi2, wt = _rotate_orbs_(
+        si.calc, p_vbm[0], p_vbm[1], p_vbm[2] - 1, p_vbm[2] + 1, 0.5
+    )
+    ediff00 = si.calc.get_xc_difference(xc0) / Ha
+    psi1, psi2 = _rotate_orbs_(
+        si.calc, p_vbm[0], p_vbm[1], p_vbm[2] - 1, p_vbm[2] + 1, -delta
+    )[:2]
+    ediff10 = get_static_xc_difference(si.calc, xc0) / Ha
+    _reset_orbs_(si.calc, p_vbm[0], p_vbm[1], p_vbm[2] - 1, p_vbm[2] + 1, psi1, psi2)
+    ediff01 = si.calc.get_xc_difference(xc1) / Ha
+    eig_vbm, ei_vbm, en_vbm = nscfeig(
+        si.calc,
+        xc1,
+        n1=p_vbm[2] - 1,
+        n2=p_vbm[2] + 2,
+        kpt_indices=[p_vbm[1]],
+        get_ham=True,
+    )
+    eigdiff_vbm = (en_vbm - ei_vbm)[p_vbm[0], 0, 0, 2] / Ha
+    psi1, psi2 = _rotate_orbs_(
+        si.calc, p_vbm[0], p_vbm[1], p_vbm[2] - 1, p_vbm[2] + 1, -delta
+    )[:2]
+    ediff11 = get_static_xc_difference(si.calc, xc1) / Ha
+    _reset_orbs_(si.calc, p_vbm[0], p_vbm[1], p_vbm[2] - 1, p_vbm[2] + 1, psi1, psi2)
+    ediff0 = ediff01 - ediff00
+    ediff1 = ediff11 - ediff10
+
+    fd_eigdiff_vbm = (ediff0 - ediff1) / delta
+    parprint(eigdiff_vbm.real, fd_eigdiff_vbm / wt)
+    assert_almost_equal(eigdiff_vbm, fd_eigdiff_vbm / wt, 7)
 
 
 def run_nscf_eigval_test(xc0, xc1, spinpol=False, use_pp=False, safe=True):
@@ -443,6 +548,21 @@ class TestDescriptors(unittest.TestCase):
             run_nscf_eigval_test(
                 "PBE", xc, spinpol=True, use_pp=use_pp, safe=not use_pp
             )
+
+    def test_vxc(self):
+        for use_pp in [False]:
+            xc = get_xc(
+                "functionals/CIDER23X_NL_GGA.yaml", use_paw=not use_pp, force_nl=True
+            )
+            run_vxc_test("PBE", xc, spinpol=False, use_pp=use_pp, safe=not use_pp)
+            run_vxc_test("PBE", xc, spinpol=True, use_pp=use_pp, safe=not use_pp)
+            xc = get_xc(
+                "functionals/CIDER23X_NL_MGGA_DTR.yaml",
+                use_paw=not use_pp,
+                force_nl=True,
+            )
+            run_vxc_test("PBE", xc, spinpol=False, use_pp=use_pp, safe=not use_pp)
+            run_vxc_test("PBE", xc, spinpol=True, use_pp=use_pp, safe=not use_pp)
 
     def test_sl_features(self):
         # run_sl_feature_test(spinpol=False, use_pp=True)
