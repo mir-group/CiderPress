@@ -1477,15 +1477,6 @@ class CiderMGGA(_CiderBase, MGGA):
                     amin=self.consts[i, 3],
                     return_derivs=True,
                 )
-                print(
-                    self.consts[i, 1],
-                    0.0,
-                    self.consts[i, 2],
-                    nt_sg[s].mean(),
-                    sigma_xg[2 * s].mean(),
-                    tau_sg[s].mean(),
-                    ascale[s, i].mean(),
-                )
                 dadn[s, i][ngcond] = 0
                 dadsigma[s, i][ngcond] = 0
                 dadtau[s, i][ngcond] = 0
