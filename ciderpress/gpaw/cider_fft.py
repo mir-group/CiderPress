@@ -33,7 +33,7 @@ from gpaw.xc.mgga import MGGA
 from scipy.linalg import cho_factor, cho_solve
 
 from ciderpress.dft import pwutil
-from ciderpress.dft.plans import SemilocalPlan2
+from ciderpress.dft.plans import NLDFSplinePlan, SemilocalPlan2
 from ciderpress.gpaw.mp_cider import CiderParallelization
 
 DEFAULT_RHO_TOL = 1e-8
@@ -615,6 +615,7 @@ class _CiderBase:
             amin = np.min(consts[:, -1]) / np.e
             Nalpha = int(np.ceil(np.log(amax / amin) / np.log(lambd))) + 1
             lambd = np.exp(np.log(amax / amin) / (Nalpha - 1))
+        # TODO remove
         self.Nalpha = Nalpha
         self.lambd = lambd
         self.consts = consts
@@ -622,9 +623,11 @@ class _CiderBase:
         self.encut = encut
 
         self.C_aip = None
+        # TODO end remove
         self.phi_aajp = None
         self.verbose = False
         self.size = None
+        self._plan = None
 
         self.setup_name = "PBE"
         self.kk = None
@@ -762,10 +765,24 @@ class _CiderBase:
         self.kbuf_ak.lock()
         self.theta_ak.lock()
 
+    def _setup_plan(self):
+        if self._plan is None or self._plan.nspin != self.nspin:
+            self._plan = NLDFSplinePlan(
+                self.cider_kernel.mlfunc.settings.nldf_settings,
+                self.nspin,
+                self.encut / self.lambd ** (self.Nalpha - 1),
+                self.lambd,
+                self.Nalpha,
+                coef_order="gq",
+                alpha_formula="etb",
+                proc_inds=self.alphas,
+            )
+
     def initialize_more_things(self):
         self._setup_kgrid()
         self._setup_cd_xd_ranks()
         self._setup_6d_integral_buffer()
+        self._setup_plan()
 
     def domain_world2cider(self, n_xg, x=None, out=None, tmp=None):
         """
@@ -922,29 +939,38 @@ class _CiderBase:
 
         i = -1
         if self.alphas:
-            self.timer.start("hmm1")
-            q0_g = cider_exp[i]
-            amin_inv = 1.0 / self.dense_bas_exp[0]
-            llinv = 1.0 / np.log(self.dense_lambd)
-            i_g = (np.log(q0_g * amin_inv) * llinv).astype(np.int32)
-            dq0_g = q0_g - self.q_a[i_g]
-            self.timer.stop("hmm1")
+            # self.timer.start("hmm1")
+            # q0_g = cider_exp[i]
+            # amin_inv = 1.0 / self.dense_bas_exp[0]
+            # llinv = 1.0 / np.log(self.dense_lambd)
+            # i_g = (np.log(q0_g * amin_inv) * llinv).astype(np.int32)
+            # dq0_g = q0_g - self.q_a[i_g]
+            # self.timer.stop("hmm1")
+            di = cider_exp[i]
         else:
-            i_g = None
-            dq0_g = None
+            di = None
         if c_abi is not None:
             self.write_augfeat_to_rbuf(c_abi)
         else:
             for a in self.alphas:
                 self.rbuf_ag[a][:] = 0.0
         self.timer.start("COEFS")
+        p_qg, dp_qg = self._plan.get_interpolation_coefficients(di.ravel(), i=-1)
+        p_qg = p_qg.T
+        dp_qg = dp_qg.T
         for ind, a in enumerate(self.alphas):
+            q_ag[a] = p_qg[ind]
+            dq_ag[a] = dp_qg[ind]
+            q_ag[a].shape = n_g.shape
+            dq_ag[a].shape = n_g.shape
+            self.rbuf_ag[a][:] += n_g * q_ag[a]
+        for ind, a in enumerate(self.alphas):
+            continue
             pa_g, dpa_g = pwutil.eval_cubic_interp(
                 i_g.ravel(), dq0_g.ravel(), self.C_aip[ind]
             )
             pa_g = pa_g.reshape(i_g.shape)
             dpa_g = dpa_g.reshape(i_g.shape)
-
             q_ag[a] = pa_g
             dq_ag[a] = dpa_g
             self.rbuf_ag[a][:] += n_g * q_ag[a]
@@ -961,6 +987,7 @@ class _CiderBase:
             feat = np.zeros([nexp - 1] + list(n_g.shape))
             dfeat = np.zeros([nexp - 1] + list(n_g.shape))
         for i in range(nexp - 1):
+            """
             if self.alphas:
                 self.timer.start("hmm1")
                 q0_g = cider_exp[i]
@@ -973,7 +1000,22 @@ class _CiderBase:
             else:
                 i_g = None
                 dq0_g = None
+            """
+            if self.alphas:
+                di = cider_exp[i]
+            else:
+                di = None
+            p_qg, dp_qg = self._plan.get_interpolation_coefficients(di.ravel(), i=i)
+            p_qg = p_qg.T
+            dp_qg = dp_qg.T
+            p_qg.shape = (len(self.alphas),) + di.shape
+            dp_qg.shape = (len(self.alphas),) + di.shape
             for ind, a in enumerate(self.alphas):
+                p_iag[i, a] = p_qg[ind]
+                feat[i, :] += p_qg[ind] * self.rbuf_ag[a]
+                dfeat[i, :] += dp_qg[ind] * self.rbuf_ag[a]
+            for ind, a in enumerate(self.alphas):
+                continue
                 self.timer.start("COEFS")
                 pa_g, dpa_g = pwutil.eval_cubic_interp(
                     i_g.ravel(), dq0_g.ravel(), self.C_aip[ind]
@@ -1108,8 +1150,27 @@ class _CiderBase:
             self.construct_cubic_splines()
         self.timer.stop()
 
-        ascale, ascale_derivs = self.get_ascale_and_derivs(nt_sg, sigma_xg, tau_sg)
-        cider_nt_sg = self.domain_world2cider(nt_sg)
+        if tau_sg is None:
+            rho_tuple = (nt_sg, sigma_xg[::2])
+        else:
+            rho_tuple = (nt_sg, sigma_xg[::2], tau_sg)
+        shape = (
+            nt_sg.shape[0],
+            self.nexp,
+        ) + nt_sg.shape[1:]
+        ascale = np.empty(shape)
+        if tau_sg is None:
+            ascale_derivs = (np.empty(shape), np.empty(shape))
+        else:
+            ascale_derivs = (np.empty(shape), np.empty(shape), np.empty(shape))
+        for i in range(-1, self.nexp - 1):
+            ascale[:, i], tmp = self._plan.get_interpolation_arguments(rho_tuple, i=i)
+            for j in range(len(tmp)):
+                ascale_derivs[j][:, i] = tmp[j]
+        # TODO need to save conv function derivative in case conv function != rho
+        cider_nt_sg = self.domain_world2cider(
+            self._plan.get_function_to_convolve(rho_tuple)[0]
+        )
         if cider_nt_sg is None:
             cider_nt_sg = {s: None for s in range(nspin)}
 

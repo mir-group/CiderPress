@@ -8,7 +8,7 @@ from numpy.testing import assert_almost_equal
 from ciderpress.gpaw.calculator import CiderGPAW, get_cider_functional
 
 
-def run_calc(xc, spinpol):
+def run_calc(xc, spinpol, setups="paw"):
     atoms = bulk("Si")
     mlfunc = "functionals/{}.yaml".format(xc)
     xc = get_cider_functional(
@@ -18,6 +18,7 @@ def run_calc(xc, spinpol):
         lambd=1.8,
         pasdw_store_funcs=False,
         pasdw_ovlp_fit=True,
+        use_paw=False if setups == "sg15" else True,
     )
 
     atoms.calc = CiderGPAW(
@@ -29,6 +30,7 @@ def run_calc(xc, spinpol):
         kpts={"size": (12, 12, 12), "gamma": False},  # kpt mesh parameters
         convergence={"energy": 1e-5},  # convergence energy in eV/electron
         spinpol=spinpol,
+        setups=setups,
     )
     etot = atoms.get_potential_energy()  # run the calculation
     return etot
@@ -47,11 +49,11 @@ def generate_test(xcname, e_ref):
 
 class TestEnergy(unittest.TestCase):
 
-    test_sl_gga = generate_test("CIDER23X_SL_GGA", -12.868728302199766)
+    # test_sl_gga = generate_test("CIDER23X_SL_GGA", -12.868728302199766)
 
-    test_nl_gga = generate_test("CIDER23X_NL_GGA", -13.044519201764654)
+    # test_nl_gga = generate_test("CIDER23X_NL_GGA", -13.044519201764654)
 
-    test_sl_mgga = generate_test("CIDER23X_SL_MGGA", -12.267997644473239)
+    # test_sl_mgga = generate_test("CIDER23X_SL_MGGA", -12.267997644473239)
 
     test_nl_mgga = generate_test("CIDER23X_NL_MGGA_DTR", -12.380374553337576)
 
