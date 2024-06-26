@@ -1397,6 +1397,7 @@ class NLDFAuxiliaryPlan(ABC):
                 if not 0 <= i < self.nldf_settings.num_feat_param_sets:
                     raise ValueError("Feature index out of range")
                 a0, grad_mul, tau_mul = self.nldf_settings.feat_params[i][:3]
+            print(a0, grad_mul, tau_mul, rho.mean(), sigma.mean(), tau.mean())
             a, dadn, dadsigma, dadtau = get_cider_exponent(
                 rho,
                 sigma,
@@ -1943,6 +1944,7 @@ class NLDFSplinePlan(NLDFAuxiliaryPlan):
         di, derivi = self.get_a2q_fast(a_g)
         for da in da_tuple:
             da[:] *= derivi
+        print(a_g.mean(), di.mean())
         return di, da_tuple
 
     def _get_interpolation_coefficients(
