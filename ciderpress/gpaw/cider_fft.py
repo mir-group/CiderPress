@@ -976,9 +976,6 @@ class _CiderBase:
             self.rbuf_ag[a][:] += n_g * q_ag[a]
         self.timer.stop()
 
-        for ind, a in enumerate(self.alphas):
-            print(q_ag[a].mean())
-
         self.calculate_6d_integral()
 
         if self.has_paw:
