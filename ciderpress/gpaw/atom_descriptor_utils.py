@@ -318,44 +318,33 @@ def calculate_paw_sl_features_deriv(self, setups, D_asp, DD_aop, p_o):
     return ae_feat_asig, ps_feat_asig, ae_dfeat_aoig, ps_dfeat_aoig
 
 
-def _get_paw_helper1(self, p_o, n_sg, sigma_xg, dndf_og, dsigmadf_og):
+def _get_paw_helper1(
+    self, p_o, n_sg, sigma_xg, dndf_og, dsigmadf_og, tau_sg=None, dtaudf_og=None
+):
     nspin = n_sg.shape[0]
     norb = len(dndf_og)
     x_oag = np.zeros((norb + nspin, self.Nalpha, n_sg.shape[-1]))
+    is_mgga = self._plan.nldf_settings.sl_level == "MGGA"
+    if is_mgga:
+        rho_tuple = (n_sg, sigma_xg[::2], tau_sg)
+    else:
+        rho_tuple = (n_sg, sigma_xg[::2])
+    di_s, derivs = self._plan.get_interpolation_arguments(rho_tuple, i=-1)
+    # TODO need to account for dfunc
+    func_sg, dfunc = self._plan.get_function_to_convolve(rho_tuple)
     for s in range(nspin):
-        # TODO if function to compute i_g is
-        # added, then get_paw_atom_contribs and get_paw_atom_contribs_cider
-        # will be the same and can be combined
-        # q0_g = 0.5*self.get_q_func(n_sg[s], sigma_xg[2*s])
-        q0_g, dadn, dadsigma = self.get_q_func(
-            n_sg[s], sigma_xg[2 * s], return_derivs=True
-        )
-        i_g = (np.log(q0_g / self.dense_bas_exp[0]) / np.log(self.dense_lambd)).astype(
-            int
-        )
-        dq0_g = q0_g - self.q_a[i_g]
+        p_qg, dp_qg = self._plan.get_interpolation_coefficients(di_s[s].ravel(), i=-1)
         for a in range(self.Nalpha):
-            C_pg = self.C_aip[a, i_g].T
-            # TODO use C function here
-            pa_g = C_pg[0] + dq0_g * (C_pg[1] + dq0_g * (C_pg[2] + dq0_g * C_pg[3]))
-            x_oag[s, a] = pa_g * n_sg[s]
+            x_oag[s, a] = p_qg[a] * n_sg[s]
     for o in range(norb):
         s = p_o[o][0]
-        q0_g, dadn, dadsigma = self.get_q_func(
-            n_sg[s], sigma_xg[2 * s], return_derivs=True
-        )
-        dadf_g = dadn * dndf_og[o] + dadsigma * dsigmadf_og[o]
-        i_g = (np.log(q0_g / self.dense_bas_exp[0]) / np.log(self.dense_lambd)).astype(
-            int
-        )
-        dq0_g = q0_g - self.q_a[i_g]
+        dadf_g = derivs[0][s] * dndf_og[o] + derivs[1][s] * dsigmadf_og[o]
+        if is_mgga:
+            dadf_g += derivs[2][s] * dtaudf_og[o]
+        p_qg, dp_qg = self._plan.get_interpolation_coefficients(di_s[s].ravel(), i=-1)
         for a in range(self.Nalpha):
-            C_pg = self.C_aip[a, i_g].T
-            # TODO use C function here
-            pa_g = C_pg[0] + dq0_g * (C_pg[1] + dq0_g * (C_pg[2] + dq0_g * C_pg[3]))
-            dpa_g = C_pg[1] + dq0_g * (2 * C_pg[2] + dq0_g * 3 * C_pg[3])
-            x_oag[nspin + o, a] = dpa_g * dadf_g * n_sg[s]
-            x_oag[nspin + o, a] += pa_g * dndf_og[o]
+            x_oag[nspin + o, a] = dp_qg[a] * dadf_g * n_sg[s]
+            x_oag[nspin + o, a] += p_qg[a] * dndf_og[o]
     return x_oag
 
 
@@ -371,6 +360,8 @@ def _get_paw_helper2(
     F_sag,
     dFdf_oag,
     ae=True,
+    tau_sg=None,
+    dtaudf_og=None,
 ):
     # for getting potential and energy
     nspin = n_sg.shape[0]
@@ -389,40 +380,32 @@ def _get_paw_helper2(
 
     x_sig = np.zeros((nspin, nfeat, ngrid))
     dxdf_oig = np.zeros((norb, nfeat, ngrid))
-    for s in range(nspin):
-        for i in range(nfeat):
-            q0_g, dadn, dadsigma = self.get_q_func(
-                n_sg[s], sigma_xg[2 * s], i=i, return_derivs=True
+    is_mgga = self._plan.nldf_settings.sl_level == "MGGA"
+    if is_mgga:
+        rho_tuple = (n_sg, sigma_xg[::2], tau_sg)
+    else:
+        rho_tuple = (n_sg, sigma_xg[::2])
+    for i in range(nfeat):
+        di_s, derivs = self._plan.get_interpolation_arguments(rho_tuple, i=i)
+        for s in range(nspin):
+            p_qg, dp_qg = self._plan.get_interpolation_coefficients(
+                di_s[s].ravel(), i=i
             )
-            i_g = (
-                np.log(q0_g / self.dense_bas_exp[0]) / np.log(self.dense_lambd)
-            ).astype(int)
-            dq0_g = q0_g - self.q_a[i_g]
             for a in range(Nalpha):
-                C_pg = self.C_aip[a, i_g].T
-                # TODO call C function here
-                pa_g = C_pg[0] + dq0_g * (C_pg[1] + dq0_g * (C_pg[2] + dq0_g * C_pg[3]))
-                x_sig[s, i] += pa_g * y_sbg[s, a]
-            # x_sig[s, i] *= ((self.consts[i, 1] + self.consts[-1, 1]) / 2) ** 1.5
-    for o in range(norb):
-        s = p_o[o][0]
-        for i in range(nfeat):
-            q0_g, dadn, dadsigma = self.get_q_func(
-                n_sg[s], sigma_xg[2 * s], i=i, return_derivs=True
+                x_sig[s, i] += p_qg[a] * y_sbg[s, a]
+    for i in range(nfeat):
+        di_s, derivs = self._plan.get_interpolation_arguments(rho_tuple, i=i)
+        for o in range(norb):
+            s = p_o[o][0]
+            dadf_g = derivs[0][s] * dndf_og[o] + derivs[1][s] * dsigmadf_og[o]
+            if is_mgga:
+                dadf_g += derivs[2][s] * dtaudf_og[o]
+            p_qg, dp_qg = self._plan.get_interpolation_coefficients(
+                di_s[s].ravel(), i=i
             )
-            dadf_g = dadn * dndf_og[o] + dadsigma * dsigmadf_og[o]
-            i_g = (
-                np.log(q0_g / self.dense_bas_exp[0]) / np.log(self.dense_lambd)
-            ).astype(int)
-            dq0_g = q0_g - self.q_a[i_g]
             for a in range(Nalpha):
-                C_pg = self.C_aip[a, i_g].T
-                # TODO call C function here
-                pa_g = C_pg[0] + dq0_g * (C_pg[1] + dq0_g * (C_pg[2] + dq0_g * C_pg[3]))
-                dpa_g = C_pg[1] + dq0_g * (2 * C_pg[2] + dq0_g * 3 * C_pg[3])
-                dxdf_oig[o, i] += dpa_g * dadf_g * y_sbg[s, a]
-                dxdf_oig[o, i] += pa_g * dydf_obg[o, a]
-            # dxdf_oig[o, i] *= ((self.consts[i, 1] + self.consts[-1, 1]) / 2) ** 1.5
+                dxdf_oig[o, i] += dp_qg[a] * dadf_g * y_sbg[s, a]
+                dxdf_oig[o, i] += p_qg[a] * dydf_obg[o, a]
 
     return x_sig, dxdf_oig
 
@@ -502,13 +485,17 @@ def get_kinetic_energy_and_deriv(xc, ae):
 
 def get_paw_deriv_contribs(xc, p_o, n_sg, sigma_xg, dndf_osg, dsigmadf_oxg, ae=True):
     if xc.cider_kernel.type == "MGGA":
-        ns, ng = n_sg.shape
-        nx = 2 * ns + 1
         tau_sg, dtaudf_og = get_kinetic_energy_and_deriv(xc, ae)
-        tau_xg = np.zeros((nx, ng))
-        for s in range(ns):
-            tau_xg[2 * s] = tau_sg[s]
-        return _get_paw_helper1(xc, p_o, n_sg, tau_xg, dndf_osg, dtaudf_og)
+        return _get_paw_helper1(
+            xc,
+            p_o,
+            n_sg,
+            sigma_xg,
+            dndf_osg,
+            dsigmadf_oxg,
+            tau_sg=tau_sg,
+            dtaudf_og=dtaudf_og,
+        )
     else:
         return _get_paw_helper1(xc, p_o, n_sg, sigma_xg, dndf_osg, dsigmadf_oxg)
 
@@ -527,24 +514,21 @@ def get_paw_feat_deriv_contribs(
     ae=True,
 ):
     if xc.cider_kernel.type == "MGGA":
-        ns, ng = n_sg.shape
-        nx = 2 * ns + 1
         tau_sg, dtaudf_og = get_kinetic_energy_and_deriv(xc, ae)
-        tau_xg = np.zeros((nx, ng))
-        for s in range(ns):
-            tau_xg[2 * s] = tau_sg[s]
         feat_sig, dfeat_oig = _get_paw_helper2(
             xc,
             p_o,
             n_sg,
-            tau_xg,
+            sigma_xg,
             dndf_osg,
-            dtaudf_og,
+            dsigmadf_oxg,
             y_sbg,
             dydf_obg,
             F_sbg,
             dFdf_obg,
             ae=ae,
+            tau_sg=tau_sg,
+            dtaudf_og=dtaudf_og,
         )
     else:
         feat_sig, dfeat_oig = _get_paw_helper2(

@@ -1,6 +1,5 @@
 dependencies:
   - openmpi-mpicc
-  - gfortran
   - gcc
   - gxx
   - libxc

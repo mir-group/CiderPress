@@ -531,29 +531,9 @@ class _CiderPASDW_MPRoutines:
             raise ValueError("rank_a mismatch")
         self.timer.stop()
 
-        if tau_sg is None:
-            rho_tuple = (nt_sg, sigma_xg[::2])
-        else:
-            rho_tuple = (nt_sg, sigma_xg[::2], tau_sg)
-        shape = (
-            nt_sg.shape[0],
-            self.nexp,
-        ) + nt_sg.shape[1:]
-        ascale = np.empty(shape)
-        if tau_sg is None:
-            ascale_derivs = (np.empty(shape), np.empty(shape))
-        else:
-            ascale_derivs = (np.empty(shape), np.empty(shape), np.empty(shape))
-        for i in range(-1, self.nexp - 1):
-            ascale[:, i], tmp = self._plan.get_interpolation_arguments(rho_tuple, i=i)
-            for j in range(len(tmp)):
-                ascale_derivs[j][:, i] = tmp[j]
-        # TODO need to save conv function derivative in case conv function != rho
-        cider_nt_sg = self.domain_world2cider(
-            self._plan.get_function_to_convolve(rho_tuple)[0]
+        cider_nt_sg, ascale, ascale_derivs = self._get_conv_terms(
+            nt_sg, sigma_xg, tau_sg
         )
-        if cider_nt_sg is None:
-            cider_nt_sg = {s: None for s in range(nspin)}
 
         self.timer.start("CIDER PAW")
         c_sabi, df_asbLg = self.paw_kernel.calculate_paw_feat_corrections(setups, D_asp)

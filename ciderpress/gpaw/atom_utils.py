@@ -427,6 +427,7 @@ class PASDWCiderKernel(PAWCiderKernelShell):
                 )
                 setup.cider_contribs = PAWClass(
                     self.cider_kernel,
+                    self.dens.nt_sg.shape[0],
                     self.nexp,
                     self.consts,
                     encut0,
@@ -435,7 +436,6 @@ class PASDWCiderKernel(PAWCiderKernelShell):
                     Nalpha,
                     self.cut_xcgrid,
                 )
-                setup.cider_contribs.nspin = self.dens.nt_sg.shape[0]
                 assert abs(np.max(setup.cider_contribs.bas_exp) - encut0) < 1e-10
 
                 setup.pasdw_setup = PSOnlySetup.from_setup(

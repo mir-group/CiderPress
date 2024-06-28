@@ -766,9 +766,12 @@ class _CiderBase:
         self.theta_ak.lock()
 
     def _setup_plan(self):
-        if self._plan is None or self._plan.nspin != self.nspin:
+        nldf_settings = self.cider_kernel.mlfunc.settings.nldf_settings
+        need_plan = self._plan is None or self._plan.nspin != self.nspin
+        need_plan = need_plan and not nldf_settings.is_empty
+        if need_plan:
             self._plan = NLDFSplinePlan(
-                self.cider_kernel.mlfunc.settings.nldf_settings,
+                nldf_settings,
                 self.nspin,
                 self.encut / self.lambd ** (self.Nalpha - 1),
                 self.lambd,
@@ -1124,6 +1127,33 @@ class _CiderBase:
     def get_ascale_and_derivs(self, nt_sg, sigma_xg, tau_sg):
         raise NotImplementedError
 
+    def _get_conv_terms(self, nt_sg, sigma_xg, tau_sg):
+        nspin = nt_sg.shape[0]
+        if tau_sg is None:
+            rho_tuple = (nt_sg, sigma_xg[::2])
+        else:
+            rho_tuple = (nt_sg, sigma_xg[::2], tau_sg)
+        shape = (
+            nt_sg.shape[0],
+            self.nexp,
+        ) + nt_sg.shape[1:]
+        ascale = np.empty(shape)
+        if tau_sg is None:
+            ascale_derivs = (np.empty(shape), np.empty(shape))
+        else:
+            ascale_derivs = (np.empty(shape), np.empty(shape), np.empty(shape))
+        for i in range(-1, self.nexp - 1):
+            ascale[:, i], tmp = self._plan.get_interpolation_arguments(rho_tuple, i=i)
+            for j in range(len(tmp)):
+                ascale_derivs[j][:, i] = tmp[j]
+        # TODO need to save conv function derivative in case conv function != rho
+        cider_nt_sg = self.domain_world2cider(
+            self._plan.get_function_to_convolve(rho_tuple)[0]
+        )
+        if cider_nt_sg is None:
+            cider_nt_sg = {s: None for s in range(nspin)}
+        return cider_nt_sg, ascale, ascale_derivs
+
     def calc_cider(
         self,
         e_g,
@@ -1150,29 +1180,9 @@ class _CiderBase:
             self.construct_cubic_splines()
         self.timer.stop()
 
-        if tau_sg is None:
-            rho_tuple = (nt_sg, sigma_xg[::2])
-        else:
-            rho_tuple = (nt_sg, sigma_xg[::2], tau_sg)
-        shape = (
-            nt_sg.shape[0],
-            self.nexp,
-        ) + nt_sg.shape[1:]
-        ascale = np.empty(shape)
-        if tau_sg is None:
-            ascale_derivs = (np.empty(shape), np.empty(shape))
-        else:
-            ascale_derivs = (np.empty(shape), np.empty(shape), np.empty(shape))
-        for i in range(-1, self.nexp - 1):
-            ascale[:, i], tmp = self._plan.get_interpolation_arguments(rho_tuple, i=i)
-            for j in range(len(tmp)):
-                ascale_derivs[j][:, i] = tmp[j]
-        # TODO need to save conv function derivative in case conv function != rho
-        cider_nt_sg = self.domain_world2cider(
-            self._plan.get_function_to_convolve(rho_tuple)[0]
+        cider_nt_sg, ascale, ascale_derivs = self._get_conv_terms(
+            nt_sg, sigma_xg, tau_sg
         )
-        if cider_nt_sg is None:
-            cider_nt_sg = {s: None for s in range(nspin)}
 
         self.timer.start("6d int")
         self.theta_sak_tmp = {s: {} for s in range(nspin)}

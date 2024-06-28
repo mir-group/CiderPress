@@ -1213,6 +1213,7 @@ class NLDFAuxiliaryPlan(ABC):
             expcut (float): Small-exponent cutoff for stability
         """
         if not isinstance(nldf_settings, NLDFSettings):
+            print(type(nldf_settings))
             raise ValueError("Require NLDFSettings object")
         self.nldf_settings = nldf_settings
         if alpha0 <= 0:
@@ -1973,8 +1974,20 @@ class NLDFSplinePlan(NLDFAuxiliaryPlan):
         )
         # TODO need to remove this, should apply alpha_norms
         # product in reciprocal convolution step for GPAW
-        p[:] *= self.alpha_norms
-        dp[:] *= self.alpha_norms
+        if self.coef_order == "gq":
+            if self.proc_inds is None:
+                p[:] *= self.alpha_norms
+                dp[:] *= self.alpha_norms
+            else:
+                p[:] *= self.alpha_norms[self.proc_inds]
+                dp[:] *= self.alpha_norms[self.proc_inds]
+        else:
+            if self.proc_inds is None:
+                p[:] *= self.alpha_norms[:, None]
+                dp[:] *= self.alpha_norms[:, None]
+            else:
+                p[:] *= self.alpha_norms[self.proc_inds, None]
+                dp[:] *= self.alpha_norms[self.proc_inds, None]
         return p, dp
 
     def _get_transformed_interpolation_terms(self, p_xx, i=-1, fwd=True, inplace=False):

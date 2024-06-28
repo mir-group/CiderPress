@@ -15,7 +15,7 @@ def run_calc(xc, spinpol, setups="paw"):
         mlfunc,
         xmix=0.25,
         qmax=300,
-        lambd=1.8,
+        lambd=2.0,
         pasdw_store_funcs=False,
         pasdw_ovlp_fit=True,
         use_paw=False if setups == "sg15" else True,

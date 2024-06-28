@@ -592,10 +592,9 @@ class _FeatureMixin:
 
         nspin = nt_sg.shape[0]
         feat, dfeat, p_iag, q_ag, dq_ag = {}, {}, {}, {}, {}
-        cider_nt_sg = self.domain_world2cider(nt_sg)
-        if cider_nt_sg is None:
-            cider_nt_sg = {s: None for s in range(nspin)}
-        ascale, _ = self.get_ascale_and_derivs(nt_sg, sigma_xg, tau_sg)
+        cider_nt_sg, ascale, ascale_derivs = self._get_conv_terms(
+            nt_sg, sigma_xg, tau_sg
+        )
 
         if self.has_paw:
             c_sabi, df_asbLg = self.paw_kernel.calculate_paw_feat_corrections(
@@ -816,13 +815,13 @@ class _FeatureMixin:
         nspin = nt_sg.shape[0]
         feat, dfeat, p_iag, q_ag, dq_ag = {}, {}, {}, {}, {}
         dfeatdf_jig = {}
-        cider_nt_sg = self.domain_world2cider(nt_sg)
         cider_drhodf_jg = self.domain_world2cider(drhodf_jg)
-        if cider_nt_sg is None:
-            cider_nt_sg = {s: None for s in range(nspin)}
+        # TODO need to account for conv func != rho
         if cider_drhodf_jg is None:
             cider_drhodf_jg = {j: None for j in range(nj)}
-        ascale, ascale_derivs = self.get_ascale_and_derivs(nt_sg, sigma_xg, tau_sg)
+        cider_nt_sg, ascale, ascale_derivs = self._get_conv_terms(
+            nt_sg, sigma_xg, tau_sg
+        )
         dascaledf_jig = np.empty((nj,) + ascale.shape[1:], dtype=ascale.dtype)
         for j in range(nj):
             s = p_j[j][0]

@@ -550,7 +550,7 @@ class TestDescriptors(unittest.TestCase):
             )
 
     def test_vxc(self):
-        for use_pp in [False]:
+        for use_pp in [True, False]:
             xc = get_xc(
                 "functionals/CIDER23X_NL_GGA.yaml", use_paw=not use_pp, force_nl=True
             )
