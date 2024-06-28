@@ -1,4 +1,3 @@
-import numpy as np
 import yaml
 from gpaw.calculator import GPAW
 from gpaw.xc.libxc import LibXC
@@ -162,14 +161,12 @@ def get_cider_functional(
         msg = "Only implemented for b and d version, found {}"
         raise ValueError(msg.format(mlfunc.desc_version))
 
-    const_list = get_const_list(mlfunc.settings.nldf_settings)
     nexp = 4
 
     if use_paw:
         xc = cls(
             cider_kernel,
             nexp,
-            const_list,
             Nalpha=Nalpha,
             lambd=lambd,
             encut=qmax,
@@ -177,7 +174,7 @@ def get_cider_functional(
             pasdw_store_funcs=pasdw_store_funcs,
         )
     else:
-        xc = cls(cider_kernel, nexp, const_list, Nalpha=Nalpha, lambd=lambd, encut=qmax)
+        xc = cls(cider_kernel, nexp, Nalpha=Nalpha, lambd=lambd, encut=qmax)
 
     if no_paw_atom_kernel:
         if mlfunc.desc_version == "b":
@@ -299,21 +296,8 @@ def cider_functional_from_dict(d):
         else:
             # xc_params should have Nalpha, lambd, encut.
             # For PAW, it should also have pasdw_ovlp_fit, pasdw_store_funcs.
-            const_list = get_const_list(mlfunc.settings.nldf_settings)
-            xc = cls(cider_kernel, nexp, const_list, **(d["xc_params"]))
+            xc = cls(cider_kernel, nexp, **(d["xc_params"]))
     else:
         xc = cls(LibXC(d["name"]))
 
     return xc
-
-
-def get_const_list(settings):
-    """
-    settings should be NLDFSettings object
-    """
-    thetap = np.array(settings.theta_params)
-    vvmul = thetap[0] / settings.feat_params[1][0]
-    fac_mul = thetap[2] if settings.sl_level == "MGGA" else thetap[1]
-    consts = np.array([0.00, thetap[0], fac_mul, thetap[0] / 64]) / vvmul
-    const_list = np.stack([0.5 * consts, 1.0 * consts, 2.0 * consts, consts * vvmul])
-    return const_list

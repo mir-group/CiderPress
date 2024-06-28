@@ -22,7 +22,6 @@ from ciderpress.gpaw.atom_descriptor_utils import (
     get_features_with_sl_noderiv,
     get_features_with_sl_part,
 )
-from ciderpress.gpaw.calculator import get_const_list
 from ciderpress.gpaw.cider_paw import (
     CiderGGA,
     CiderGGAHybridKernel,
@@ -67,13 +66,6 @@ def get_features(
     use_paw=True,
     screen_dens=True,
     **kwargs,
-    # version="b",
-    # a0=1.0,
-    # fac_mul=0.03125,
-    # vvmul=1.0,
-    # amin=0.015625,
-    # qmax=300,
-    # lambd=1.8,
 ):
     """
     Compute grid weights, feature vectors, and (optionally)
@@ -102,11 +94,10 @@ def get_features(
         kcls = CiderMGGAHybridKernel
         cls = FeatSLPAW if use_paw else FeatSL
         # TODO this part is messy/unncessary, should refactor to avoid
-        const_list = np.ones((4, 4))
         cider_kernel = kcls(
             XCShell(SemilocalSettings("nst")), 0, "GGA_X_PBE", "GGA_C_PBE"
         )
-        nexp = len(const_list)
+        nexp = 4
     elif isinstance(settings, SemilocalSettings):
         if settings.level == "MGGA":
             kcls = CiderMGGAHybridKernel
@@ -115,9 +106,8 @@ def get_features(
             kcls = CiderGGAHybridKernel
             cls = FeatSLPAW if use_paw else FeatSL
         # TODO this part is messy/unncessary, should refactor to avoid
-        const_list = np.ones((4, 4))
         cider_kernel = kcls(None, 0, "GGA_X_PBE", "GGA_C_PBE")
-        nexp = len(const_list)
+        nexp = 4
     elif isinstance(settings, NLDFSettings):
         if settings.sl_level == "MGGA":
             kcls = CiderMGGAHybridKernel
@@ -125,9 +115,8 @@ def get_features(
         else:
             kcls = CiderGGAHybridKernel
             cls = FeatGGAPAW if use_paw else FeatGGA
-        const_list = get_const_list(settings)
         cider_kernel = kcls(XCShell(settings), 0, "GGA_X_PBE", "GGA_C_PBE")
-        nexp = len(const_list)
+        nexp = 4
     elif isinstance(settings, FracLaplSettings):
         raise NotImplementedError(
             "Fractional Laplacian-based orbital descriptors have not yet been implemented for GPAW."
@@ -145,7 +134,6 @@ def get_features(
     empty_xc = cls(
         cider_kernel,
         nexp,
-        const_list,
         pasdw_ovlp_fit=True,
         pasdw_store_funcs=False,
         **kwargs,

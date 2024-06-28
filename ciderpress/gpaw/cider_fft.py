@@ -438,79 +438,6 @@ class CiderMGGAHybridKernel(CiderGGAHybridKernel):
         return vfeat_sg
 
 
-def get_cider_exp_gga(
-    self, rho, sigma, a0=1.0, fac_mul=0.03125, amin=0.0625, return_derivs=False
-):
-    sr = np.sign(rho)
-    rho = np.abs(rho)
-    CFC = 0.3 * (3 * np.pi**2) ** (2.0 / 3)
-    fac = fac_mul * 1.2 * (6 * np.pi**2) ** (2.0 / 3) / np.pi
-    if self.nspin == 1:
-        B = np.pi / 2 ** (2.0 / 3) * a0
-    else:
-        B = np.pi * a0
-    C = np.pi / 2 ** (2.0 / 3) * fac / CFC
-    rhod = rho + 1e-8
-    tau = sigma / (8 * rhod)
-    ascale = B * rho ** (2.0 / 3) + C * tau / rhod
-    cond0 = ascale < amin
-    ascale[cond0] = amin * np.exp(ascale[cond0] / amin - 1)
-    cond1 = np.logical_or(ascale > self.maxen, np.isnan(ascale))
-    cond2 = ascale < self.minen
-    ascale[cond1] = self.maxen
-    ascale[cond2] = self.minen
-    if return_derivs:
-        # note factor of 2 on second rho_deriv term
-        # due to 1/rho^2 dependence
-        cond3 = np.logical_or(cond1, cond2)
-        dadrho = sr * (
-            2 * B / (3 * rhod ** (1.0 / 3)) - 2 * sr * (C * tau / (rhod * rhod + 1e-10))
-        )
-        dadsigma = C / (8 * rhod * rhod + 1e-10)
-        dadrho[cond0] *= ascale[cond0] * np.exp(ascale[cond0] / amin - 1)
-        dadsigma[cond0] *= ascale[cond0] * np.exp(ascale[cond0] / amin - 1)
-        dadrho[cond3] = 0
-        dadsigma[cond3] = 0
-        return ascale, dadrho, dadsigma
-    else:
-        return ascale
-
-
-def get_cider_exp_mgga(
-    self, rho, sigma, tau, a0=1.0, fac_mul=0.03125, amin=0.0625, return_derivs=False
-):
-    CFC = 0.3 * (3 * np.pi**2) ** (2.0 / 3)
-    fac = fac_mul * 1.2 * (6 * np.pi**2) ** (2.0 / 3) / np.pi
-    if self.nspin == 1:
-        B = np.pi / 2 ** (2.0 / 3) * (a0 - fac)
-    else:
-        B = np.pi * (a0 - fac)
-    C = np.pi / 2 ** (2.0 / 3) * fac / CFC
-    ascale = B * rho ** (2.0 / 3) + C * tau / (rho + 1e-10)
-    cond0 = ascale < amin
-    ascale[cond0] = amin * np.exp(ascale[cond0] / amin - 1)
-    cond1 = np.logical_or(ascale > self.maxen, np.isnan(ascale))
-    cond2 = ascale < self.minen
-    ascale[cond1] = self.maxen
-    ascale[cond2] = self.minen
-    if return_derivs:
-        cond3 = np.logical_or(cond1, cond2)
-        dadrho = 2 * B / (3 * rho ** (1.0 / 3) + 1e-10) - (
-            C * tau / (rho * rho + 1e-10)
-        )
-        dadsigma = np.zeros_like(ascale)
-        dadtau = C / (rho + 1e-10)
-
-        dadrho[cond0] *= ascale[cond0] * np.exp(ascale[cond0] / amin - 1)
-        dadtau[cond0] *= ascale[cond0] * np.exp(ascale[cond0] / amin - 1)
-        dadrho[cond3] = 0
-        dadsigma[cond3] = 0
-
-        return ascale, dadrho, dadsigma, dadtau
-    else:
-        return ascale
-
-
 class _CiderBase:
 
     has_paw = False
@@ -521,10 +448,9 @@ class _CiderBase:
         self,
         cider_kernel,
         nexp,
-        consts,
         Nalpha=None,
-        lambd=2.0,
-        encut=80,
+        lambd=1.8,
+        encut=300,
         world=None,
         **kwargs
     ):
@@ -534,20 +460,29 @@ class _CiderBase:
             self.world = world
 
         self.cider_kernel = cider_kernel
-        if Nalpha is None:
-            amax = encut
-            amin = np.min(consts[:, -1]) / np.e
-            Nalpha = int(np.ceil(np.log(amax / amin) / np.log(lambd))) + 1
-            lambd = np.exp(np.log(amax / amin) / (Nalpha - 1))
-        # TODO remove
-        self.Nalpha = Nalpha
-        self.lambd = lambd
-        self.consts = consts
-        self.nexp = nexp
-        self.encut = encut
+        nldf_settings = cider_kernel.mlfunc.settings.nldf_settings
+        if nldf_settings.is_empty:
+            # TODO these numbers don't matter but must be defined, which is messy
+            self.Nalpha = 10
+            self.lambd = 2.0
+            self.nexp = 4
+            self.encut = 100
+        else:
+            if Nalpha is None:
+                amax = encut
+                # amin = np.min(consts[:, -1]) / np.e
+                # TODO better choice here? depend on feat_params too?
+                amin = nldf_settings.theta_params[0]
+                if hasattr(nldf_settings, "feat_params"):
+                    amin = min(amin, np.min(np.array(nldf_settings.feat_params)[:, 0]))
+                amin /= 64
+                Nalpha = int(np.ceil(np.log(amax / amin) / np.log(lambd))) + 1
+                lambd = np.exp(np.log(amax / amin) / (Nalpha - 1))
+            self.Nalpha = Nalpha
+            self.lambd = lambd
+            self.nexp = nexp
+            self.encut = encut
 
-        self.C_aip = None
-        # TODO end remove
         self.phi_aajp = None
         self.verbose = False
         self.size = None
@@ -585,7 +520,6 @@ class _CiderBase:
             raise NotImplementedError
         self.timer = wfs.timer
         self.world = wfs.world
-        self.get_alphas()
         self.dens = density
         self.rbuf_ag = None
         self.kbuf_ak = None
@@ -608,29 +542,6 @@ class _CiderBase:
                 else:
                     assert n >= gd.N_c[c]
         self.gd = gd
-
-    def get_alphas(self):
-        self.par_cider = CiderParallelization(self.world, self.Nalpha)
-        self.comms = self.par_cider.build_communicators()
-
-        self.a_comm = self.comms["a"]
-
-        if self.a_comm is not None:
-            alpha_range = self.par_cider.get_alpha_range(self.a_comm.rank)
-            self.alphas = [a for a in range(alpha_range[0], alpha_range[1])]
-        else:
-            self.alphas = []
-
-        self.bas_exp = self.encut / self.lambd ** np.arange(self.Nalpha)
-        self.bas_exp = np.flip(self.bas_exp)
-        self.maxen = 2 * self.bas_exp[-1]
-        self.minen = 2 * self.bas_exp[0]
-        sinv = (4 * self.bas_exp[:, None] * self.bas_exp) ** 0.75 * (
-            self.bas_exp[:, None] + self.bas_exp
-        ) ** -1.5
-        # invert and index for this process
-        # self.alpha_cl = cho_factor(sinv)
-        self.sinv = np.linalg.inv(sinv)[self.alphas]
 
     def _setup_cd_xd_ranks(self):
         ROOT = 0
@@ -696,6 +607,14 @@ class _CiderBase:
         nldf_settings = self.cider_kernel.mlfunc.settings.nldf_settings
         need_plan = self._plan is None or self._plan.nspin != self.nspin
         need_plan = need_plan and not nldf_settings.is_empty
+        self.par_cider = CiderParallelization(self.world, self.Nalpha)
+        self.comms = self.par_cider.build_communicators()
+        self.a_comm = self.comms["a"]
+        if self.a_comm is not None:
+            alpha_range = self.par_cider.get_alpha_range(self.a_comm.rank)
+            self.alphas = [a for a in range(alpha_range[0], alpha_range[1])]
+        else:
+            self.alphas = []
         if need_plan:
             self._plan = NLDFSplinePlan(
                 nldf_settings,
@@ -709,10 +628,10 @@ class _CiderBase:
             )
 
     def initialize_more_things(self):
+        self._setup_plan()
         self._setup_kgrid()
         self._setup_cd_xd_ranks()
         self._setup_6d_integral_buffer()
-        self._setup_plan()
 
     def domain_world2cider(self, n_xg, x=None, out=None, tmp=None):
         """
@@ -1004,9 +923,6 @@ class _CiderBase:
         if self.has_paw:
             return D_abi
 
-    def get_ascale_and_derivs(self, nt_sg, sigma_xg, tau_sg):
-        raise NotImplementedError
-
     def _get_conv_terms(self, nt_sg, sigma_xg, tau_sg):
         nspin = nt_sg.shape[0]
         if tau_sg is None:
@@ -1120,9 +1036,6 @@ class _CiderBase:
 
         self.add_scale_derivs(vexp, ascale_derivs, v_sg, dedsigma_xg, dedtau_sg)
 
-    def get_cider_exp(self, *args, **kwargs):
-        raise NotImplementedError
-
     def calculate_impl(self, gd, n_sg, v_sg, e_g):
         sigma_xg, dedsigma_xg, gradn_svg = gga_vars(gd, self.grad_v, n_sg)
         self.process_cider(e_g, n_sg, v_sg, sigma_xg, dedsigma_xg)
@@ -1168,16 +1081,11 @@ class _CiderBase:
                 )
             )
 
-        consts = np.array([0.00, mlfunc.a0, mlfunc.fac_mul, mlfunc.amin])
-        const_list = np.stack(
-            [0.5 * consts, 1.0 * consts, 2.0 * consts, consts * mlfunc.vvmul]
-        )
         nexp = 4
 
         return cls(
             cider_kernel,
             nexp,
-            const_list,
             Nalpha=Nalpha,
             lambd=lambd,
             encut=encut,
@@ -1186,10 +1094,10 @@ class _CiderBase:
 
 
 class CiderGGA(_CiderBase, GGA):
-    def __init__(self, cider_kernel, nexp, consts, **kwargs):
+    def __init__(self, cider_kernel, nexp, **kwargs):
         if cider_kernel.mlfunc.settings.sl_settings.level != "GGA":
             raise ValueError("CiderGGA only supports GGA functionals!")
-        _CiderBase.__init__(self, cider_kernel, nexp, consts, **kwargs)
+        _CiderBase.__init__(self, cider_kernel, nexp, **kwargs)
 
         GGA.__init__(self, LibXC("PBE"), stencil=2)
         self.type = "GGA"
@@ -1206,35 +1114,11 @@ class CiderGGA(_CiderBase, GGA):
         GGA.set_grid_descriptor(self, gd)
         _CiderBase.set_grid_descriptor(self, gd)
 
-    get_cider_exp = get_cider_exp_gga
-
     def process_cider(self, e_g, nt_sg, v_sg, sigma_xg, dedsigma_xg):
         self.calc_cider(e_g, nt_sg, v_sg, sigma_xg, dedsigma_xg)
 
     def set_positions(self, spos_ac):
         self.spos_ac = spos_ac
-
-    def get_ascale_and_derivs(self, nt_sg, sigma_xg, tau_sg):
-        self.timer.start("CIDER_EXP")
-        nspin, nexp = self.nspin, self.nexp
-        ascale = np.empty([nspin, nexp] + list(nt_sg[0].shape))
-        dadn = np.empty([nspin, nexp] + list(nt_sg[0].shape))
-        dadsigma = np.empty([nspin, nexp] + list(nt_sg[0].shape))
-        for s in range(nspin):
-            ngcond = nt_sg[s] < self.RHO_TOL
-            for i in range(nexp):
-                ascale[s, i], dadn[s, i], dadsigma[s, i] = self.get_cider_exp(
-                    nt_sg[s],
-                    sigma_xg[2 * s],
-                    a0=self.consts[i, 1],
-                    fac_mul=self.consts[i, 2],
-                    amin=self.consts[i, 3],
-                    return_derivs=True,
-                )
-                dadn[s, i][ngcond] = 0
-                dadsigma[s, i][ngcond] = 0
-        self.timer.stop()
-        return ascale, (dadn, dadsigma)
 
     def add_scale_derivs(self, vexp, derivs, v_sg, dedsigma_xg, dedtau_sg):
         self.timer.start("contract")
@@ -1284,10 +1168,10 @@ class CiderGGA(_CiderBase, GGA):
 
 
 class CiderMGGA(_CiderBase, MGGA):
-    def __init__(self, cider_kernel, nexp, consts, **kwargs):
+    def __init__(self, cider_kernel, nexp, **kwargs):
         if cider_kernel.mlfunc.settings.sl_settings.level != "MGGA":
             raise ValueError("CiderMGGA only supports MGGA functionals!")
-        _CiderBase.__init__(self, cider_kernel, nexp, consts, **kwargs)
+        _CiderBase.__init__(self, cider_kernel, nexp, **kwargs)
 
         MGGA.__init__(self, LibXC("PBE"), stencil=2)
         self.type = "MGGA"
@@ -1309,8 +1193,6 @@ class CiderMGGA(_CiderBase, MGGA):
         self, setup, D_sp, dEdD_sp=None, addcoredensity=True, a=None
     ):
         return 0
-
-    get_cider_exp = get_cider_exp_mgga
 
     def process_cider(self, e_g, nt_sg, v_sg, sigma_xg, dedsigma_xg):
         if self.fixed_ke:
@@ -1339,36 +1221,6 @@ class CiderMGGA(_CiderBase, MGGA):
             self.restrict_and_collect(dedtaut_sg[s], self.dedtaut_sG[s])
             self.ekin -= self.wfs.gd.integrate(self.dedtaut_sG[s] * taut_sG[s])
 
-    def get_ascale_and_derivs(self, nt_sg, sigma_xg, tau_sg):
-        self.timer.start("CIDER_EXP")
-        nspin, nexp = self.nspin, self.nexp
-        ascale = np.empty([nspin, nexp] + list(nt_sg[0].shape))
-        dadn = np.empty([nspin, nexp] + list(nt_sg[0].shape))
-        dadsigma = np.empty([nspin, nexp] + list(nt_sg[0].shape))
-        dadtau = np.empty([nspin, nexp] + list(nt_sg[0].shape))
-        for s in range(nspin):
-            ngcond = nt_sg[s] < self.RHO_TOL
-            for i in range(nexp):
-                (
-                    ascale[s, i],
-                    dadn[s, i],
-                    dadsigma[s, i],
-                    dadtau[s, i],
-                ) = self.get_cider_exp(
-                    nt_sg[s],
-                    sigma_xg[2 * s],
-                    tau_sg[s],
-                    a0=self.consts[i, 1],
-                    fac_mul=self.consts[i, 2],
-                    amin=self.consts[i, 3],
-                    return_derivs=True,
-                )
-                dadn[s, i][ngcond] = 0
-                dadsigma[s, i][ngcond] = 0
-                dadtau[s, i][ngcond] = 0
-        self.timer.stop()
-        return ascale, (dadn, dadsigma, dadtau)
-
     def add_scale_derivs(self, vexp, derivs, v_sg, dedsigma_xg, dedtau_sg):
         self.timer.start("contract")
         nspin, nexp = self.nspin, self.nexp
@@ -1381,7 +1233,7 @@ class CiderMGGA(_CiderBase, MGGA):
         self.timer.stop()
 
     def add_forces(self, F_av):
-        raise NotImplementedError("MGAA Force with SG15")
+        raise NotImplementedError("MGGA Force with SG15")
 
     def stress_tensor_contribution(self, n_sg):
         sigma_xg, dedsigma_xg, gradn_svg = gga_vars(self.gd, self.grad_v, n_sg)

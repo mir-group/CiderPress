@@ -30,10 +30,13 @@ class _CiderPASDW_MPRoutines:
         return self.atomdist.to_work(self.dens.D_asp)
 
     def initialize_paw_kernel(self, cider_kernel_inp, Nalpha_atom, encut_atom):
+        if self._plan is None:
+            bas_exp_fit = np.ones(1)
+        else:
+            bas_exp_fit = self._plan.alphas
         self.paw_kernel = PASDWCiderKernel(
             cider_kernel_inp,
             self.nexp,
-            self.consts,
             Nalpha_atom,
             self.lambd,
             encut_atom,
@@ -42,7 +45,7 @@ class _CiderPASDW_MPRoutines:
             self.Nalpha,
             self.cut_xcgrid,
             gd=self.gd,
-            bas_exp_fit=self.bas_exp,
+            bas_exp_fit=bas_exp_fit,
             is_mgga=(self.type == "MGGA"),
         )
         self.paw_kernel.initialize(
@@ -107,6 +110,7 @@ class _CiderPASDW_MPRoutines:
             self.dedtheta_sag[s].lock()
 
     def initialize_more_things(self):
+        self._setup_plan()
         self.setups = self._hamiltonian.setups
         self.atomdist = self._hamiltonian.atomdist
         self.atom_partition = self.get_D_asp().partition
@@ -132,12 +136,10 @@ class _CiderPASDW_MPRoutines:
         )
 
         self.initialize_paw_kernel(cider_kernel_inp, Nalpha_atom, encut_atom)
-
         self._setup_kgrid()
         self._setup_cd_xd_ranks()
         self._setup_6d_integral_buffer()
         self._setup_extra_buffers()
-        self._setup_plan()
 
         self.par_cider.setup_atom_comm_data(self.atom_partition.rank_a, self.setups)
 
@@ -186,7 +188,6 @@ class _CiderPASDW_MPRoutines:
         self._hamiltonian = hamiltonian
         self.timer = wfs.timer
         self.world = wfs.world
-        self.get_alphas()
         self.setups = None
         self.gdfft = None
         self.pwfft = None
@@ -633,12 +634,11 @@ class CiderGGAPASDW(_CiderPASDW_MPRoutines, CiderGGA):
     or from_joblib.
     """
 
-    def __init__(self, cider_kernel, nexp, consts, **kwargs):
+    def __init__(self, cider_kernel, nexp, **kwargs):
         CiderGGA.__init__(
             self,
             cider_kernel,
             nexp,
-            consts,
             **kwargs,
         )
         defaults_list = {
@@ -719,16 +719,11 @@ class CiderGGAPASDW(_CiderPASDW_MPRoutines, CiderGGA):
         else:
             cider_kernel = CiderGGAHybridKernel(mlfunc, xmix, xkernel, ckernel)
 
-        consts = np.array([0.00, mlfunc.a0, mlfunc.fac_mul, mlfunc.amin])
-        const_list = np.stack(
-            [0.5 * consts, 1.0 * consts, 2.0 * consts, consts * mlfunc.vvmul]
-        )
         nexp = 4
 
         xc = cls(
             cider_kernel,
             nexp,
-            const_list,
             Nalpha=Nalpha,
             lambd=lambd,
             encut=encut,
@@ -743,12 +738,11 @@ class CiderGGAPASDW(_CiderPASDW_MPRoutines, CiderGGA):
 
 
 class CiderMGGAPASDW(_CiderPASDW_MPRoutines, CiderMGGA):
-    def __init__(self, cider_kernel, nexp, consts, **kwargs):
+    def __init__(self, cider_kernel, nexp, **kwargs):
         CiderMGGA.__init__(
             self,
             cider_kernel,
             nexp,
-            consts,
             **kwargs,
         )
         defaults_list = {
@@ -841,7 +835,6 @@ class CiderMGGAPASDW(_CiderPASDW_MPRoutines, CiderMGGA):
         self._hamiltonian = hamiltonian
         self.timer = wfs.timer
         self.world = wfs.world
-        self.get_alphas()
         self.setups = None
         self.atom_slices = None
         self.gdfft = None
@@ -875,16 +868,11 @@ class CiderMGGAPASDW(_CiderPASDW_MPRoutines, CiderMGGA):
         else:
             cider_kernel = CiderMGGAHybridKernel(mlfunc, xmix, xkernel, ckernel)
 
-        consts = np.array([0.00, mlfunc.a0, mlfunc.fac_mul, mlfunc.amin])
-        const_list = np.stack(
-            [0.5 * consts, 1.0 * consts, 2.0 * consts, consts * mlfunc.vvmul]
-        )
         nexp = 4
 
         xc = cls(
             cider_kernel,
             nexp,
-            const_list,
             Nalpha=Nalpha,
             lambd=lambd,
             encut=encut,

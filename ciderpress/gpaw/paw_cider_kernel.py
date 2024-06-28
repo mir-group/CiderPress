@@ -37,22 +37,19 @@ class PAWCiderContribUtils:
     # computing PAW contributions
 
     def __init__(
-        self, cider_kernel, nspin, nexp, consts, encut, lambd, timer, Nalpha, cut_xcgrid
+        self, cider_kernel, nspin, nexp, encut, lambd, timer, Nalpha, cut_xcgrid
     ):
 
         self.cider_kernel = cider_kernel
         self.nspin = nspin
         self.nexp = nexp
-        self.consts = consts
         self.encut = encut
         self.lambd = lambd
         self.timer = timer
         self.Nalpha = Nalpha
         self.cut_xcgrid = cut_xcgrid
 
-        self.C_aip = None
         self.verbose = False
-        self.get_alphas()
         nldf_settings = cider_kernel.mlfunc.settings.nldf_settings
         if nldf_settings.is_empty:
             self._plan = None
@@ -66,20 +63,6 @@ class PAWCiderContribUtils:
                 coef_order="qg",
                 alpha_formula="etb",
             )
-
-    def get_alphas(self):
-        self.bas_exp = self.encut / self.lambd ** np.arange(self.Nalpha)
-        self.bas_exp = np.flip(self.bas_exp)
-        self.maxen = 2 * self.bas_exp[-1]
-        self.minen = 2 * self.bas_exp[0]
-        self.alphas = np.arange(self.Nalpha)
-        sinv = (4 * self.bas_exp[:, None] * self.bas_exp) ** 0.75 * (
-            self.bas_exp[:, None] + self.bas_exp
-        ) ** -1.5
-        from scipy.linalg import cho_factor
-
-        self.alpha_cl = cho_factor(sinv)
-        self.sinv = np.linalg.inv(sinv)
 
     # get the y values
     def calc_y_sbLk(self, dx_sLkb, ks=None):
@@ -397,7 +380,6 @@ class BasePAWCiderKernel(PAWCiderKernelShell, PAWCiderContribUtils):
         self,
         cider_kernel,
         nexp,
-        consts,
         Nalpha,
         lambd,
         encut,
@@ -416,14 +398,11 @@ class BasePAWCiderKernel(PAWCiderKernelShell, PAWCiderContribUtils):
         self.Nalpha_small = Nalpha_small
         self.Nalpha = Nalpha
         self.lambd = lambd
-        self.consts = consts
         self.nexp = nexp
         self.encut = encut
 
         self.cider_kernel = cider_kernel
 
-        self.C_aip = None
-        self.get_alphas()
         self.verbose = False
         self.timer = timer
 

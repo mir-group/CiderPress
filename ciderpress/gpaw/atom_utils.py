@@ -359,7 +359,6 @@ class PASDWCiderKernel(PAWCiderKernelShell):
         self,
         cider_kernel,
         nexp,
-        consts,
         Nalpha,
         lambd,
         encut,
@@ -376,7 +375,6 @@ class PASDWCiderKernel(PAWCiderKernelShell):
         super(PASDWCiderKernel, self).__init__(world, timer)
         self.cider_kernel = cider_kernel
         self.nexp = nexp
-        self.consts = consts
         self.lambd = lambd
         self.Nalpha_small = Nalpha_small
         self.cut_xcgrid = cut_xcgrid
@@ -429,14 +427,17 @@ class PASDWCiderKernel(PAWCiderKernelShell):
                     self.cider_kernel,
                     self.dens.nt_sg.shape[0],
                     self.nexp,
-                    self.consts,
                     encut0,
                     self.lambd,
                     self.timer,
                     Nalpha,
                     self.cut_xcgrid,
                 )
-                assert abs(np.max(setup.cider_contribs.bas_exp) - encut0) < 1e-10
+                # assert abs(np.max(setup.cider_contribs.bas_exp) - encut0) < 1e-10
+                if setup.cider_contribs._plan is not None:
+                    assert (
+                        abs(np.max(setup.cider_contribs._plan.alphas) - encut0) < 1e-10
+                    )
 
                 setup.pasdw_setup = PSOnlySetup.from_setup(
                     setup,
