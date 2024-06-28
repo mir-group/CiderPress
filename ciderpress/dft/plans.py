@@ -145,6 +145,65 @@ def _construct_cubic_splines(coefs_qi, dense_indexes):
     return np.ascontiguousarray(C_aip.transpose(1, 0, 2))
 
 
+def _construct_cubic_splines_old(self):
+    """Construct interpolating splines for q0. This is the old version,
+    which is less precise for a given spline density.
+
+    The recipe is from
+
+    http://en.wikipedia.org/wiki/Spline_(mathematics)
+
+    This function is taken directly from the GPAW code and modified slightly.
+    """
+    self.dense_Nalpha = self.Nalpha
+    self.dense_lambd = (self.bas_exp[-1] / self.bas_exp[0]) ** (
+        1.0 / (self.dense_Nalpha - 1)
+    )
+    self.dense_bas_exp = self.bas_exp[0] * self.dense_lambd ** (
+        np.arange(self.dense_Nalpha)
+    )
+    q = self.dense_bas_exp
+    # n = self.Nalpha
+    n = len(self.alphas)
+    N = self.dense_Nalpha
+
+    if self.alphas is None or len(self.alphas) < 1:
+        return
+
+    if self.verbose:
+        pass
+
+    # shape N,n
+    y = self.get_cider_coefs(q)[0].T
+    a = y
+    h = q[1:] - q[:-1]
+    alpha = 3 * (
+        (a[2:] - a[1:-1]) / h[1:, np.newaxis] - (a[1:-1] - a[:-2]) / h[:-1, np.newaxis]
+    )
+    l = np.ones((N, n))
+    mu = np.zeros((N, n))
+    z = np.zeros((N, n))
+    for i in range(1, N - 1):
+        l[i] = 2 * (q[i + 1] - q[i - 1]) - h[i - 1] * mu[i - 1]
+        mu[i] = h[i] / l[i]
+        z[i] = (alpha[i - 1] - h[i - 1] * z[i - 1]) / l[i]
+    b = np.zeros((N, n))
+    c = np.zeros((N, n))
+    d = np.zeros((N, n))
+    for i in range(N - 2, -1, -1):
+        c[i] = z[i] - mu[i] * c[i + 1]
+        b[i] = (a[i + 1] - a[i]) / h[i] - h[i] * (c[i + 1] + 2 * c[i]) / 3
+        d[i] = (c[i + 1] - c[i]) / 3 / h[i]
+
+    self.C_aip = np.zeros((n, N, 4))
+    self.C_aip[:, :-1, 0] = a[:-1].T
+    self.C_aip[:, :-1, 1] = b[:-1].T
+    self.C_aip[:, :-1, 2] = c[:-1].T
+    self.C_aip[:, :-1, 3] = d[:-1].T
+    self.C_aip[-1, -1, 0] = 1.0
+    self.q_a = q
+
+
 class SemilocalPlan:
     def __init__(self, settings, nspin):
         """

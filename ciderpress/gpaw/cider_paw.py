@@ -524,7 +524,6 @@ class _CiderPASDW_MPRoutines:
         self.nspin = nspin
         if (self.setups is None) or (self.atom_slices is None):
             self.initialize_more_things()
-            self.construct_cubic_splines()
         setups = self.setups
         D_asp = self.get_D_asp()
         if not (D_asp.partition.rank_a == self.atom_partition.rank_a).all():

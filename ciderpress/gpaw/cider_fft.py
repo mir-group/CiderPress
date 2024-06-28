@@ -30,7 +30,6 @@ from gpaw.xc.gga import GGA, add_gradient_correction, gga_vars
 from gpaw.xc.kernel import XCKernel
 from gpaw.xc.libxc import LibXC
 from gpaw.xc.mgga import MGGA
-from scipy.linalg import cho_factor, cho_solve
 
 from ciderpress.dft import pwutil
 from ciderpress.dft.plans import NLDFSplinePlan, SemilocalPlan2
@@ -439,81 +438,6 @@ class CiderMGGAHybridKernel(CiderGGAHybridKernel):
         return vfeat_sg
 
 
-def construct_cubic_splines(self):
-    """Construct interpolating splines for q0.
-
-    The recipe is from
-
-    http://en.wikipedia.org/wiki/Spline_(mathematics)
-
-    This function is taken directly from the GPAW code and modified slightly.
-    """
-    self.dense_Nalpha = self.Nalpha
-    self.dense_lambd = (self.bas_exp[-1] / self.bas_exp[0]) ** (
-        1.0 / (self.dense_Nalpha - 1)
-    )
-    self.dense_bas_exp = self.bas_exp[0] * self.dense_lambd ** (
-        np.arange(self.dense_Nalpha)
-    )
-    q = self.dense_bas_exp
-    # n = self.Nalpha
-    n = len(self.alphas)
-    N = self.dense_Nalpha
-
-    if self.alphas is None or len(self.alphas) < 1:
-        return
-
-    if self.verbose:
-        pass
-
-    # shape N,n
-    y = self.get_cider_coefs(q)[0].T
-    a = y
-    h = q[1:] - q[:-1]
-    alpha = 3 * (
-        (a[2:] - a[1:-1]) / h[1:, np.newaxis] - (a[1:-1] - a[:-2]) / h[:-1, np.newaxis]
-    )
-    l = np.ones((N, n))
-    mu = np.zeros((N, n))
-    z = np.zeros((N, n))
-    for i in range(1, N - 1):
-        l[i] = 2 * (q[i + 1] - q[i - 1]) - h[i - 1] * mu[i - 1]
-        mu[i] = h[i] / l[i]
-        z[i] = (alpha[i - 1] - h[i - 1] * z[i - 1]) / l[i]
-    b = np.zeros((N, n))
-    c = np.zeros((N, n))
-    d = np.zeros((N, n))
-    for i in range(N - 2, -1, -1):
-        c[i] = z[i] - mu[i] * c[i + 1]
-        b[i] = (a[i + 1] - a[i]) / h[i] - h[i] * (c[i + 1] + 2 * c[i]) / 3
-        d[i] = (c[i + 1] - c[i]) / 3 / h[i]
-
-    self.C_aip = np.zeros((n, N, 4))
-    self.C_aip[:, :-1, 0] = a[:-1].T
-    self.C_aip[:, :-1, 1] = b[:-1].T
-    self.C_aip[:, :-1, 2] = c[:-1].T
-    self.C_aip[:, :-1, 3] = d[:-1].T
-    self.C_aip[-1, -1, 0] = 1.0
-    self.q_a = q
-
-
-def get_cider_coefs(self, cider_exp):
-    # should do this via a spline
-    power = -1.5
-    shape = cider_exp.shape
-    n = len(self.alphas)
-    cider_exp = np.ravel(cider_exp)
-    norm = (2 * self.bas_exp[:, None] / np.pi) ** 0.75
-    cvec = ((cider_exp + self.bas_exp[:, None]) / np.pi) ** power * norm
-    dcvec = power * cvec / (cider_exp + self.bas_exp[:, None])
-    return (
-        cho_solve(self.alpha_cl, cvec)[self.alphas].reshape(n, *shape)
-        * norm[self.alphas],
-        cho_solve(self.alpha_cl, dcvec)[self.alphas].reshape(n, *shape)
-        * norm[self.alphas],
-    )
-
-
 def get_cider_exp_gga(
     self, rho, sigma, a0=1.0, fac_mul=0.03125, amin=0.0625, return_derivs=False
 ):
@@ -667,10 +591,6 @@ class _CiderBase:
         self.kbuf_ak = None
         self.theta_ak = None
 
-    construct_cubic_splines = construct_cubic_splines
-
-    get_cider_coefs = get_cider_coefs
-
     def set_grid_descriptor(self, gd):
         # XCFunctional.set_grid_descriptor(self, gd)
         # self.grad_v = get_gradient_ops(gd)
@@ -709,7 +629,7 @@ class _CiderBase:
             self.bas_exp[:, None] + self.bas_exp
         ) ** -1.5
         # invert and index for this process
-        self.alpha_cl = cho_factor(sinv)
+        # self.alpha_cl = cho_factor(sinv)
         self.sinv = np.linalg.inv(sinv)[self.alphas]
 
     def _setup_cd_xd_ranks(self):
@@ -832,7 +752,7 @@ class _CiderBase:
 
     def calculate_6d_integral(self):
         a_comm = self.a_comm
-        alphas = self.alphas
+        alphas = self._plan.proc_inds
 
         self.timer.start("FFT")
         for a in alphas:
@@ -844,13 +764,16 @@ class _CiderBase:
             if a_comm is not None:
                 vdw_ranka = self.alpha_ind(a)
                 F_k = np.zeros(self.k2_k.shape, complex)
-            for b in self.alphas:
-                aexp = self.bas_exp[a] + self.bas_exp[b]
+            for b in self._plan.proc_inds:
+                aexp = self._plan.alphas[a] + self._plan.alphas[b]
+                fac = (
+                    np.pi / aexp
+                ) ** 1.5  # * self._plan.alpha_norms[a] * self._plan.alpha_norms[b]
                 pwutil.mulexp(
                     F_k.ravel(),
                     self.theta_ak[b].ravel(),
                     self.k2_k.ravel(),
-                    (np.pi / aexp) ** 1.5,
+                    fac,
                     1.0 / (4 * aexp),
                 )
             if a_comm is not None:
@@ -863,7 +786,7 @@ class _CiderBase:
         self.timer.stop()
 
         self.timer.start("iFFT")
-        for a in self.alphas:
+        for a in alphas:
             self.rbuf_ag[a][:] = self.pwfft.ifft(self.kbuf_ak[a])
         self.timer.stop()
 
@@ -889,15 +812,17 @@ class _CiderBase:
             if a_comm is not None:
                 vdw_ranka = self.alpha_ind(a)
                 F_k = np.zeros(self.k2_k.shape, complex)
-            for b in self.alphas:
-                aexp = self.bas_exp[a] + self.bas_exp[b]
+            for b in self._plan.proc_inds:
+                aexp = self._plan.alphas[a] + self._plan.alphas[b]
                 invexp = 1.0 / (4 * aexp)
+                fac = (
+                    -1 * (np.pi / aexp) ** 1.5 * invexp
+                )  # * self._plan.alpha_norms[a] * self._plan.alpha_norms[b]
                 pwutil.mulexp(
                     F_k.ravel(),
                     self.theta_ak[b].ravel(),
                     self.k2_k.ravel(),
-                    # (np.pi/aexp)**1.5,
-                    -1 * (np.pi / aexp) ** 1.5 * invexp,
+                    fac,
                     invexp,
                 )
             if a_comm is not None:
@@ -942,13 +867,6 @@ class _CiderBase:
 
         i = -1
         if self.alphas:
-            # self.timer.start("hmm1")
-            # q0_g = cider_exp[i]
-            # amin_inv = 1.0 / self.dense_bas_exp[0]
-            # llinv = 1.0 / np.log(self.dense_lambd)
-            # i_g = (np.log(q0_g * amin_inv) * llinv).astype(np.int32)
-            # dq0_g = q0_g - self.q_a[i_g]
-            # self.timer.stop("hmm1")
             di = cider_exp[i]
         else:
             di = None
@@ -967,16 +885,6 @@ class _CiderBase:
             q_ag[a].shape = n_g.shape
             dq_ag[a].shape = n_g.shape
             self.rbuf_ag[a][:] += n_g * q_ag[a]
-        for ind, a in enumerate(self.alphas):
-            continue
-            pa_g, dpa_g = pwutil.eval_cubic_interp(
-                i_g.ravel(), dq0_g.ravel(), self.C_aip[ind]
-            )
-            pa_g = pa_g.reshape(i_g.shape)
-            dpa_g = dpa_g.reshape(i_g.shape)
-            q_ag[a] = pa_g
-            dq_ag[a] = dpa_g
-            self.rbuf_ag[a][:] += n_g * q_ag[a]
         self.timer.stop()
 
         self.calculate_6d_integral()
@@ -990,20 +898,6 @@ class _CiderBase:
             feat = np.zeros([nexp - 1] + list(n_g.shape))
             dfeat = np.zeros([nexp - 1] + list(n_g.shape))
         for i in range(nexp - 1):
-            """
-            if self.alphas:
-                self.timer.start("hmm1")
-                q0_g = cider_exp[i]
-                # i_g = (np.log(q0_g/self.dense_bas_exp[0])/np.log(self.dense_lambd)).astype(int)
-                amin_inv = 1.0 / self.dense_bas_exp[0]
-                llinv = 1.0 / np.log(self.dense_lambd)
-                i_g = (np.log(q0_g * amin_inv) * llinv).astype(np.int32)
-                dq0_g = q0_g - self.q_a[i_g]
-                self.timer.stop("hmm1")
-            else:
-                i_g = None
-                dq0_g = None
-            """
             if self.alphas:
                 di = cider_exp[i]
             else:
@@ -1017,19 +911,6 @@ class _CiderBase:
                 p_iag[i, a] = p_qg[ind]
                 feat[i, :] += p_qg[ind] * self.rbuf_ag[a]
                 dfeat[i, :] += dp_qg[ind] * self.rbuf_ag[a]
-            for ind, a in enumerate(self.alphas):
-                continue
-                self.timer.start("COEFS")
-                pa_g, dpa_g = pwutil.eval_cubic_interp(
-                    i_g.ravel(), dq0_g.ravel(), self.C_aip[ind]
-                )
-                pa_g = pa_g.reshape(i_g.shape)
-                dpa_g = dpa_g.reshape(i_g.shape)
-                self.timer.stop()
-                p_iag[i, a] = pa_g
-
-                feat[i, :] += pa_g * self.rbuf_ag[a]
-                dfeat[i, :] += dpa_g * self.rbuf_ag[a]
 
         self.timer.start("6d comm fwd")
         if n_g is not None:
@@ -1177,7 +1058,6 @@ class _CiderBase:
         self.nspin = nspin
         if self.rbuf_ag is None:
             self.initialize_more_things()
-            self.construct_cubic_splines()
         self.timer.stop()
 
         cider_nt_sg, ascale, ascale_derivs = self._get_conv_terms(

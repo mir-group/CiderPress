@@ -572,7 +572,6 @@ class _FeatureMixin:
         self.gd
         if self.rbuf_ag is None:
             self.initialize_more_things()
-            self.construct_cubic_splines()
         sigma_xg, _ = calculate_sigma(self.gd, self.grad_v, nt_sg)
 
         if self.type == "MGGA":
@@ -782,7 +781,6 @@ class _FeatureMixin:
         self.gd
         if self.rbuf_ag is None:
             self.initialize_more_things()
-            self.construct_cubic_splines()
 
         if DD_aop is not None:
             DD_aop = self.atomdist.to_work(DD_aop)
@@ -946,7 +944,6 @@ class _SLFeatMixin(_FeatureMixin):
         _, gradn_svg = calculate_sigma(self.gd, self.grad_v, nt_sg)
         if self.rbuf_ag is None:
             self.initialize_more_things()
-            self.construct_cubic_splines()
 
         taut_sG = self.wfs.calculate_kinetic_energy_density()
         if taut_sG is None:
@@ -972,7 +969,6 @@ class _SLFeatMixin(_FeatureMixin):
         _, gradn_svg = calculate_sigma(self.gd, self.grad_v, nt_sg)
         if self.rbuf_ag is None:
             self.initialize_more_things()
-            self.construct_cubic_splines()
 
         taut_sG = self.wfs.calculate_kinetic_energy_density()
         if taut_sG is None:

@@ -3,12 +3,6 @@ import numpy as np
 from gpaw.sphere.lebedev import weight_n
 
 from ciderpress.dft.plans import NLDFSplinePlan
-from ciderpress.gpaw.cider_fft import (
-    construct_cubic_splines,
-    get_cider_coefs,
-    get_cider_exp_gga,
-    get_cider_exp_mgga,
-)
 
 
 class PAWCiderKernelShell:
@@ -59,7 +53,6 @@ class PAWCiderContribUtils:
         self.C_aip = None
         self.verbose = False
         self.get_alphas()
-        self.construct_cubic_splines()
         nldf_settings = cider_kernel.mlfunc.settings.nldf_settings
         if nldf_settings.is_empty:
             self._plan = None
@@ -73,12 +66,6 @@ class PAWCiderContribUtils:
                 coef_order="qg",
                 alpha_formula="etb",
             )
-
-    get_cider_coefs = get_cider_coefs
-
-    construct_cubic_splines = construct_cubic_splines
-
-    get_cider_exp = get_cider_exp_gga
 
     def get_alphas(self):
         self.bas_exp = self.encut / self.lambd ** np.arange(self.Nalpha)
@@ -102,23 +89,16 @@ class PAWCiderContribUtils:
             ks = self.krad
         y_bsLk = np.zeros(np.array(dx_sLkb.shape)[[3, 0, 1, 2]])
         for b in range(y_bsLk.shape[0]):
-            aexp = self.bas_exp[b] + self.bas_exp
+            aexp = self._plan.alphas[b] + self._plan.alphas
+            fac = (
+                np.pi / aexp
+            ) ** 1.5  # * self._plan.alpha_norms * self._plan.alpha_norms[b]
             y_bsLk[b, :, :, :] += np.einsum(
                 "kq,sLkq->sLk",
-                np.exp(-ks[:, None] ** 2 / (4 * aexp)) * (np.pi / aexp) ** 1.5,
+                np.exp(-ks[:, None] ** 2 / (4 * aexp)) * fac,
                 dx_sLkb,
             )
         return y_bsLk.transpose(1, 0, 2, 3)
-
-    def get_q_func(self, n_g, a2g, i=-1, return_derivs=False):
-        return self.get_cider_exp(
-            n_g,
-            a2g,
-            a0=self.consts[i, 1],
-            fac_mul=self.consts[i, 2],
-            amin=self.consts[i, 3],
-            return_derivs=return_derivs,
-        )
 
     def get_paw_atom_contribs(self, n_sg, sigma_xg, tau_sg=None, ae=True):
         nspin = n_sg.shape[0]
@@ -138,24 +118,6 @@ class PAWCiderContribUtils:
             for a in range(self.Nalpha):
                 x_sag[s, a] = p_qg[a] * func_sg[s]
                 xd_sag[s, a] = dp_qg[a] * func_sg[s]
-        return x_sag, xd_sag
-        for s in range(nspin):
-            # TODO if function to compute i_g is
-            # added, then get_paw_atom_contribs and get_paw_atom_contribs_cider
-            # will be the same and can be combined
-            q0_g = self.get_q_func(n_sg[s], sigma_xg[2 * s])
-            i_g = (
-                np.log(q0_g / self.dense_bas_exp[0]) / np.log(self.dense_lambd)
-            ).astype(int)
-            dq0_g = q0_g - self.q_a[i_g]
-            # TODO need more coefs for core region?
-            for a in range(self.Nalpha):
-                C_pg = self.C_aip[a, i_g].T
-                # TODO use C function here
-                pa_g = C_pg[0] + dq0_g * (C_pg[1] + dq0_g * (C_pg[2] + dq0_g * C_pg[3]))
-                dpa_g = C_pg[1] + dq0_g * (2 * C_pg[2] + dq0_g * 3 * C_pg[3])
-                x_sag[s, a] = pa_g * n_sg[s]
-                xd_sag[s, a] = dpa_g * n_sg[s]
         return x_sag, xd_sag
 
     def get_paw_atom_contribs_en(
@@ -211,36 +173,6 @@ class PAWCiderContribUtils:
         else:
             return x_sig, dgdn_sig, dgdsigma_sig, p_siag
 
-        for s in range(nspin):
-            for i in range(nfeat):
-                # TODO if function to compute i_g is
-                # added, then get_paw_atom_contribs and get_paw_atom_contribs_cider
-                # will be the same and can be combined
-                q0_g, dadn, dadsigma = self.get_q_func(
-                    n_sg[s], sigma_xg[2 * s], i=i, return_derivs=True
-                )
-                i_g = (
-                    np.log(q0_g / self.dense_bas_exp[0]) / np.log(self.dense_lambd)
-                ).astype(int)
-                dq0_g = q0_g - self.q_a[i_g]
-                for a in range(Nalpha):
-                    C_pg = self.C_aip[a, i_g].T
-                    pa_g = C_pg[0] + dq0_g * (
-                        C_pg[1] + dq0_g * (C_pg[2] + dq0_g * C_pg[3])
-                    )
-                    dpa_g = C_pg[1] + dq0_g * (2 * C_pg[2] + dq0_g * 3 * C_pg[3])
-                    x_sig[s, i] += pa_g * y_sbg[s, a]
-                    xd_sig[s, i] += dpa_g * y_sbg[s, a]
-                    p_siag[s, i, a] = pa_g
-                # x_sig[s, i] *= ((self.consts[i, 1] + self.consts[-1, 1]) / 2) ** 1.5
-                # xd_sig[s, i] *= ((self.consts[i, 1] + self.consts[-1, 1]) / 2) ** 1.5
-                # p_siag[s, i] *= ((self.consts[i, 1] + self.consts[-1, 1]) / 2) ** 1.5
-                dgdn_sig[s, i] = xd_sig[s, i] * dadn
-                dgdsigma_sig[s, i] = xd_sig[s, i] * dadsigma
-
-        self.timer.stop()
-        return x_sig, dgdn_sig, dgdsigma_sig, p_siag
-
     def get_paw_atom_feat(self, n_sg, sigma_xg, y_sbg, F_sbg, ae, include_density):
         feat_sig = self.get_paw_atom_contribs_en(n_sg, sigma_xg, y_sbg, F_sbg, ae=ae)[0]
         if include_density:
@@ -293,7 +225,6 @@ class PAWCiderContribUtils:
             y_sbg[:] += F_sag
         else:
             y_sbg = F_sag
-        Nalpha = self.Nalpha
 
         is_mgga = self._plan.nldf_settings.sl_level == "MGGA"
         if is_mgga:
@@ -328,28 +259,6 @@ class PAWCiderContribUtils:
         else:
             return dedn_sg, dedsigma_sg
 
-        dedn_sg = np.zeros((nspin, ngrid))
-        dedsigma_sg = np.zeros_like(dedn_sg)
-        for s in range(nspin):
-            q0_g, dadn, dadsigma = self.get_q_func(
-                n_sg[s], sigma_xg[2 * s], i=-1, return_derivs=True
-            )
-            i_g = (
-                np.log(q0_g / self.dense_bas_exp[0]) / np.log(self.dense_lambd)
-            ).astype(int)
-            dq0_g = q0_g - self.q_a[i_g]
-            for a in range(Nalpha):
-                C_pg = self.C_aip[a, i_g].T
-                # TODO use C function here
-                pa_g = C_pg[0] + dq0_g * (C_pg[1] + dq0_g * (C_pg[2] + dq0_g * C_pg[3]))
-                dpa_g = C_pg[1] + dq0_g * (2 * C_pg[2] + dq0_g * 3 * C_pg[3])
-                dedn_sg[s] += pa_g * y_sbg[s, a]
-                dedsigma_sg[s] += dpa_g * y_sbg[s, a]
-            dedn_sg[s] += dedsigma_sg[s] * n_sg[s] * dadn
-            dedsigma_sg[s] *= n_sg[s] * dadsigma
-
-        return dedn_sg, dedsigma_sg
-
     def get_paw_atom_cider_pot(
         self, n_sg, dedn_sg, sigma_xg, dedsigma_xg, y_sbg, F_sbg, ae
     ):
@@ -375,8 +284,6 @@ class MetaPAWCiderContribUtils(PAWCiderContribUtils):
         self._dH_sp = None
         self._xcc = None
 
-    get_cider_exp = get_cider_exp_mgga
-
     def set_D_sp(self, D_sp, xcc):
         self._D_sp = D_sp.copy()
         self._dH_sp = np.zeros_like(D_sp)
@@ -394,22 +301,6 @@ class MetaPAWCiderContribUtils(PAWCiderContribUtils):
         nn = tau_pg.shape[-1] // tauc_g.shape[0]
         tau_sg = np.dot(self._D_sp, tau_pg) + np.tile(tauc_g, nn)
         return tau_sg, np.zeros_like(tau_sg)
-
-    def get_q_func(self, n_g, tau_g, i=-1, return_derivs=False):
-        sigma_g = np.zeros_like(n_g)
-        res = self.get_cider_exp(
-            n_g,
-            sigma_g,
-            tau_g,
-            a0=self.consts[i, 1],
-            fac_mul=self.consts[i, 2],
-            amin=self.consts[i, 3],
-            return_derivs=return_derivs,
-        )
-        if return_derivs:
-            return res[0], res[1], res[3]
-        else:
-            return res
 
     def contract_kinetic_potential(self, dedtau_sg, ae):
         xcc = self._xcc
