@@ -90,15 +90,19 @@ class PAWCiderContribUtils:
         y_bsLk = np.zeros(np.array(dx_sLkb.shape)[[3, 0, 1, 2]])
         for b in range(y_bsLk.shape[0]):
             aexp = self._plan.alphas[b] + self._plan.alphas
-            fac = (
-                np.pi / aexp
-            ) ** 1.5  # * self._plan.alpha_norms * self._plan.alpha_norms[b]
+            fac = (np.pi / aexp) ** 1.5
             y_bsLk[b, :, :, :] += np.einsum(
                 "kq,sLkq->sLk",
                 np.exp(-ks[:, None] ** 2 / (4 * aexp)) * fac,
                 dx_sLkb,
             )
         return y_bsLk.transpose(1, 0, 2, 3)
+
+    def get_interpolation_coefficients(self, arg_g, i=-1):
+        p_qg, dp_qg = self._plan.get_interpolation_coefficients(arg_g, i=i)
+        p_qg[:] *= self._plan.alpha_norms[:, None]
+        dp_qg[:] *= self._plan.alpha_norms[:, None]
+        return p_qg, dp_qg
 
     def get_paw_atom_contribs(self, n_sg, sigma_xg, tau_sg=None, ae=True):
         nspin = n_sg.shape[0]
@@ -112,9 +116,7 @@ class PAWCiderContribUtils:
         # TODO need to account for dfunc
         func_sg, dfunc = self._plan.get_function_to_convolve(rho_tuple)
         for s in range(nspin):
-            p_qg, dp_qg = self._plan.get_interpolation_coefficients(
-                di_s[s].ravel(), i=-1
-            )
+            p_qg, dp_qg = self.get_interpolation_coefficients(di_s[s].ravel(), i=-1)
             for a in range(self.Nalpha):
                 x_sag[s, a] = p_qg[a] * func_sg[s]
                 xd_sag[s, a] = dp_qg[a] * func_sg[s]
@@ -156,9 +158,7 @@ class PAWCiderContribUtils:
         for i in range(nfeat):
             di_s, derivs = self._plan.get_interpolation_arguments(rho_tuple, i=i)
             for s in range(nspin):
-                p_qg, dp_qg = self._plan.get_interpolation_coefficients(
-                    di_s[s].ravel(), i=i
-                )
+                p_qg, dp_qg = self.get_interpolation_coefficients(di_s[s].ravel(), i=i)
                 for a in range(self.Nalpha):
                     x_sig[s, i] += p_qg[a] * y_sbg[s, a]
                     xd_sig[s, i] += dp_qg[a] * y_sbg[s, a]
@@ -241,9 +241,7 @@ class PAWCiderContribUtils:
         else:
             dedtau_sg = None
         for s in range(nspin):
-            p_qg, dp_qg = self._plan.get_interpolation_coefficients(
-                di_s[s].ravel(), i=-1
-            )
+            p_qg, dp_qg = self.get_interpolation_coefficients(di_s[s].ravel(), i=-1)
             for a in range(self.Nalpha):
                 dedn_sg[s] += p_qg[a] * y_sbg[s, a]
                 dedsigma_sg[s] += dp_qg[a] * y_sbg[s, a]

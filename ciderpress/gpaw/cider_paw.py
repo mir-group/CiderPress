@@ -462,7 +462,7 @@ class _CiderPASDW_MPRoutines:
                         if has_ofit:
                             pwutil.pasdw_reduce_g(
                                 F_av[a],
-                                ft_xbg[:, ib],
+                                np.ascontiguousarray(ft_xbg[:, ib]),
                                 c_ag[b],
                                 atom_slice.indset,
                             )

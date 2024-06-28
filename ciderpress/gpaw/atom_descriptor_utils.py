@@ -333,7 +333,7 @@ def _get_paw_helper1(
     # TODO need to account for dfunc
     func_sg, dfunc = self._plan.get_function_to_convolve(rho_tuple)
     for s in range(nspin):
-        p_qg, dp_qg = self._plan.get_interpolation_coefficients(di_s[s].ravel(), i=-1)
+        p_qg, dp_qg = self.get_interpolation_coefficients(di_s[s].ravel(), i=-1)
         for a in range(self.Nalpha):
             x_oag[s, a] = p_qg[a] * n_sg[s]
     for o in range(norb):
@@ -341,7 +341,7 @@ def _get_paw_helper1(
         dadf_g = derivs[0][s] * dndf_og[o] + derivs[1][s] * dsigmadf_og[o]
         if is_mgga:
             dadf_g += derivs[2][s] * dtaudf_og[o]
-        p_qg, dp_qg = self._plan.get_interpolation_coefficients(di_s[s].ravel(), i=-1)
+        p_qg, dp_qg = self.get_interpolation_coefficients(di_s[s].ravel(), i=-1)
         for a in range(self.Nalpha):
             x_oag[nspin + o, a] = dp_qg[a] * dadf_g * n_sg[s]
             x_oag[nspin + o, a] += p_qg[a] * dndf_og[o]
@@ -388,9 +388,7 @@ def _get_paw_helper2(
     for i in range(nfeat):
         di_s, derivs = self._plan.get_interpolation_arguments(rho_tuple, i=i)
         for s in range(nspin):
-            p_qg, dp_qg = self._plan.get_interpolation_coefficients(
-                di_s[s].ravel(), i=i
-            )
+            p_qg, dp_qg = self.get_interpolation_coefficients(di_s[s].ravel(), i=i)
             for a in range(Nalpha):
                 x_sig[s, i] += p_qg[a] * y_sbg[s, a]
     for i in range(nfeat):
@@ -400,9 +398,7 @@ def _get_paw_helper2(
             dadf_g = derivs[0][s] * dndf_og[o] + derivs[1][s] * dsigmadf_og[o]
             if is_mgga:
                 dadf_g += derivs[2][s] * dtaudf_og[o]
-            p_qg, dp_qg = self._plan.get_interpolation_coefficients(
-                di_s[s].ravel(), i=i
-            )
+            p_qg, dp_qg = self.get_interpolation_coefficients(di_s[s].ravel(), i=i)
             for a in range(Nalpha):
                 dxdf_oig[o, i] += dp_qg[a] * dadf_g * y_sbg[s, a]
                 dxdf_oig[o, i] += p_qg[a] * dydf_obg[o, a]

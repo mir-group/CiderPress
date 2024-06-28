@@ -685,6 +685,13 @@ class _CiderBase:
         self.kbuf_ak.lock()
         self.theta_ak.lock()
 
+    def get_interpolation_coefficients(self, arg_g, i=-1):
+        p_qg, dp_qg = self._plan.get_interpolation_coefficients(arg_g, i=i)
+        norms = self._plan.alpha_norms[self._plan.proc_inds][:, None]
+        p_qg[:] *= norms
+        dp_qg[:] *= norms
+        return p_qg, dp_qg
+
     def _setup_plan(self):
         nldf_settings = self.cider_kernel.mlfunc.settings.nldf_settings
         need_plan = self._plan is None or self._plan.nspin != self.nspin
@@ -696,7 +703,7 @@ class _CiderBase:
                 self.encut / self.lambd ** (self.Nalpha - 1),
                 self.lambd,
                 self.Nalpha,
-                coef_order="gq",
+                coef_order="qg",
                 alpha_formula="etb",
                 proc_inds=self.alphas,
             )
@@ -766,9 +773,7 @@ class _CiderBase:
                 F_k = np.zeros(self.k2_k.shape, complex)
             for b in self._plan.proc_inds:
                 aexp = self._plan.alphas[a] + self._plan.alphas[b]
-                fac = (
-                    np.pi / aexp
-                ) ** 1.5  # * self._plan.alpha_norms[a] * self._plan.alpha_norms[b]
+                fac = (np.pi / aexp) ** 1.5
                 pwutil.mulexp(
                     F_k.ravel(),
                     self.theta_ak[b].ravel(),
@@ -815,9 +820,7 @@ class _CiderBase:
             for b in self._plan.proc_inds:
                 aexp = self._plan.alphas[a] + self._plan.alphas[b]
                 invexp = 1.0 / (4 * aexp)
-                fac = (
-                    -1 * (np.pi / aexp) ** 1.5 * invexp
-                )  # * self._plan.alpha_norms[a] * self._plan.alpha_norms[b]
+                fac = -1 * (np.pi / aexp) ** 1.5 * invexp
                 pwutil.mulexp(
                     F_k.ravel(),
                     self.theta_ak[b].ravel(),
@@ -876,9 +879,7 @@ class _CiderBase:
             for a in self.alphas:
                 self.rbuf_ag[a][:] = 0.0
         self.timer.start("COEFS")
-        p_qg, dp_qg = self._plan.get_interpolation_coefficients(di.ravel(), i=-1)
-        p_qg = p_qg.T
-        dp_qg = dp_qg.T
+        p_qg, dp_qg = self.get_interpolation_coefficients(di.ravel(), i=-1)
         for ind, a in enumerate(self.alphas):
             q_ag[a] = p_qg[ind]
             dq_ag[a] = dp_qg[ind]
@@ -902,9 +903,7 @@ class _CiderBase:
                 di = cider_exp[i]
             else:
                 di = None
-            p_qg, dp_qg = self._plan.get_interpolation_coefficients(di.ravel(), i=i)
-            p_qg = p_qg.T
-            dp_qg = dp_qg.T
+            p_qg, dp_qg = self.get_interpolation_coefficients(di.ravel(), i=i)
             p_qg.shape = (len(self.alphas),) + di.shape
             dp_qg.shape = (len(self.alphas),) + di.shape
             for ind, a in enumerate(self.alphas):
