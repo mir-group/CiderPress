@@ -1368,6 +1368,11 @@ class NLDFAuxiliaryPlan(ABC):
         pass
 
     @property
+    def num_vj(self):
+        """Number of vj or vk features"""
+        return self.nldf_settings.num_feat_param_sets
+
+    @property
     def num_vi_ints(self):
         return len(self._l0_start_locs) + 3 * len(self._l1_start_locs)
 

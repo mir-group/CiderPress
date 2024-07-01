@@ -97,7 +97,6 @@ def get_features(
         cider_kernel = kcls(
             XCShell(SemilocalSettings("nst")), 0, "GGA_X_PBE", "GGA_C_PBE"
         )
-        nexp = 4
     elif isinstance(settings, SemilocalSettings):
         if settings.level == "MGGA":
             kcls = CiderMGGAHybridKernel
@@ -107,7 +106,6 @@ def get_features(
             cls = FeatSLPAW if use_paw else FeatSL
         # TODO this part is messy/unncessary, should refactor to avoid
         cider_kernel = kcls(None, 0, "GGA_X_PBE", "GGA_C_PBE")
-        nexp = 4
     elif isinstance(settings, NLDFSettings):
         if settings.sl_level == "MGGA":
             kcls = CiderMGGAHybridKernel
@@ -116,7 +114,6 @@ def get_features(
             kcls = CiderGGAHybridKernel
             cls = FeatGGAPAW if use_paw else FeatGGA
         cider_kernel = kcls(XCShell(settings), 0, "GGA_X_PBE", "GGA_C_PBE")
-        nexp = 4
     elif isinstance(settings, FracLaplSettings):
         raise NotImplementedError(
             "Fractional Laplacian-based orbital descriptors have not yet been implemented for GPAW."
@@ -133,7 +130,6 @@ def get_features(
     kwargs["lambd"] = kwargs.get("lambd") or 1.8
     empty_xc = cls(
         cider_kernel,
-        nexp,
         pasdw_ovlp_fit=True,
         pasdw_store_funcs=False,
         **kwargs,
@@ -554,7 +550,6 @@ def get_drho_df(calc, p_i):
 # noinspection PyUnresolvedReferences
 class _FeatureMixin:
     def get_features_on_grid(self, include_density=False):
-        self.nexp
         nt_sg = self.dens.nt_sg
         self.nspin = nt_sg.shape[0]
         self.gd
@@ -698,7 +693,6 @@ class _FeatureMixin:
     def calculate_6d_integral_deriv(
         self, n_g, dndf_g, dcider_exp, q_ag, dq_ag, p_iag, c_abi=None
     ):
-        nexp = self.nexp
 
         dascaledf_ig = self.domain_world2cider(dcider_exp)
 
@@ -721,8 +715,8 @@ class _FeatureMixin:
             self.timer.stop()
 
         if n_g is not None:
-            dfeatdf = np.zeros([nexp - 1] + list(n_g.shape))
-        for i in range(nexp - 1):
+            dfeatdf = np.zeros([self._plan.num_vj] + list(n_g.shape))
+        for i in range(self._plan.num_vj):
             for ind, a in enumerate(self.alphas):
                 dfeatdf[i, :] += p_iag[i, a] * self.rbuf_ag[a]
 
@@ -762,8 +756,6 @@ class _FeatureMixin:
 
         """
         include_density = True
-
-        self.nexp
         nt_sg = self.dens.nt_sg
         self.nspin = nt_sg.shape[0]
         self.gd

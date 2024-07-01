@@ -55,6 +55,31 @@ class LDict(dict):
         super(LDict, self).__setitem__(k, v)
 
 
+class ADict(dict):
+    def __init__(self, indexes, data):
+        n_index = len(indexes)
+        full_shape = data.shape
+        if full_shape[0] != n_index:
+            raise ValueError("First dimension must be length of index list")
+        self._dtype = data.dtype
+        self._data = data
+        self._index_map = {ind: n for n, ind in enumerate(indexes)}
+
+    @property
+    def data(self):
+        return self._data
+
+    def __getitem__(self, k):
+        if k not in self._index_map:
+            raise ValueError("k not in index map")
+        return self._data[self._index_map[k]]
+
+    def __setitem__(self, k, v):
+        if k not in self._index_map:
+            raise ValueError("k not in index map")
+        self._data[self._index_map[k]] = v
+
+
 class CiderPWDescriptor(PWDescriptor):
     def __init__(
         self, ecut, gd, dtype=None, kd=None, fftwflags=fftw.MEASURE, gammacentered=False
@@ -445,14 +470,7 @@ class _CiderBase:
     RHO_TOL = DEFAULT_RHO_TOL
 
     def __init__(
-        self,
-        cider_kernel,
-        nexp,
-        Nalpha=None,
-        lambd=1.8,
-        encut=300,
-        world=None,
-        **kwargs
+        self, cider_kernel, Nalpha=None, lambd=1.8, encut=300, world=None, **kwargs
     ):
         if world is None:
             self.world = mpi.world
@@ -465,7 +483,6 @@ class _CiderBase:
             # TODO these numbers don't matter but must be defined, which is messy
             self.Nalpha = 10
             self.lambd = 2.0
-            self.nexp = 4
             self.encut = 100
         else:
             if Nalpha is None:
@@ -480,7 +497,6 @@ class _CiderBase:
                 lambd = np.exp(np.log(amax / amin) / (Nalpha - 1))
             self.Nalpha = Nalpha
             self.lambd = lambd
-            self.nexp = nexp
             self.encut = encut
 
         self.phi_aajp = None
@@ -585,16 +601,11 @@ class _CiderBase:
             self.knorm = None
 
     def _setup_6d_integral_buffer(self):
-        self.rbuf_ag = LDict()
-        self.kbuf_ak = LDict()
-        self.theta_ak = LDict()
-        for a in self.alphas:
-            self.rbuf_ag[a] = self.gdfft.empty()
-            self.kbuf_ak[a] = self.pwfft.empty()
-            self.theta_ak[a] = self.pwfft.empty()
-        self.rbuf_ag.lock()
-        self.kbuf_ak.lock()
-        self.theta_ak.lock()
+        x = (len(self.alphas),)
+        inds = self.alphas
+        self.rbuf_ag = ADict(inds, self.gdfft.empty(n=x))
+        self.kbuf_ak = ADict(inds, self.pwfft.empty(x=x))
+        self.theta_ak = ADict(inds, self.pwfft.empty(x=x))
 
     def get_interpolation_coefficients(self, arg_g, i=-1):
         p_qg, dp_qg = self._plan.get_interpolation_coefficients(arg_g, i=i)
@@ -779,8 +790,6 @@ class _CiderBase:
         self._stress_vv += stress_vv
 
     def calculate_6d_integral_fwd(self, n_g, cider_exp, c_abi=None):
-        nexp = self.nexp
-
         p_iag = {}
         q_ag = {}
         dq_ag = {}
@@ -815,9 +824,9 @@ class _CiderBase:
             self.timer.stop()
 
         if n_g is not None:
-            feat = np.zeros([nexp - 1] + list(n_g.shape))
-            dfeat = np.zeros([nexp - 1] + list(n_g.shape))
-        for i in range(nexp - 1):
+            feat = np.zeros([self._plan.num_vj] + list(n_g.shape))
+            dfeat = np.zeros([self._plan.num_vj] + list(n_g.shape))
+        for i in range(self._plan.num_vj):
             if self.alphas:
                 di = cider_exp[i]
             else:
@@ -867,7 +876,6 @@ class _CiderBase:
         augv_abi=None,
         compute_stress=False,
     ):
-        nexp = self.nexp
         alphas = self.alphas
 
         if n_g is not None:
@@ -880,7 +888,7 @@ class _CiderBase:
         else:
             for a in self.alphas:
                 self.rbuf_ag[a][:] = 0.0
-        for i in range(nexp - 1):
+        for i in range(self._plan.num_vj):
             vfeati_g = self.domain_world2cider(vfeat_g[i])
             for a in alphas:
                 self.rbuf_ag[a][:] += vfeati_g * p_iag[i, a]
@@ -929,16 +937,13 @@ class _CiderBase:
             rho_tuple = (nt_sg, sigma_xg[::2])
         else:
             rho_tuple = (nt_sg, sigma_xg[::2], tau_sg)
-        shape = (
-            nt_sg.shape[0],
-            self.nexp,
-        ) + nt_sg.shape[1:]
+        shape = (nt_sg.shape[0], self._plan.num_vj + 1) + nt_sg.shape[1:]
         ascale = np.empty(shape)
         if tau_sg is None:
             ascale_derivs = (np.empty(shape), np.empty(shape))
         else:
             ascale_derivs = (np.empty(shape), np.empty(shape), np.empty(shape))
-        for i in range(-1, self.nexp - 1):
+        for i in range(-1, self._plan.num_vj):
             ascale[:, i], tmp = self._plan.get_interpolation_arguments(rho_tuple, i=i)
             for j in range(len(tmp)):
                 ascale_derivs[j][:, i] = tmp[j]
@@ -969,7 +974,6 @@ class _CiderBase:
 
         self.timer.start("initialization")
         nspin = nt_sg.shape[0]
-        nexp = self.nexp
         self.nspin = nspin
         if self.rbuf_ag is None:
             self.initialize_more_things()
@@ -982,13 +986,8 @@ class _CiderBase:
         self.timer.start("6d int")
         self.theta_sak_tmp = {s: {} for s in range(nspin)}
         for s in range(nspin):
-            (
-                feat[s],
-                dfeat[s],
-                p_iag[s],
-                q_ag[s],
-                dq_ag[s],
-            ) = self.calculate_6d_integral_fwd(cider_nt_sg[s], ascale[s])
+            res = self.calculate_6d_integral_fwd(cider_nt_sg[s], ascale[s])
+            feat[s], dfeat[s], p_iag[s], q_ag[s], dq_ag[s] = res
             if compute_stress and nspin > 1:
                 for a in self.alphas:
                     self.theta_sak_tmp[s][a] = self.theta_ak[a].copy()
@@ -1011,7 +1010,7 @@ class _CiderBase:
             )
 
         vfeat[cond0] = 0
-        vexp = np.empty([nspin, nexp] + list(nt_sg[0].shape))
+        vexp = np.empty((nspin, self._plan.num_vj + 1) + nt_sg[0].shape)
         for s in range(nspin):
             vexp[s, :-1] = vfeat[s] * dfeat[s]
             vexp[s, -1] = 0.0
@@ -1081,11 +1080,8 @@ class _CiderBase:
                 )
             )
 
-        nexp = 4
-
         return cls(
             cider_kernel,
-            nexp,
             Nalpha=Nalpha,
             lambd=lambd,
             encut=encut,
@@ -1094,10 +1090,10 @@ class _CiderBase:
 
 
 class CiderGGA(_CiderBase, GGA):
-    def __init__(self, cider_kernel, nexp, **kwargs):
+    def __init__(self, cider_kernel, **kwargs):
         if cider_kernel.mlfunc.settings.sl_settings.level != "GGA":
             raise ValueError("CiderGGA only supports GGA functionals!")
-        _CiderBase.__init__(self, cider_kernel, nexp, **kwargs)
+        _CiderBase.__init__(self, cider_kernel, **kwargs)
 
         GGA.__init__(self, LibXC("PBE"), stencil=2)
         self.type = "GGA"
@@ -1122,10 +1118,10 @@ class CiderGGA(_CiderBase, GGA):
 
     def add_scale_derivs(self, vexp, derivs, v_sg, dedsigma_xg, dedtau_sg):
         self.timer.start("contract")
-        nspin, nexp = self.nspin, self.nexp
+        nspin = self._plan.nspin
         dadn, dadsigma = derivs
         for s in range(nspin):
-            for i in range(nexp):
+            for i in range(self._plan.num_vj + 1):
                 v_sg[s] += vexp[s, i] * dadn[s, i]
                 dedsigma_xg[2 * s] += vexp[s, i] * dadsigma[s, i]
         self.timer.stop()
@@ -1168,10 +1164,10 @@ class CiderGGA(_CiderBase, GGA):
 
 
 class CiderMGGA(_CiderBase, MGGA):
-    def __init__(self, cider_kernel, nexp, **kwargs):
+    def __init__(self, cider_kernel, **kwargs):
         if cider_kernel.mlfunc.settings.sl_settings.level != "MGGA":
             raise ValueError("CiderMGGA only supports MGGA functionals!")
-        _CiderBase.__init__(self, cider_kernel, nexp, **kwargs)
+        _CiderBase.__init__(self, cider_kernel, **kwargs)
 
         MGGA.__init__(self, LibXC("PBE"), stencil=2)
         self.type = "MGGA"
@@ -1223,10 +1219,10 @@ class CiderMGGA(_CiderBase, MGGA):
 
     def add_scale_derivs(self, vexp, derivs, v_sg, dedsigma_xg, dedtau_sg):
         self.timer.start("contract")
-        nspin, nexp = self.nspin, self.nexp
+        nspin = self.nspin
         dadn, dadsigma, dadtau = derivs
         for s in range(nspin):
-            for i in range(nexp):
+            for i in range(self._plan.num_vj + 1):
                 v_sg[s] += vexp[s, i] * dadn[s, i]
                 dedsigma_xg[2 * s] += vexp[s, i] * dadsigma[s, i]
                 dedtau_sg[s] += vexp[s, i] * dadtau[s, i]

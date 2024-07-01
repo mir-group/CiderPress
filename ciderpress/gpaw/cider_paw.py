@@ -6,6 +6,7 @@ from gpaw.xc.mgga import MGGA
 from ciderpress.dft import pwutil
 from ciderpress.gpaw.atom_utils import AtomPASDWSlice, PASDWCiderKernel
 from ciderpress.gpaw.cider_fft import (
+    ADict,
     CiderGGA,
     CiderGGAHybridKernel,
     CiderGGAHybridKernelPBEPot,
@@ -36,7 +37,6 @@ class _CiderPASDW_MPRoutines:
             bas_exp_fit = self._plan.alphas
         self.paw_kernel = PASDWCiderKernel(
             cider_kernel_inp,
-            self.nexp,
             Nalpha_atom,
             self.lambd,
             encut_atom,
@@ -97,17 +97,13 @@ class _CiderPASDW_MPRoutines:
     def _setup_extra_buffers(self):
         self.Freal_sag = LDict()
         self.dedtheta_sag = LDict()
+        x = (len(self.alphas),)
+        inds = self.alphas
         for s in range(self.nspin):
-            self.Freal_sag[s] = LDict()
-            self.dedtheta_sag[s] = LDict()
+            self.Freal_sag[s] = ADict(inds, self.gdfft.empty(n=x))
+            self.dedtheta_sag[s] = ADict(inds, self.gdfft.empty(n=x))
         self.Freal_sag.lock()
         self.dedtheta_sag.lock()
-        for s in range(self.nspin):
-            for a in self.alphas:
-                self.Freal_sag[s][a] = self.gdfft.empty()
-                self.dedtheta_sag[s][a] = self.gdfft.empty()
-            self.Freal_sag[s].lock()
-            self.dedtheta_sag[s].lock()
 
     def initialize_more_things(self):
         self._setup_plan()
@@ -521,7 +517,6 @@ class _CiderPASDW_MPRoutines:
 
         self.timer.start("initialization")
         nspin = nt_sg.shape[0]
-        nexp = self.nexp
         self.nspin = nspin
         if (self.setups is None) or (self.atom_slices is None):
             self.initialize_more_things()
@@ -547,18 +542,10 @@ class _CiderPASDW_MPRoutines:
         if compute_stress and nspin > 1:
             self.theta_sak_tmp = {s: {} for s in range(nspin)}
         for s in range(nspin):
-            (
-                feat[s],
-                dfeat[s],
-                p_iag[s],
-                q_ag[s],
-                dq_ag[s],
-                D_sabi[s],
-            ) = self.calculate_6d_integral_fwd(
-                cider_nt_sg[s],
-                ascale[s],
-                c_abi=c_sabi[s],
+            res = self.calculate_6d_integral_fwd(
+                cider_nt_sg[s], ascale[s], c_abi=c_sabi[s]
             )
+            feat[s], dfeat[s], p_iag[s], q_ag[s], dq_ag[s], D_sabi[s] = res
             for a in self.alphas:
                 self.Freal_sag[s][a][:] = self.rbuf_ag[a]
                 if compute_stress and nspin > 1:
@@ -582,7 +569,7 @@ class _CiderPASDW_MPRoutines:
             )
 
         vfeat[cond0] = 0
-        vexp = np.empty([nspin, nexp] + list(nt_sg[0].shape))
+        vexp = np.empty([nspin, self._plan.num_vj + 1] + list(nt_sg[0].shape))
         for s in range(nspin):
             vexp[s, :-1] = vfeat[s] * dfeat[s]
             vexp[s, -1] = 0.0
@@ -634,11 +621,10 @@ class CiderGGAPASDW(_CiderPASDW_MPRoutines, CiderGGA):
     or from_joblib.
     """
 
-    def __init__(self, cider_kernel, nexp, **kwargs):
+    def __init__(self, cider_kernel, **kwargs):
         CiderGGA.__init__(
             self,
             cider_kernel,
-            nexp,
             **kwargs,
         )
         defaults_list = {
@@ -719,11 +705,8 @@ class CiderGGAPASDW(_CiderPASDW_MPRoutines, CiderGGA):
         else:
             cider_kernel = CiderGGAHybridKernel(mlfunc, xmix, xkernel, ckernel)
 
-        nexp = 4
-
         xc = cls(
             cider_kernel,
-            nexp,
             Nalpha=Nalpha,
             lambd=lambd,
             encut=encut,
@@ -738,11 +721,10 @@ class CiderGGAPASDW(_CiderPASDW_MPRoutines, CiderGGA):
 
 
 class CiderMGGAPASDW(_CiderPASDW_MPRoutines, CiderMGGA):
-    def __init__(self, cider_kernel, nexp, **kwargs):
+    def __init__(self, cider_kernel, **kwargs):
         CiderMGGA.__init__(
             self,
             cider_kernel,
-            nexp,
             **kwargs,
         )
         defaults_list = {
@@ -868,11 +850,8 @@ class CiderMGGAPASDW(_CiderPASDW_MPRoutines, CiderMGGA):
         else:
             cider_kernel = CiderMGGAHybridKernel(mlfunc, xmix, xkernel, ckernel)
 
-        nexp = 4
-
         xc = cls(
             cider_kernel,
-            nexp,
             Nalpha=Nalpha,
             lambd=lambd,
             encut=encut,

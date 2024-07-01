@@ -365,7 +365,7 @@ def _get_paw_helper2(
 ):
     # for getting potential and energy
     nspin = n_sg.shape[0]
-    nfeat = self.nexp - 1
+    nfeat = self._plan.nldf_settings.nfeat
     ngrid = n_sg.shape[-1]
     norb = len(p_o)
     if ae:

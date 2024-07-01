@@ -8,7 +8,7 @@ from gpaw.mpi import world
 
 from ciderpress.gpaw.calculator import get_cider_functional
 
-USE_STORED_REF = True
+USE_STORED_REF = False
 
 
 def _run_pw_si_stress(xc, use_pp=False, s_numerical=None):

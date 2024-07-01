@@ -358,7 +358,6 @@ class PASDWCiderKernel(PAWCiderKernelShell):
     def __init__(
         self,
         cider_kernel,
-        nexp,
         Nalpha,
         lambd,
         encut,
@@ -374,7 +373,6 @@ class PASDWCiderKernel(PAWCiderKernelShell):
             raise ValueError("Must provide gd and bas_exp_fit for PASDWCiderKernel")
         super(PASDWCiderKernel, self).__init__(world, timer)
         self.cider_kernel = cider_kernel
-        self.nexp = nexp
         self.lambd = lambd
         self.Nalpha_small = Nalpha_small
         self.cut_xcgrid = cut_xcgrid
@@ -426,7 +424,6 @@ class PASDWCiderKernel(PAWCiderKernelShell):
                 setup.cider_contribs = PAWClass(
                     self.cider_kernel,
                     self.dens.nt_sg.shape[0],
-                    self.nexp,
                     encut0,
                     self.lambd,
                     self.timer,

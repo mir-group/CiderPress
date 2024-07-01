@@ -36,13 +36,10 @@ class PAWCiderContribUtils:
     # Note: Abstract class, contains functions for
     # computing PAW contributions
 
-    def __init__(
-        self, cider_kernel, nspin, nexp, encut, lambd, timer, Nalpha, cut_xcgrid
-    ):
+    def __init__(self, cider_kernel, nspin, encut, lambd, timer, Nalpha, cut_xcgrid):
 
         self.cider_kernel = cider_kernel
         self.nspin = nspin
-        self.nexp = nexp
         self.encut = encut
         self.lambd = lambd
         self.timer = timer
@@ -111,7 +108,7 @@ class PAWCiderContribUtils:
         self.timer.start("get CIDER attr")
         # for getting potential and energy
         nspin = n_sg.shape[0]
-        nfeat = self.nexp - 1
+        nfeat = self._plan.nldf_settings.nfeat
         ngrid = n_sg.shape[-1]
         if ae:
             y_sbg = y_sbg.copy()
@@ -201,7 +198,6 @@ class PAWCiderContribUtils:
     ):
         # for getting potential and energy
         nspin = n_sg.shape[0]
-        self.nexp - 1
         ngrid = n_sg.shape[-1]
         if ae:
             y_sbg = y_sbg.copy()
@@ -379,7 +375,6 @@ class BasePAWCiderKernel(PAWCiderKernelShell, PAWCiderContribUtils):
     def __init__(
         self,
         cider_kernel,
-        nexp,
         Nalpha,
         lambd,
         encut,
@@ -398,7 +393,6 @@ class BasePAWCiderKernel(PAWCiderKernelShell, PAWCiderContribUtils):
         self.Nalpha_small = Nalpha_small
         self.Nalpha = Nalpha
         self.lambd = lambd
-        self.nexp = nexp
         self.encut = encut
 
         self.cider_kernel = cider_kernel

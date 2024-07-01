@@ -161,12 +161,9 @@ def get_cider_functional(
         msg = "Only implemented for b and d version, found {}"
         raise ValueError(msg.format(mlfunc.desc_version))
 
-    nexp = 4
-
     if use_paw:
         xc = cls(
             cider_kernel,
-            nexp,
             Nalpha=Nalpha,
             lambd=lambd,
             encut=qmax,
@@ -174,7 +171,7 @@ def get_cider_functional(
             pasdw_store_funcs=pasdw_store_funcs,
         )
     else:
-        xc = cls(cider_kernel, nexp, Nalpha=Nalpha, lambd=lambd, encut=qmax)
+        xc = cls(cider_kernel, Nalpha=Nalpha, lambd=lambd, encut=qmax)
 
     if no_paw_atom_kernel:
         if mlfunc.desc_version == "b":
@@ -288,7 +285,6 @@ def cider_functional_from_dict(d):
 
     if "Cider" in cider_type:
         mlfunc = yaml.load(d["mlfunc"], Loader=yaml.CLoader)
-        nexp = 4
         # kernel_params should be xmix, xkernel, ckernel
         cider_kernel = kcls(mlfunc, **(d["kernel_params"]))
         if "SLCider" in cider_type:
@@ -296,7 +292,7 @@ def cider_functional_from_dict(d):
         else:
             # xc_params should have Nalpha, lambd, encut.
             # For PAW, it should also have pasdw_ovlp_fit, pasdw_store_funcs.
-            xc = cls(cider_kernel, nexp, **(d["xc_params"]))
+            xc = cls(cider_kernel, **(d["xc_params"]))
     else:
         xc = cls(LibXC(d["name"]))
 
