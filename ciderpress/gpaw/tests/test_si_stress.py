@@ -8,7 +8,7 @@ from gpaw.mpi import world
 
 from ciderpress.gpaw.calculator import get_cider_functional
 
-USE_STORED_REF = False
+USE_STORED_REF = True
 
 
 def _run_pw_si_stress(xc, use_pp=False, s_numerical=None):
@@ -76,12 +76,12 @@ class TestStress(unittest.TestCase):
         if USE_STORED_REF:
             s_numerical = np.array(
                 [
-                    0.00114318,
-                    -0.03307031,
-                    -0.03026228,
-                    -0.0205634,
-                    0.12848806,
-                    0.01003085,
+                    0.00041062,
+                    -0.03364324,
+                    -0.03095064,
+                    -0.02067178,
+                    0.12828351,
+                    0.01013872,
                 ]
             )
             run_pw_si_stress(xc, s_numerical=s_numerical)
@@ -93,12 +93,12 @@ class TestStress(unittest.TestCase):
         if USE_STORED_REF:
             s_numerical = np.array(
                 [
-                    -0.00745386,
-                    -0.0408426,
-                    -0.03763706,
-                    -0.02227136,
-                    0.14448068,
-                    0.00911011,
+                    -0.00737784,
+                    -0.04081598,
+                    -0.03757383,
+                    -0.0222981,
+                    0.14454075,
+                    0.00917949,
                 ]
             )
             run_pw_si_stress(xc, s_numerical=s_numerical)
@@ -129,7 +129,7 @@ class TestStress(unittest.TestCase):
                 [
                     -0.01197671,
                     -0.04729093,
-                    -0.043479,
+                    -0.04347899,
                     -0.02241506,
                     0.1438053,
                     0.00938071,
@@ -144,12 +144,12 @@ class TestStress(unittest.TestCase):
         if USE_STORED_REF:
             s_numerical = np.array(
                 [
-                    0.02106118,
-                    -0.0177691,
-                    -0.00961465,
-                    -0.01995931,
-                    0.12498599,
-                    0.01063785,
+                    0.02085583,
+                    -0.01765656,
+                    -0.00976421,
+                    -0.02005148,
+                    0.12475251,
+                    0.01070791,
                 ]
             )
             run_pw_si_stress(xc, use_pp=True, s_numerical=s_numerical)
