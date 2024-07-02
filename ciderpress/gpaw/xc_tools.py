@@ -5,7 +5,7 @@ from ase.units import Ha
 from gpaw import GPAW
 from gpaw.calculator import GPAW as GPAWOld
 from gpaw.new.ase_interface import ASECalculator
-from gpaw.utilities import unpack
+from gpaw.utilities import unpack_hermitian
 from gpaw.xc import XC
 from gpaw.xc.kernel import XCNull
 
@@ -143,7 +143,7 @@ def vxc(gs, xc=None, coredensity=True, n1=0, n2=0):
         xc.calculate_paw_correction(
             pawdata, D_sp, dvxc_sp, a=a, addcoredensity=coredensity
         )
-        dvxc_asii[a] = [unpack(dvxc_p) for dvxc_p in dvxc_sp]
+        dvxc_asii[a] = [unpack_hermitian(dvxc_p) for dvxc_p in dvxc_sp]
         if thisisatest:
             dvxc_asii[a] = [gs.setups[a].dO_ii]
 
@@ -227,7 +227,7 @@ def vxc_mat(gs, xc=None, coredensity=True, n1=0, n2=0):
         xc.calculate_paw_correction(
             pawdata, D_sp, dvxc_sp, a=a, addcoredensity=coredensity
         )
-        dvxc_asii[a] = [unpack(dvxc_p) for dvxc_p in dvxc_sp]
+        dvxc_asii[a] = [unpack_hermitian(dvxc_p) for dvxc_p in dvxc_sp]
         if thisisatest:
             dvxc_asii[a] = [gs.setups[a].dO_ii]
 
