@@ -455,11 +455,11 @@ def get_features_and_weights(calc, xc, screen_dens=True):
             all_wt = np.append(all_wt, wt, axis=-1)
 
     if not isinstance(xc, _SLFeatMixin):
-        ae_feat *= nspin
         # TODO make this safer
-        ae_feat[:, 1, :] /= nspin ** (5.0 / 3)
+        ae_feat[:, 0, :] *= nspin
+        ae_feat[:, 1, :] /= nspin ** (2.0 / 3)
         if ae_feat.shape[1] == 6:
-            ae_feat[:, 2, :] /= nspin ** (5.0 / 3)
+            ae_feat[:, 2, :] /= nspin ** (2.0 / 3)
     return ae_feat, all_wt
 
 
@@ -492,13 +492,13 @@ def get_features_and_weights_deriv(
             all_wt = np.append(all_wt, wt, axis=-1)
 
     if not isinstance(xc, _SLFeatMixin):
-        feat_sig *= nspin
-        feat_sig[:, 1, :] /= nspin ** (5.0 / 3)
-        dfeat_jig *= nspin
-        dfeat_jig[:, 1, :] /= nspin ** (5.0 / 3)
+        feat_sig[:, 0, :] *= nspin
+        dfeat_jig[:, 0, :] *= nspin
+        feat_sig[:, 1, :] /= nspin ** (2.0 / 3)
+        dfeat_jig[:, 1, :] /= nspin ** (2.0 / 3)
         if feat_sig.shape[1] == 6:
-            feat_sig[:, 2, :] /= nspin ** (5.0 / 3)
-            dfeat_jig[:, 2, :] /= nspin ** (5.0 / 3)
+            feat_sig[:, 2, :] /= nspin ** (2.0 / 3)
+            dfeat_jig[:, 2, :] /= nspin ** (2.0 / 3)
     return feat_sig, dfeat_jig, all_wt
 
 

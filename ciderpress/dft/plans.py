@@ -1272,7 +1272,6 @@ class NLDFAuxiliaryPlan(ABC):
             expcut (float): Small-exponent cutoff for stability
         """
         if not isinstance(nldf_settings, NLDFSettings):
-            print(type(nldf_settings))
             raise ValueError("Require NLDFSettings object")
         self.nldf_settings = nldf_settings
         if alpha0 <= 0:
@@ -1573,6 +1572,7 @@ class NLDFAuxiliaryPlan(ABC):
         dfeat=None,
         cache_p=True,
         apply_transformation=False,
+        coeff_multipliers=None,
     ):
         """
 
@@ -1604,6 +1604,9 @@ class NLDFAuxiliaryPlan(ABC):
         for i in range(num_vj):
             a_g = self.get_interpolation_arguments(rho_tuple, i=i)[0]
             p, dp = self.get_interpolation_coefficients(a_g, i=i, dbuf=dbuf)
+            if coeff_multipliers is not None:
+                p[:] *= coeff_multipliers[:, None]
+                dp[:] *= coeff_multipliers[:, None]
             if apply_transformation:
                 self.get_transformed_interpolation_terms(p, i=i, fwd=True, inplace=True)
                 self.get_transformed_interpolation_terms(
@@ -1628,10 +1631,11 @@ class NLDFAuxiliaryPlan(ABC):
         occd_f,
         occd_rho_data,
         apply_transformation=True,
+        coeff_multipliers=None,
     ):
         spin = 0
-        if self.nspin != 1:
-            raise NotImplementedError
+        # if self.nspin != 1:
+        #     raise NotImplementedError
         if self.coef_order == "qg":
             f_qg = f
             occd_f_qg = occd_f
@@ -1648,6 +1652,9 @@ class NLDFAuxiliaryPlan(ABC):
         for i in range(num_vj):
             a_g, da_tuple = self.get_interpolation_arguments(rho_tuple, i=i)
             p, dp = self.get_interpolation_coefficients(a_g, i=i, dbuf=dbuf)
+            if coeff_multipliers is not None:
+                p[:] *= coeff_multipliers[:, None]
+                dp[:] *= coeff_multipliers[:, None]
             occd_a_g = occd_rho_data[0] * da_tuple[0]
             occd_a_g[:] += occd_sigma * da_tuple[1]
             if self.nldf_settings.sl_level == "MGGA":
@@ -1679,7 +1686,7 @@ class NLDFAuxiliaryPlan(ABC):
                 "xg,xg->g", l1_vals[j], l1_occd[k]
             ) + np.einsum("xg,xg->g", l1_occd[j], l1_vals[k])
             i += 1
-        return occd1_feat + occd2_feat
+        return self.nspin * (occd1_feat + occd2_feat)
 
     def eval_vxc_full(
         self,

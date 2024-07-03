@@ -282,9 +282,9 @@ class CiderKernel(XCKernel):
             start += nfeat_tmp
         if has_nldf:
             nfeat_tmp = self.mlfunc.settings.nldf_settings.nfeat
-            X0T[:, start : start + nfeat_tmp] = nspin * feat_sg
+            # X0T[:, start : start + nfeat_tmp] = nspin * feat_sg
+            X0T[:, start : start + nfeat_tmp] = feat_sg
             start += nfeat_tmp
-
         X0TN = self.mlfunc.settings.normalizers.get_normalized_feature_vector(X0T)
         exc_ml, dexcdX0TN_ml = self.mlfunc(X0TN, rhocut=self.rhocut)
         xmix = self.xmix  # / rho.shape[0]
@@ -311,7 +311,8 @@ class CiderKernel(XCKernel):
             start += nfeat_tmp
         if has_nldf:
             nfeat_tmp = self.mlfunc.settings.nldf_settings.nfeat
-            vfeat_sg[:] += nspin * vxc_ml[:, start : start + nfeat_tmp]
+            # vfeat_sg[:] += nspin * vxc_ml[:, start : start + nfeat_tmp]
+            vfeat_sg[:] += vxc_ml[:, start : start + nfeat_tmp]
             start += nfeat_tmp
         dedsigma_xg[::2] = dedsigma_sg.reshape(nspin, *dedsigma_xg.shape[1:])
 
@@ -612,6 +613,9 @@ class _CiderBase:
         norms = self._plan.alpha_norms[self._plan.proc_inds][:, None]
         p_qg[:] *= norms
         dp_qg[:] *= norms
+        if 0 <= i < self._plan.num_vj:
+            p_qg[:] *= self._plan.nspin
+            dp_qg[:] *= self._plan.nspin
         return p_qg, dp_qg
 
     def _setup_plan(self):

@@ -2,6 +2,7 @@ import gpaw.mpi as mpi
 import numpy as np
 from gpaw.sphere.lebedev import weight_n
 
+from ciderpress.dft.density_util import get_sigma
 from ciderpress.dft.plans import NLDFSplinePlan
 
 
@@ -82,6 +83,9 @@ class PAWCiderContribUtils:
         p_qg, dp_qg = self._plan.get_interpolation_coefficients(arg_g, i=i)
         p_qg[:] *= self._plan.alpha_norms[:, None]
         dp_qg[:] *= self._plan.alpha_norms[:, None]
+        if 0 <= i < self._plan.num_vj:
+            p_qg[:] *= self._plan.nspin
+            dp_qg[:] *= self._plan.nspin
         return p_qg, dp_qg
 
     def get_paw_atom_contribs(self, n_sg, sigma_xg, tau_sg=None, ae=True):
@@ -168,6 +172,20 @@ class PAWCiderContribUtils:
             # feat_sig[:,2:,:] = _feat_sig
         return feat_sig
 
+    def get_paw_atom_feat_v2(self, n_sg, grad_svg, y_sbg, F_sbg, ae, include_density):
+        rho_sxg = np.append(n_sg[:, None, :], grad_svg, axis=1)
+        feat_sig = self.get_paw_atom_contribs_en_v2(
+            None, rho_sxg, None, y_sbg, F_sbg, ae=ae, feat_only=True
+        )
+        if include_density:
+            from ciderpress.gpaw.atom_descriptor_utils import (
+                get_features_with_sl_noderiv,
+            )
+
+            sigma_xg = get_sigma(grad_svg)
+            feat_sig = get_features_with_sl_noderiv(feat_sig, n_sg, sigma_xg, None)
+        return feat_sig
+
     def get_paw_atom_evxc(
         self, e_g, n_sg, dedn_sg, sigma_xg, dedsigma_xg, y_sbg, F_sbg, a, ae
     ):
@@ -192,6 +210,81 @@ class PAWCiderContribUtils:
             dedsigma_xg[2 * s] += vfeat_sigma_sg[s]
 
         return v_sag
+
+    def get_paw_atom_contribs_en_v2(
+        self, e_g, rho_sxg, vrho_sxg, y_sbg, F_sbg, ae, feat_only=False
+    ):
+        if ae:
+            y_sbg = y_sbg.copy()
+            y_sbg[:] += F_sbg
+        else:
+            y_sbg = F_sbg
+        nspin = rho_sxg.shape[0]
+        ngrid = rho_sxg.shape[2]
+        feat_sig = np.zeros((nspin, self._plan.nldf_settings.nfeat, ngrid))
+        dfeat_sig = np.zeros((nspin, self._plan.num_vj, ngrid))
+        for s in range(nspin):
+            self._plan.eval_rho_full(
+                y_sbg[s],
+                rho_sxg[s],
+                spin=s,
+                feat=feat_sig[s],
+                dfeat=dfeat_sig[s],
+                cache_p=True,
+                # TODO might need to be True for gaussian interp
+                apply_transformation=False,
+                coeff_multipliers=self._plan.alpha_norms,
+            )
+        if feat_only:
+            return feat_sig
+        sigma_xg = get_sigma(rho_sxg[:, 1:4])
+        dedsigma_xg = np.zeros_like(sigma_xg)
+        nspin = feat_sig.shape[0]
+        dedn_sg = np.zeros_like(vrho_sxg[:, 0])
+        args = [
+            e_g,
+            rho_sxg[:, 0].copy(),
+            dedn_sg,
+            sigma_xg,
+            dedsigma_xg,
+        ]
+        if rho_sxg.shape[1] == 4:
+            args.append(feat_sig)
+        elif rho_sxg.shape[1] == 5:
+            dedtau_sg = np.zeros_like(vrho_sxg[:, 0])
+            args += [
+                rho_sxg[:, 4].copy(),
+                dedtau_sg,
+                feat_sig,
+            ]
+        else:
+            raise ValueError
+        vfeat_sig = self.cider_kernel.calculate(*args)
+        vrho_sxg[:, 0] = dedn_sg
+        if rho_sxg.shape[1] == 5:
+            vrho_sxg[:, 4] = dedtau_sg
+        vrho_sxg[:, 1:4] = 2 * dedsigma_xg[::2, None, :] * rho_sxg[:, 1:4]
+        if nspin == 2:
+            vrho_sxg[:, 1:4] += dedsigma_xg[1, None, :] * rho_sxg[::-1, 1:4]
+        v_sbg = np.zeros((nspin, self._plan.nalpha, ngrid))
+        for s in range(nspin):
+            v_sbg[s] = self._plan.eval_vxc_full(
+                vfeat_sig[s], vrho_sxg[s], dfeat_sig[s], rho_sxg[s], spin=s
+            )
+
+        return v_sbg
+
+    def get_paw_atom_evxc_v2(
+        self, e_g, n_sg, dedn_sg, grad_svg, dedgrad_svg, y_sbg, F_sbg, a, ae
+    ):
+        rho_sxg = np.append(n_sg[:, None, :], grad_svg, axis=1)
+        vrho_sxg = np.zeros_like(rho_sxg)
+        v_sbg = self.get_paw_atom_contribs_en_v2(
+            e_g, rho_sxg, vrho_sxg, y_sbg, F_sbg, ae
+        )
+        dedn_sg[:] += vrho_sxg[:, 0]
+        dedgrad_svg[:] += vrho_sxg[:, 1:4]
+        return v_sbg
 
     def get_paw_atom_contribs_pot(
         self, n_sg, sigma_xg, y_sbg, F_sag, ae=True, tau_sg=None
@@ -317,6 +410,23 @@ class MetaPAWCiderContribUtils(PAWCiderContribUtils):
             # feat_sig[:,3:,:] = _feat_sig
         return feat_sig
 
+    def get_paw_atom_feat_v2(self, n_sg, grad_svg, y_sbg, F_sbg, ae, include_density):
+        tau_sg, dedtau_sg = self.get_kinetic_energy(ae)
+        rho_sxg = np.concatenate(
+            [n_sg[:, None, :], grad_svg, tau_sg[:, None, :]], axis=1
+        )
+        feat_sig = self.get_paw_atom_contribs_en_v2(
+            None, rho_sxg, None, y_sbg, F_sbg, ae=ae, feat_only=True
+        )
+        if include_density:
+            from ciderpress.gpaw.atom_descriptor_utils import (
+                get_features_with_sl_noderiv,
+            )
+
+            sigma_xg = get_sigma(grad_svg)
+            feat_sig = get_features_with_sl_noderiv(feat_sig, n_sg, sigma_xg, tau_sg)
+        return feat_sig
+
     def get_paw_atom_evxc(
         self, e_g, n_sg, dedn_sg, sigma_xg, dedsigma_xg, y_sbg, F_sbg, a, ae
     ):
@@ -325,7 +435,7 @@ class MetaPAWCiderContribUtils(PAWCiderContribUtils):
         (
             feat_sig,
             dgdn_sig,
-            dgdtau_sig,
+            dgdsigma_sig,
             dgdtau_sig,
             p_siag,
         ) = self.get_paw_atom_contribs_en(
@@ -345,14 +455,35 @@ class MetaPAWCiderContribUtils(PAWCiderContribUtils):
 
         v_sag = np.einsum("sig,siag->sag", vfeat_sig, p_siag)
         vfeat_rho_sg = np.einsum("sig,sig->sg", vfeat_sig, dgdn_sig)
+        vfeat_sigma_sg = np.einsum("sig,sig->sg", vfeat_sig, dgdsigma_sig)
         vfeat_tau_sg = np.einsum("sig,sig->sg", vfeat_sig, dgdtau_sig)
         for s in range(nspin):
             dedn_sg[s] += vfeat_rho_sg[s]
+            dedsigma_xg[2 * s] += vfeat_sigma_sg[s]
             dedtau_sg[s] += vfeat_tau_sg[s]
 
         self.contract_kinetic_potential(dedtau_sg, ae)
 
         return v_sag
+
+    def get_paw_atom_evxc_v2(
+        self, e_g, n_sg, dedn_sg, grad_svg, dedgrad_svg, y_sbg, F_sbg, a, ae
+    ):
+        tau_sg, dedtau_sg = self.get_kinetic_energy(ae)
+        rho_sxg = np.concatenate(
+            [n_sg[:, None, :], grad_svg, tau_sg[:, None, :]], axis=1
+        )
+        vrho_sxg = np.zeros_like(rho_sxg)
+        v_sbg = self.get_paw_atom_contribs_en_v2(
+            e_g, rho_sxg, vrho_sxg, y_sbg, F_sbg, ae
+        )
+        dedn_sg[:] += vrho_sxg[:, 0]
+        dedgrad_svg[:] += vrho_sxg[:, 1:4]
+        dedtau_sg[:] += vrho_sxg[:, 4]
+
+        self.contract_kinetic_potential(dedtau_sg, ae)
+
+        return v_sbg
 
     def get_paw_atom_cider_pot(
         self, n_sg, dedn_sg, sigma_xg, dedsigma_xg, y_sbg, F_sbg, ae

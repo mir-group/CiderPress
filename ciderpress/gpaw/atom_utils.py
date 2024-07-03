@@ -6,6 +6,7 @@ from scipy.interpolate import interp1d
 from scipy.linalg import cho_factor, cho_solve
 
 from ciderpress.dft import pwutil
+from ciderpress.gpaw.config import GPAW_USE_NEW_PLANS
 from ciderpress.gpaw.etb_util import ETBProjector
 from ciderpress.gpaw.fit_paw_gauss_pot import (
     construct_full_p_matrices,
@@ -25,6 +26,7 @@ from ciderpress.gpaw.fit_paw_gauss_pot import (
 from ciderpress.gpaw.gpaw_grids import SBTFullGridDescriptor
 from ciderpress.gpaw.interp_paw import (
     CiderRadialEnergyCalculator,
+    CiderRadialEnergyCalculator2,
     CiderRadialExpansion,
     CiderRadialFeatureCalculator,
     DiffPAWXCCorrection,
@@ -169,7 +171,10 @@ def calculate_paw_cider_energy(self, setups, D_asp, D_sabi, df_asbLg):
                     D_sabi[s][a][:, i, None] - Dref_sb[s, :, None]
                 ) * psetup.ffuncs_jg[j]
         f_sbLg[:, :] += yref_sbLg
-        rcalc = CiderRadialEnergyCalculator(setup.cider_contribs, a, mode="energy")
+        if GPAW_USE_NEW_PLANS:
+            rcalc = CiderRadialEnergyCalculator2(setup.cider_contribs, a)
+        else:
+            rcalc = CiderRadialEnergyCalculator(setup.cider_contribs, a, mode="energy")
         expansion = CiderRadialExpansion(
             rcalc,
             f_sbLg,
