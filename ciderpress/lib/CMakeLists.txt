@@ -47,8 +47,10 @@ if (NOT BLAS_LIBRARIES)
 endif()
 
 # find_package(Python COMPONENTS Interpreter Development.Module REQUIRED)
-include_directories(/home/kylebystrom/micromamba/envs/test_cider4/include/python3.11)
-link_directories(/home/kylebystrom/micromamba/envs/test_cider4/lib/python3.11)
+#include_directories(/home/kylebystrom/micromamba/envs/test_cider4/include/python3.11)
+#link_directories(/home/kylebystrom/micromamba/envs/test_cider4/lib/python3.11)
+include_directories(${CMAKE_PYTHON_INCLUDE_PATH})
+link_directories(${CMAKE_PYTHON_LIBRARY_PATH})
 #message(INCLUDE_DIRECTORIES="${PYTHON_INCLUDE_DIRS}")
 
 if (NOT BLAS_LIBRARIES)
