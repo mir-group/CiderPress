@@ -230,3 +230,28 @@ void ciderpw_g2k_mpi_gpaw(ciderpw_data data, double *in_g,
         }
     }
 }
+
+void ciderpw_k2g_mpi_gpaw(ciderpw_data data, double complex *in_g,
+                          double *out_g) {
+    double complex *cbuf = data->work_ska;
+    for (int j = 0; j < data->icell.Nlocal[1]; j++) {
+        for (int i = 0; i < data->icell.Nlocal[0]; i++) {
+            for (int k = 0; k < data->icell.Nlocal[2]; k++) {
+                cbuf[k] = in_g[k];
+            }
+            cbuf = cbuf + data->icell.Nlocal[2];
+            in_g = in_g + data->icell.Nlocal[2];
+        }
+    }
+    ciderpw_k2g_mpi(data);
+    double *buf = (double *)data->work_ska;
+    for (int i = 0; i < data->cell.Nlocal[0]; i++) {
+        for (int j = 0; j < data->cell.Nlocal[1]; j++) {
+            for (int k = 0; k < data->cell.Nlocal[2]; k++) {
+                out_g[k] = buf[k];
+            }
+            buf = buf + data->gLDA;
+            out_g = out_g + data->cell.Nlocal[2];
+        }
+    }
+}

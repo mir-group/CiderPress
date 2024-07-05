@@ -76,7 +76,7 @@ option(BUILD_FFTW "Building fftw3" ON)
 
 add_subdirectory(mod_cider)
 add_subdirectory(numint_cider)
-add_subdirectory(pw_utils)
+add_subdirectory(pwutil)
 add_subdirectory(sbt)
 
 if(ENABLE_FFTW AND BUILD_FFTW)

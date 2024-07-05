@@ -42,51 +42,49 @@ class LibCiderPW:
                 out_xg[x].ctypes.data_as(ctypes.c_void_p),
             )
 
+    def ifft(self, in_xg, out_xg):
+        for x in range(in_xg.shape[0]):
+            pwutil.ciderpw_k2g_mpi_gpaw(
+                self._ptr,
+                in_xg[x].ctypes.data_as(ctypes.c_void_p),
+                out_xg[x].ctypes.data_as(ctypes.c_void_p),
+            )
+
 
 class FFTWrapper:
-    def __init__(self, fft_obj, dist1, dist2, pd, timer=nulltimer):
+    def __init__(self, fft_obj, distribution, pd, timer=nulltimer):
         self.fft_obj = fft_obj
-        self.dist1 = dist1
-        self.dist2 = dist2
+        self.dist1 = distribution
+        self.dummy_gd = GridDescriptor(
+            [gd.N_c[1], gd.N_c[0], gd.N_c[2] // 2 + 1],
+            comm=gd.comm,
+            parsize_c=[gd.parsize_c[1], gd.parsize_c[0], gd.parsize_c[2]],
+        )
+        self.dist2 = FFTDistribution(self.dummy_gd, [gd.comm.size, 1, 1])
         self.pd = pd
         self.timer = timer
 
     def run_fft(self, in_xg):
-        zeros = self.dist1.block_zeros
         xshape = (len(in_xg),)
-        inblock_xg = zeros(xshape)
-        outshape = list(inblock_xg.shape)
-        tmp_dist = FFTDistribution(self.pd.gd, [1, self.pd.gd.comm.size, 1])
-        outshape = tmp_dist.local_output_size_c
-        outshape = xshape + (outshape[1], outshape[0], outshape[2] // 2 + 1)
-        outblock_xg = np.zeros(outshape, dtype=np.complex128)
-        out_xg = np.zeros(
-            [
-                xshape[0],
-                self.pd.gd.N_c[1],
-                self.pd.gd.N_c[0],
-                self.pd.gd.N_c[2] // 2 + 1,
-            ],
-            dtype=np.complex128,
-        )
+        inblock_xg = self.dist1.block_zeros(xshape)
+        outblock_xg = self.dist2.block_zeros(xshape).astype(np.complex128)
+        # outshape = list(inblock_xg.shape)
+        # tmp_dist = FFTDistribution(self.pd.gd, [1, self.pd.gd.comm.size, 1])
+        # outshape = tmp_dist.local_output_size_c
+        # outshape = xshape + (outshape[1], outshape[0], outshape[2] // 2 + 1)
+        # outblock_xg = np.zeros(outshape, dtype=np.complex128)
         self.dist1.gd2block(in_xg, inblock_xg)
         self.fft_obj.fft(inblock_xg, outblock_xg)
         contribs = []
+        out_xg = self.dummy_gd.zeros(n=xshape, dtype=complex, global_array=False)
+        self.dist2.block2gd_add(outblock_xg, out_xg)
         pd = self.pd
-        # dummy = GridDescriptor(
-        #    [gd.N_c[1], gd.N_c[0], gd.N_c[2]],
-        #    comm=gd.comm,
-        #    parsize_c=[gd.parsize_c[1], gd.parsize_c[0], gd.parsize_c[2]],
-        # )
-        # out_xg = dummy.zeros(n=xshape)
-        # self.dist2.block2gd_add(outblock_xg, out_xg)
         for x in range(in_xg.shape[0]):
+            out_g = self.dummy_gd.collect(out_xg[x])
             if self.pd.gd.comm.rank == 0:
-                self.pd.gd.comm.gather(outblock_xg[x].ravel(), 0, b=out_xg[x].ravel())
-                out_g = np.ascontiguousarray(out_xg[x].transpose(1, 0, 2))
+                out_g = np.ascontiguousarray(out_g.transpose(1, 0, 2))
                 to_scatter = out_g.ravel()[pd.Q_qG[0]]
             else:
-                self.pd.gd.comm.gather(outblock_xg[x].ravel(), 0)
                 to_scatter = None
             contribs.append(pd.scatter(to_scatter))
         return np.stack(contribs)
@@ -96,28 +94,38 @@ class FFTWrapper:
         pd = self.pd
         for in_k in in_xk:
             in_k = pd.gather(in_k)
-            cgpaw.pw_insert(in_k, pd.Q_qG[0], 1.0, pd.tmp_Q)
-            contribs.append(pd.tmp_Q.copy())
+            if in_k is not None:
+                pd.tmp_Q[:] = 0
+                scale = 1.0 / self.pd.tmp_R.size
+                cgpaw.pw_insert(in_k, pd.Q_qG[0], scale, pd.tmp_Q)
+                t = pd.tmp_Q[:, :, 0]
+                n, m = pd.gd.N_c[:2] // 2 - 1
+                t[0, -m:] = t[0, m:0:-1].conj()
+                t[n:0:-1, -m:] = t[-n:, m:0:-1].conj()
+                t[-n:, -m:] = t[n:0:-1, m:0:-1].conj()
+                t[-n:, 0] = t[n:0:-1, 0].conj()
+                tmp = pd.tmp_Q.transpose(1, 0, 2).copy()
+            else:
+                tmp = pd.tmp_Q.transpose(1, 0, 2).copy()
+            contribs.append(self.dummy_gd.distribute(tmp))
         in_xg = np.stack(contribs)
-        xshape = len(in_xg)
-        zeros = self.distribution.block_zeros
-        inblock_xg = zeros(xshape)
-        outblock_xg = zeros(xshape)
-        out_xg = np.zeros_like(in_xg)
-        self.distribution.gd2block(in_xg, inblock_xg)
-        self.nldf.call(inblock_xg, outblock_xg)
-        self.distribution.block2gd_add(outblock_xg, out_xg)
+        xshape = (len(in_xg),)
+        inblock_xg = self.dist2.block_zeros(xshape).astype(np.complex128)
+        outblock_xg = self.dist1.block_zeros(xshape)
+        self.dist2.gd2block(in_xg, inblock_xg)
+        self.fft_obj.ifft(inblock_xg, outblock_xg)
+        out_xg = self.pd.gd.zeros(n=xshape)
+        self.dist1.block2gd_add(outblock_xg, out_xg)
         return out_xg
 
 
 def wrap_fft_mpi(pd):
     parsize_c = [pd.gd.comm.size, 1, 1]
-    dist1 = FFTDistribution(pd.gd, parsize_c)
+    distribution = FFTDistribution(pd.gd, parsize_c)
     parsize_c = [1, pd.gd.comm.size, 1]
-    dist2 = FFTDistribution(pd.gd, parsize_c)
     fft_obj = LibCiderPW(pd.gd.N_c, pd.gd.cell_cv, comm=pd.gd.comm)
     fft_obj.initialize_backend()
-    wrapper = FFTWrapper(fft_obj, dist1, dist2, pd)
+    wrapper = FFTWrapper(fft_obj, distribution, pd)
     return wrapper
 
 
@@ -127,7 +135,7 @@ if __name__ == "__main__":
     np.random.seed(98)
 
     comm = MPIComm(world)
-    N_c = [16, 12, 14]
+    N_c = [100, 80, 110]
     cell_cv = np.diag(np.ones(3))
     ciderpw = LibCiderPW(N_c, cell_cv, comm)
     ciderpw.initialize_backend()
@@ -147,7 +155,11 @@ if __name__ == "__main__":
     sum = np.abs(output_ref).sum()
     sum = pd.gd.comm.sum_scalar(sum)
     output_test = wrapper.run_fft(input)
+    input_test = wrapper.run_ifft(output_test)
+    input_ref = pd.ifft(output_ref)
 
     from numpy.testing import assert_allclose
 
     assert_allclose(output_test[0], output_ref)
+    # assert_allclose(input_ref, input[0])
+    assert_allclose(input_test[0], input_ref)
