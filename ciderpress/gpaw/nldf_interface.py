@@ -163,7 +163,6 @@ if __name__ == "__main__":
     ciderpw = LibCiderPW(N_c, cell_cv, comm)
     ciderpw.initialize_backend()
 
-    from gpaw.grid_descriptor import GridDescriptor
     from gpaw.pw.descriptor import PWDescriptor
 
     gd = GridDescriptor(N_c, cell_cv, comm=MPIComm(world))
