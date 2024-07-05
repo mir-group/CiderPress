@@ -36,7 +36,7 @@ from ciderpress.dft.plans import NLDFSplinePlan, SemilocalPlan2
 from ciderpress.gpaw.mp_cider import CiderParallelization
 
 DEFAULT_RHO_TOL = 1e-8
-USE_INTERNAL_FFT = False
+USE_INTERNAL_FFT = True
 
 
 class LDict(dict):

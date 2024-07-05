@@ -2,6 +2,7 @@ import ctypes
 
 import numpy as np
 from gpaw import cgpaw
+from gpaw.grid_descriptor import GridDescriptor
 from gpaw.xc.libvdwxc import FFTDistribution, nulltimer
 
 from ciderpress.lib import c_null_ptr, load_library
@@ -55,6 +56,7 @@ class FFTWrapper:
     def __init__(self, fft_obj, distribution, pd, timer=nulltimer):
         self.fft_obj = fft_obj
         self.dist1 = distribution
+        gd = pd.gd
         self.dummy_gd = GridDescriptor(
             [gd.N_c[1], gd.N_c[0], gd.N_c[2] // 2 + 1],
             comm=gd.comm,
