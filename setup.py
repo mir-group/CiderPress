@@ -1,5 +1,6 @@
 import os
 import sys
+import sysconfig
 
 from setuptools import find_packages, setup
 from setuptools.command.build_py import build_py
@@ -39,6 +40,8 @@ class CMakeBuildPy(build_py):
 
         self.announce("Configuring extensions", level=3)
         src_dir = os.path.abspath(os.path.join(__file__, "..", "ciderpress", "lib"))
+        python_libdir = sysconfig.get_config_var("LIBDIR")
+        python_incdir = sysconfig.get_config_var("INCLUDEPY")
         cmd = [
             "cmake",
             f"-S{src_dir}",
@@ -46,6 +49,8 @@ class CMakeBuildPy(build_py):
             "-DCMAKE_PREFIX_PATH={}".format(sys.base_prefix),
             "-DBLA_VENDOR=Intel10_64lp_seq",
             "-DCMAKE_BUILD_TYPE=Release",
+            "-DCMAKE_PYTHON_LIBRARY_PATH={}".format(python_libdir),
+            "-DCMAKE_PYTHON_INCLUDE_PATH={}".format(python_incdir),
         ]
         configure_args = os.getenv("CMAKE_CONFIGURE_ARGS")
         if configure_args:
