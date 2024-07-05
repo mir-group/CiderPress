@@ -98,6 +98,7 @@ class CiderPWDescriptor(PWDescriptor):
         self.fftwflags = fftwflags
 
         N_c = gd.N_c
+        print(type(gd.comm))
         self.comm = gd.comm
 
         ecut0 = 0.5 * pi**2 / (self.gd.h_cv**2).sum(1).max()

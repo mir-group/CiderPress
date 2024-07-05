@@ -46,6 +46,11 @@ if (NOT BLAS_LIBRARIES)
   check_function_exists(ffsll HAVE_FFS)
 endif()
 
+# find_package(Python COMPONENTS Interpreter Development.Module REQUIRED)
+include_directories(/home/kylebystrom/micromamba/envs/test_cider4/include/python3.11)
+link_directories(/home/kylebystrom/micromamba/envs/test_cider4/lib/python3.11)
+#message(INCLUDE_DIRECTORIES="${PYTHON_INCLUDE_DIRS}")
+
 if (NOT BLAS_LIBRARIES)
   message(FATAL_ERROR "A required library with BLAS API not found.")
 else()
@@ -60,16 +65,35 @@ else ()
 endif()
 
 include_directories(${PROJECT_SOURCE_DIR})
-include_directories(${CMAKE_PREFIX_PATH}/include)
+include_directories(${PROJECT_SOURCE_DIR}/deps/include)
 include_directories(${CMAKE_INSTALL_PREFIX}/include)
+link_directories(${PROJECT_SOURCE_DIR}/deps/lib ${PROJECT_SOURCE_DIR}/deps/lib64)
 link_directories(${CMAKE_INSTALL_PREFIX}/lib ${CMAKE_INSTALL_PREFIX}/lib64)
 
-# TODO some other stuff from pyscf CMake file was here
+include(ExternalProject)
+option(ENABLE_FFTW "Using fftw3" ON)
+option(BUILD_FFTW "Building fftw3" ON)
 
 add_subdirectory(mod_cider)
 add_subdirectory(numint_cider)
 add_subdirectory(pw_utils)
 add_subdirectory(sbt)
+
+if(ENABLE_FFTW AND BUILD_FFTW)
+#  if(NOT EXISTS "${PROJECT_SOURCE_DIR}/deps/include/fftw3.h")
+    ExternalProject_Add(libfftw3
+      URL https://www.fftw.org/fftw-3.3.10.tar.gz
+      PREFIX ${PROJECT_BINARY_DIR}/deps
+      INSTALL_DIR ${PROJECT_SOURCE_DIR}/deps
+      BUILD_IN_SOURCE True
+      CONFIGURE_COMMAND ./configure --enable-static=no --enable-shared=yes --enable-threads --enable-mpi=yes CXX=${CMAKE_CXX_COMPILER} CC=${CMAKE_C_COMPILER} prefix=<INSTALL_DIR>
+      BUILD_COMMAND make -j4 install
+    )
+    add_dependencies(pwutil libfftw3)
+#  endif()
+endif()
+
+# TODO some other stuff from pyscf CMake file was here
 
 # TODO some other stuff from pyscf CMake file was here
 
