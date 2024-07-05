@@ -36,6 +36,7 @@ from ciderpress.dft.plans import NLDFSplinePlan, SemilocalPlan2
 from ciderpress.gpaw.mp_cider import CiderParallelization
 
 DEFAULT_RHO_TOL = 1e-8
+USE_INTERNAL_FFT = False
 
 
 class LDict(dict):
@@ -594,6 +595,10 @@ class _CiderBase:
                 self.shape, self.gd.cell_cv * scale_c1, True, comm=self.comms["d"]
             )
             self.pwfft = CiderPWDescriptor(None, self.gdfft, gammacentered=True)
+            if USE_INTERNAL_FFT:
+                from ciderpress.gpaw.nldf_interface import wrap_fft_mpi
+
+                self.pwfft = wrap_fft_mpi(self.pwfft)
             self.k2_k = self.pwfft.G2_qG[0]
             self.knorm = np.sqrt(self.k2_k)
         else:

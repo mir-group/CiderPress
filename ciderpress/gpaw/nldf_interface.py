@@ -64,15 +64,31 @@ class FFTWrapper:
         self.pd = pd
         self.timer = timer
 
-    def run_fft(self, in_xg):
+    def get_reciprocal_space_vectors(self, q=0, add_q=True):
+        return self.pd.get_reciprocal_space_vectors(q=q, add_q=True)
+
+    @property
+    def G2_qG(self):
+        return self.pd.G2_qG
+
+    def integrate(self, *args, **kwargs):
+        return self.pd.integrate(*args, **kwargs)
+
+    def zeros(self, x=(), dtype=None, q=None, global_array=False):
+        return self.pd.zeros(x=x, dtype=dtype, q=q, global_array=global_array)
+
+    def empty(self, x=(), dtype=None, q=None, global_array=False):
+        return self.pd.empty(x=x, dtype=dtype, q=q, global_array=global_array)
+
+    def fft(self, in_xg, q=None, Q_G=None, local=False):
+        if q is not None or Q_G is not None or local:
+            raise NotImplementedError
+        if in_xg.ndim == 3:
+            in_xg = in_xg[None, ...]
+        assert in_xg.ndim == 4
         xshape = (len(in_xg),)
         inblock_xg = self.dist1.block_zeros(xshape)
         outblock_xg = self.dist2.block_zeros(xshape).astype(np.complex128)
-        # outshape = list(inblock_xg.shape)
-        # tmp_dist = FFTDistribution(self.pd.gd, [1, self.pd.gd.comm.size, 1])
-        # outshape = tmp_dist.local_output_size_c
-        # outshape = xshape + (outshape[1], outshape[0], outshape[2] // 2 + 1)
-        # outblock_xg = np.zeros(outshape, dtype=np.complex128)
         self.dist1.gd2block(in_xg, inblock_xg)
         self.fft_obj.fft(inblock_xg, outblock_xg)
         contribs = []
@@ -89,7 +105,12 @@ class FFTWrapper:
             contribs.append(pd.scatter(to_scatter))
         return np.stack(contribs)
 
-    def run_ifft(self, in_xk):
+    def ifft(self, in_xk, q=None, Q_G=None, local=False):
+        if q is not None or Q_G is not None or local:
+            raise NotImplementedError
+        if in_xk.ndim == 1:
+            in_xk = in_xk[None, ...]
+        assert in_xk.ndim == 2
         contribs = []
         pd = self.pd
         for in_k in in_xk:
@@ -154,8 +175,8 @@ if __name__ == "__main__":
     output_ref = pd.fft(input)
     sum = np.abs(output_ref).sum()
     sum = pd.gd.comm.sum_scalar(sum)
-    output_test = wrapper.run_fft(input)
-    input_test = wrapper.run_ifft(output_test)
+    output_test = wrapper.fft(input)
+    input_test = wrapper.ifft(output_test)
     input_ref = pd.ifft(output_ref)
 
     from numpy.testing import assert_allclose
