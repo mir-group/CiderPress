@@ -176,7 +176,13 @@ if __name__ == "__main__":
     output_ref = pd.fft(input)
     sum = np.abs(output_ref).sum()
     sum = pd.gd.comm.sum_scalar(sum)
-    output_test = wrapper.fft(input)
+    import time
+
+    t0 = time.monotonic()
+    for i in range(20):
+        output_test = wrapper.fft(input)
+    t1 = time.monotonic()
+    print("TIME", t1 - t0)
     input_test = wrapper.ifft(output_test)
     input_ref = pd.ifft(output_ref)
 

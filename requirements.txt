@@ -7,7 +7,7 @@ mkl-include>=2021.3.0
 mkl-service
 mkl-random
 mkl-fft
-numpy>=1.20.3,<=1.21
+numpy>=1.20.3
 psutil
 pyscf
 pyyaml

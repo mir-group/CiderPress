@@ -46,6 +46,7 @@ if (NOT BLAS_LIBRARIES)
   check_function_exists(ffsll HAVE_FFS)
 endif()
 
+find_package(MPI REQUIRED)
 # find_package(Python COMPONENTS Interpreter Development.Module REQUIRED)
 #include_directories(/home/kylebystrom/micromamba/envs/test_cider4/include/python3.11)
 #link_directories(/home/kylebystrom/micromamba/envs/test_cider4/lib/python3.11)

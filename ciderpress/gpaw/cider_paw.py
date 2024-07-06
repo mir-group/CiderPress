@@ -99,9 +99,14 @@ class _CiderPASDW_MPRoutines:
         self.dedtheta_sag = LDict()
         x = (len(self.alphas),)
         inds = self.alphas
-        for s in range(self.nspin):
-            self.Freal_sag[s] = ADict(inds, self.gdfft.empty(n=x))
-            self.dedtheta_sag[s] = ADict(inds, self.gdfft.empty(n=x))
+        if self.gdfft is not None:
+            for s in range(self.nspin):
+                self.Freal_sag[s] = ADict(inds, self.gdfft.empty(n=x))
+                self.dedtheta_sag[s] = ADict(inds, self.gdfft.empty(n=x))
+        else:
+            for s in range(self.nspin):
+                self.Freal_sag[s] = None
+                self.dedtheta_sag[s] = None
         self.Freal_sag.lock()
         self.dedtheta_sag.lock()
 

@@ -610,9 +610,14 @@ class _CiderBase:
     def _setup_6d_integral_buffer(self):
         x = (len(self.alphas),)
         inds = self.alphas
-        self.rbuf_ag = ADict(inds, self.gdfft.empty(n=x))
-        self.kbuf_ak = ADict(inds, self.pwfft.empty(x=x))
-        self.theta_ak = ADict(inds, self.pwfft.empty(x=x))
+        if self.gdfft is not None:
+            self.rbuf_ag = ADict(inds, self.gdfft.empty(n=x))
+            self.kbuf_ak = ADict(inds, self.pwfft.empty(x=x))
+            self.theta_ak = ADict(inds, self.pwfft.empty(x=x))
+        else:
+            self.rbuf_ag = None
+            self.kbuf_ak = None
+            self.theta_ak = None
 
     def get_interpolation_coefficients(self, arg_g, i=-1):
         p_qg, dp_qg = self._plan.get_interpolation_coefficients(arg_g, i=i)
@@ -817,13 +822,14 @@ class _CiderBase:
             for a in self.alphas:
                 self.rbuf_ag[a][:] = 0.0
         self.timer.start("COEFS")
-        p_qg, dp_qg = self.get_interpolation_coefficients(di.ravel(), i=-1)
-        for ind, a in enumerate(self.alphas):
-            q_ag[a] = p_qg[ind]
-            dq_ag[a] = dp_qg[ind]
-            q_ag[a].shape = n_g.shape
-            dq_ag[a].shape = n_g.shape
-            self.rbuf_ag[a][:] += n_g * q_ag[a]
+        if di is not None:
+            p_qg, dp_qg = self.get_interpolation_coefficients(di.ravel(), i=-1)
+            for ind, a in enumerate(self.alphas):
+                q_ag[a] = p_qg[ind]
+                dq_ag[a] = dp_qg[ind]
+                q_ag[a].shape = n_g.shape
+                dq_ag[a].shape = n_g.shape
+                self.rbuf_ag[a][:] += n_g * q_ag[a]
         self.timer.stop()
 
         self.calculate_6d_integral()
@@ -839,15 +845,15 @@ class _CiderBase:
         for i in range(self._plan.num_vj):
             if self.alphas:
                 di = cider_exp[i]
+                p_qg, dp_qg = self.get_interpolation_coefficients(di.ravel(), i=i)
+                p_qg.shape = (len(self.alphas),) + di.shape
+                dp_qg.shape = (len(self.alphas),) + di.shape
+                for ind, a in enumerate(self.alphas):
+                    p_iag[i, a] = p_qg[ind]
+                    feat[i, :] += p_qg[ind] * self.rbuf_ag[a]
+                    dfeat[i, :] += dp_qg[ind] * self.rbuf_ag[a]
             else:
                 di = None
-            p_qg, dp_qg = self.get_interpolation_coefficients(di.ravel(), i=i)
-            p_qg.shape = (len(self.alphas),) + di.shape
-            dp_qg.shape = (len(self.alphas),) + di.shape
-            for ind, a in enumerate(self.alphas):
-                p_iag[i, a] = p_qg[ind]
-                feat[i, :] += p_qg[ind] * self.rbuf_ag[a]
-                dfeat[i, :] += dp_qg[ind] * self.rbuf_ag[a]
 
         self.timer.start("6d comm fwd")
         if n_g is not None:
