@@ -6,7 +6,6 @@ from ciderpress.dft.model_utils import load_cider_model
 from ciderpress.gpaw.cider_fft import (
     CiderGGA,
     CiderGGAHybridKernel,
-    CiderGGAHybridKernelPBEPot,
     CiderMGGA,
     CiderMGGAHybridKernel,
 )
@@ -34,8 +33,8 @@ def get_cider_functional(
     Nalpha=None,
     qmax=300,
     lambd=1.8,
-    debug=False,
     no_paw_atom_kernel=False,
+    fast=False,
     _force_nonlocal=False,
 ):
     """
@@ -110,9 +109,6 @@ def get_cider_functional(
     not be variational. Only supported for GGA-type functionals.
 
     Debug args:
-        debug (bool, False): Use CIDER energy and semi-local XC potential.
-        no_paw_atom_kernel: Use CIDER energy and semi-local XC potential
-            for PAW corrections, and CIDER energy/potential on FFT grid.
         _force_nonlocal (bool, False): Use nonlocal kernel even if nonlocal
             features are not required. For debugging use.
 
@@ -135,12 +131,13 @@ def get_cider_functional(
             # functional is semi-local MGGA
             cider_kernel = SLCiderMGGAHybridWrapper(mlfunc, xmix, xkernel, ckernel)
             return SLCiderMGGA(cider_kernel)
-        if debug:
-            raise NotImplementedError
-        else:
-            cider_kernel = CiderMGGAHybridKernel(mlfunc, xmix, xkernel, ckernel)
+        cider_kernel = CiderMGGAHybridKernel(mlfunc, xmix, xkernel, ckernel)
         if use_paw:
             cls = CiderMGGAPASDW
+        elif fast:
+            from ciderpress.gpaw.fast_fft import CiderMGGA as FastMGGA
+
+            cls = FastMGGA
         else:
             cls = CiderMGGA
     elif mlfunc.desc_version == "d":
@@ -149,12 +146,13 @@ def get_cider_functional(
             # functional is semi-local GGA
             cider_kernel = SLCiderGGAHybridWrapper(mlfunc, xmix, xkernel, ckernel)
             return SLCiderGGA(cider_kernel)
-        if debug:
-            cider_kernel = CiderGGAHybridKernelPBEPot(mlfunc, xmix, xkernel, ckernel)
-        else:
-            cider_kernel = CiderGGAHybridKernel(mlfunc, xmix, xkernel, ckernel)
+        cider_kernel = CiderGGAHybridKernel(mlfunc, xmix, xkernel, ckernel)
         if use_paw:
             cls = CiderGGAPASDW
+        elif fast:
+            from ciderpress.gpaw.fast_fft import CiderGGA as FastGGA
+
+            cls = FastGGA
         else:
             cls = CiderGGA
     else:
@@ -172,11 +170,6 @@ def get_cider_functional(
         )
     else:
         xc = cls(cider_kernel, Nalpha=Nalpha, lambd=lambd, encut=qmax)
-
-    if no_paw_atom_kernel:
-        if mlfunc.desc_version == "b":
-            raise NotImplementedError
-        xc.debug_kernel = CiderGGAHybridKernelPBEPot(mlfunc, xmix, xkernel, ckernel)
 
     return xc
 

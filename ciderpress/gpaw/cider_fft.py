@@ -370,37 +370,6 @@ class CiderGGAHybridKernel(CiderKernel):
         return vfeat_sg
 
 
-class CiderGGAHybridKernelPBEPot(CiderGGAHybridKernel):
-    # debug kernel that uses PBE potential and CIDER energy
-    def calculate(self, e_g, nt_sg, v_sg, sigma_xg, dedsigma_xg, feat):
-        """
-        Evaluate CIDER 'hybrid' functional.
-        """
-        nt_sg.shape[0]
-        self.xkernel.calculate(e_g, nt_sg, v_sg, sigma_xg, dedsigma_xg)
-        e_g[:] *= 1 - self.xmix
-        e_g_tmp, v_sg_tmp, dedsigma_xg_tmp = (
-            np.zeros_like(e_g),
-            np.zeros_like(v_sg),
-            np.zeros_like(dedsigma_xg),
-        )
-        self.ckernel.calculate(e_g_tmp, nt_sg, v_sg_tmp, sigma_xg, dedsigma_xg_tmp)
-        e_g[:] += e_g_tmp
-        v_sg[:] += v_sg_tmp
-        dedsigma_xg[:] += dedsigma_xg_tmp
-        vfeat = np.zeros_like(feat)
-        self.call_xc_kernel(
-            e_g,
-            nt_sg,
-            sigma_xg,
-            feat,
-            np.zeros_like(v_sg),
-            np.zeros_like(dedsigma_xg),
-            vfeat,
-        )
-        return np.zeros_like(vfeat)
-
-
 class CiderMGGAHybridKernel(CiderGGAHybridKernel):
     def __init__(self, mlfunc, xmix, xstr, cstr, rhocut=DEFAULT_RHO_TOL):
         self.type = "MGGA"
@@ -1073,21 +1042,12 @@ class _CiderBase:
         encut=300,
         lambd=1.8,
         xmix=1.00,
-        debug=False,
     ):
         if mlfunc.desc_version == "b":
-            if debug:
-                raise NotImplementedError
-            else:
-                cider_kernel = CiderMGGAHybridKernel(mlfunc, xmix, xkernel, ckernel)
+            cider_kernel = CiderMGGAHybridKernel(mlfunc, xmix, xkernel, ckernel)
             cls = CiderMGGA
         elif mlfunc.desc_version == "d":
-            if debug:
-                cider_kernel = CiderGGAHybridKernelPBEPot(
-                    mlfunc, xmix, xkernel, ckernel
-                )
-            else:
-                cider_kernel = CiderGGAHybridKernel(mlfunc, xmix, xkernel, ckernel)
+            cider_kernel = CiderGGAHybridKernel(mlfunc, xmix, xkernel, ckernel)
             cls = CiderGGA
         else:
             raise ValueError(

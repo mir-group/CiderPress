@@ -913,7 +913,7 @@ ALLOWED_RHO_DAMPS = ["none", "exponential", "asymptotic_const"]
 
 """
 Uniform-scaling powers (USPs) descibe how features scale as the
-density is scaled by n_lambda(r) = lambda^3 n(lambd r). If the
+density is scaled by n_lambda(r) = lambda^3 n(lambda r). If the
 USP of a functional F is u, then
 F[n_lambda](r) = lambda^u F[n](lambda r)
 """

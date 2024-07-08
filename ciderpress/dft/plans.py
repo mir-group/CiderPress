@@ -1431,7 +1431,7 @@ class NLDFAuxiliaryPlan(ABC):
 
     def get_rho_tuple(self, rho_data):
         drho = rho_data[1:4]
-        sigma = np.einsum("xg,xg->g", drho, drho)
+        sigma = np.einsum("x...,x...->...", drho, drho)
         if self.nldf_settings.sl_level == "MGGA":
             return rho_data[0], sigma, rho_data[4]
         else:

@@ -9,7 +9,6 @@ from ciderpress.gpaw.cider_fft import (
     ADict,
     CiderGGA,
     CiderGGAHybridKernel,
-    CiderGGAHybridKernelPBEPot,
     CiderMGGA,
     CiderMGGAHybridKernel,
     LDict,
@@ -695,8 +694,6 @@ class CiderGGAPASDW(_CiderPASDW_MPRoutines, CiderGGA):
         encut=80,
         lambd=1.85,
         xmix=1.00,
-        debug=False,
-        no_paw_atom_kernel=False,
         **kwargs
     ):
 
@@ -705,11 +702,7 @@ class CiderGGAPASDW(_CiderPASDW_MPRoutines, CiderGGA):
                 "Only implemented for d version, found {}".format(mlfunc.desc_version)
             )
 
-        if debug:
-            cider_kernel = CiderGGAHybridKernelPBEPot(mlfunc, xmix, xkernel, ckernel)
-        else:
-            cider_kernel = CiderGGAHybridKernel(mlfunc, xmix, xkernel, ckernel)
-
+        cider_kernel = CiderGGAHybridKernel(mlfunc, xmix, xkernel, ckernel)
         xc = cls(
             cider_kernel,
             Nalpha=Nalpha,
@@ -718,10 +711,6 @@ class CiderGGAPASDW(_CiderPASDW_MPRoutines, CiderGGA):
             xmix=xmix,
             **kwargs,
         )
-
-        if no_paw_atom_kernel:
-            xc.debug_kernel = CiderGGAHybridKernelPBEPot(mlfunc, xmix, xkernel, ckernel)
-
         return xc
 
 
@@ -840,7 +829,6 @@ class CiderMGGAPASDW(_CiderPASDW_MPRoutines, CiderMGGA):
         encut=300,
         lambd=1.8,
         xmix=1.00,
-        debug=False,
         no_paw_atom_kernel=False,
         **kwargs
     ):
@@ -850,10 +838,7 @@ class CiderMGGAPASDW(_CiderPASDW_MPRoutines, CiderMGGA):
                 "Only implemented for d version, found {}".format(mlfunc.desc_version)
             )
 
-        if debug:
-            raise NotImplementedError
-        else:
-            cider_kernel = CiderMGGAHybridKernel(mlfunc, xmix, xkernel, ckernel)
+        cider_kernel = CiderMGGAHybridKernel(mlfunc, xmix, xkernel, ckernel)
 
         xc = cls(
             cider_kernel,

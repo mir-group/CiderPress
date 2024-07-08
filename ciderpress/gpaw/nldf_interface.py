@@ -8,13 +8,89 @@ from gpaw.xc.libvdwxc import FFTDistribution, nulltimer
 from ciderpress.lib import c_null_ptr, load_library
 
 pwutil = load_library("libpwutil")
+pwutil.ciderpw_get_work_pointer.restype = ctypes.POINTER(ctypes.c_double)
+
+
+def get_norms_and_expnts_from_plan(plan):
+    nalpha = plan.nalpha
+    alphas = plan.alphas
+    alpha_norms = plan.alpha_norms
+    settings = plan.nldf_settings
+    version = settings.version
+    if version in ["j", "ij", "k"]:
+        nbeta = nalpha
+    else:
+        nbeta = 0
+    norms_ab = np.empty((nalpha, nbeta))
+    expnts_ab = np.empty((nalpha, nbeta))
+    t = 0
+    if version in ["j", "ij", "k"]:
+        aexp = alphas + alphas[:, None]
+        fac = (np.pi / aexp) ** 1.5
+        norms_ab[:, :nalpha] = fac * alpha_norms * alpha_norms[:, None]
+        expnts_ab[:, :nalpha] = 1.0 / (4 * aexp)
+        t = nalpha
+    if version in ["i", "ij"]:
+        for spec in settings.l0_feat_specs:
+            fac = alpha_norms * (np.pi / alphas) ** 1.5
+            # TODO this won't be correct for r^2 and lapl ones.
+            if spec == "se":
+                fac *= 1
+            elif spec == "se_r2":
+                fac *= 1
+            elif spec == "se_apr2":
+                fac *= alphas
+            elif spec == "se_ap":
+                fac *= alphas
+            elif spec == "se_ap2r2":
+                fac *= alphas * alphas
+            elif spec == "se_lapl":
+                fac *= 1
+            else:
+                raise ValueError
+            norms_ab[:, t] = fac
+            expnts_ab[:, t] = 1.0 / (4 * alphas)
+            t += 1
+        for spec in settings.l1_feat_specs:
+            fac = alpha_norms * (np.pi / alphas) ** 1.5
+            # TODO might be rt(3) or 1/2 prefactor or something
+            if spec == "se_grad":
+                fac *= 1.0
+            elif spec == "se_rvec":
+                fac /= alphas
+            else:
+                raise ValueError
+            norms_ab[:, t : t + 3] = fac[:, None]
+            expnts_ab[:, t : t + 3] = alphas[:, None]
+            t += 3
+    return nalpha, nbeta, alphas, alpha_norms, norms_ab, expnts_ab
 
 
 class LibCiderPW:
-    def __init__(self, N_c, cell_cv, comm):
+    def __init__(self, N_c, cell_cv, comm, plan=None):
         self.initialized = False
         ptr = c_null_ptr()
         self.shape = tuple(N_c)
+        if plan is None:
+            self.alpha_norms = np.ones(1)
+            self.alphas = np.ones(1)
+            self.nalpha = 1
+            self.nbeta = 1
+            self.norms_ab = np.ones((1, 1))
+            self.expnts_ab = np.ones((1, 1))
+        else:
+            (
+                self.nalpha,
+                self.nbeta,
+                self.alphas,
+                self.alpha_norms,
+                self.norms_ab,
+                self.expnts_ab,
+            ) = get_norms_and_expnts_from_plan(plan)
+        alphas = np.asarray(self.alphas, dtype=np.float64, order="C")
+        alpha_norms = np.asarray(self.alpha_norms, dtype=np.float64, order="C")
+        len(alphas)
+        assert len(alphas) == len(alpha_norms)
         pwutil.ciderpw_create(
             ctypes.byref(ptr),
             ctypes.c_double(1),
@@ -23,6 +99,40 @@ class LibCiderPW:
         )
         self._ptr = ptr
         self.comm = comm
+        self._local_shape_real = None
+        self._local_shape_recip = None
+        self._glda = None
+        self._klda = None
+        self._data_arr = None
+
+    def get_real_array(self):
+        """
+        Return a numpy array whose data is the real-space values
+        of the C work array used for FFTW.
+        """
+        return self._data_arr[:, :, :, : self._local_shape_real[2], :]
+
+    def get_reciprocal_array(self):
+        """
+        Return a numpy array whose data is the reciprocal-space values
+        of the C work array used for FFTW.
+        """
+        arr = self._data_arr.view()
+        nspin = 1
+        nalpha = self.nalpha
+        shape = self._local_shape_recip
+        lda = self._klda
+        shape = [nspin, shape[0], shape[1], lda, 2 * nalpha]
+        arr.shape = shape
+        arr.dtype = np.complex128
+        shape[-1] = nalpha
+        assert arr.shape == shape
+        assert arr.flags.c_contiguous
+        return arr
+
+    def __del__(self):
+        pwutil.ciderpw_finalize(ctypes.byref(self._ptr))
+        self._data_ptr = None
 
     def initialize_backend(self):
         assert not self.initialized
@@ -31,7 +141,29 @@ class LibCiderPW:
         pwutil.ciderpw_init_mpi_from_gpaw(
             self._ptr,
             ctypes.py_object(comm.get_c_object()),
+            ctypes.c_int(self.nalpha),
+            ctypes.c_int(self.nbeta),
+            self.norms_ab.ctypes.data_as(ctypes.c_void_p),
+            self.expnts_ab.ctypes.data_as(ctypes.c_void_p),
         )
+
+        size_data = np.zeros(8, dtype=np.int32)
+        pwutil.ciderpw_get_local_size_and_lda(
+            self._ptr, size_data.ctypes.data_as(ctypes.c_void_p)
+        )
+        self._local_shape_real = size_data[0:3]
+        self._glda = size_data[3]
+        self._local_shape_recip = size_data[4:7]
+        self._klda = size_data[7]
+        obj = pwutil.ciderpw_get_work_pointer(self._ptr)
+        # TODO parallelization, nspin, and nalpha
+        nspin = 1
+        nalpha = self.nalpha
+        lda = self._glda
+        shape = self._local_shape_real
+        shape = (nspin, shape[0], shape[1], lda, nalpha)
+        arr = np.ctypeslib.as_array(obj, shape=shape)
+        self._data_arr = arr
 
         self.initialized = True
 
@@ -50,6 +182,12 @@ class LibCiderPW:
                 in_xg[x].ctypes.data_as(ctypes.c_void_p),
                 out_xg[x].ctypes.data_as(ctypes.c_void_p),
             )
+
+    def compute_forward_convolution(self):
+        pwutil.ciderpw_compute_features()
+
+    def compute_backward_convolution(self):
+        pwutil.ciderpw_compute_potential()
 
 
 class FFTWrapper:

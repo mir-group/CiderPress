@@ -23,6 +23,18 @@ struct ciderpw_unit_cell {
 struct ciderpw_kernel {
     int kernel_type;
     int nalpha;
+    int nbeta;
+    int work_size;
+    double *expnts_ba;
+    double *norms_ba;
+    double *expnts_ab;
+    double *norms_ab;
+    int num_l1_feats;
+    int nk;
+    double *k2_G;
+    double *kx_G;
+    double *ky_G;
+    double *kz_G;
 };
 
 struct ciderpw_data_obj {
