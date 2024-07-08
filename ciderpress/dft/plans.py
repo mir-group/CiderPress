@@ -1429,13 +1429,21 @@ class NLDFAuxiliaryPlan(ABC):
         else:
             raise NotImplementedError
 
-    def get_rho_tuple(self, rho_data):
-        drho = rho_data[1:4]
-        sigma = np.einsum("x...,x...->...", drho, drho)
-        if self.nldf_settings.sl_level == "MGGA":
-            return rho_data[0], sigma, rho_data[4]
+    def get_rho_tuple(self, rho_data, with_spin=False):
+        if with_spin:
+            drho = rho_data[:, 1:4]
+            sigma = np.einsum("sx...,sx...->s...", drho, drho)
+            if self.nldf_settings.sl_level == "MGGA":
+                return rho_data[:, 0], sigma, rho_data[:, 4]
+            else:
+                return rho_data[:, 0], sigma
         else:
-            return rho_data[0], sigma
+            drho = rho_data[1:4]
+            sigma = np.einsum("x...,x...->...", drho, drho)
+            if self.nldf_settings.sl_level == "MGGA":
+                return rho_data[0], sigma, rho_data[4]
+            else:
+                return rho_data[0], sigma
 
     def eval_feat_exp(self, rho_tuple, i=-1):
         """

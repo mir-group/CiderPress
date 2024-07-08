@@ -156,7 +156,7 @@ class LibCiderPW:
         self._local_shape_recip = size_data[4:7]
         self._klda = size_data[7]
         obj = pwutil.ciderpw_get_work_pointer(self._ptr)
-        # TODO parallelization, nspin, and nalpha
+        # TODO nspin
         nspin = 1
         nalpha = self.nalpha
         lda = self._glda
@@ -184,10 +184,32 @@ class LibCiderPW:
             )
 
     def compute_forward_convolution(self):
-        pwutil.ciderpw_compute_features()
+        pwutil.ciderpw_compute_features(self._ptr)
 
     def compute_backward_convolution(self):
-        pwutil.ciderpw_compute_potential()
+        pwutil.ciderpw_compute_potential(self._ptr)
+
+    def fill_vj_feature_(self, feat_g, p_gq):
+        assert feat_g.flags.c_contiguous
+        assert p_gq.flags.c_contiguous
+        assert feat_g.shape == p_gq.shape[:-1] == tuple(self._local_shape_real)
+        assert p_gq.shape[-1] == self.nalpha
+        pwutil.ciderpw_eval_feature_vj(
+            self._ptr,
+            feat_g.ctypes.data_as(ctypes.c_void_p),
+            p_gq.ctypes.data_as(ctypes.c_void_p),
+        )
+
+    def fill_vj_potential_(self, vfeat_g, p_gq):
+        assert vfeat_g.flags.c_contiguous
+        assert p_gq.flags.c_contiguous
+        assert vfeat_g.shape == p_gq.shape[:-1] == tuple(self._local_shape_real)
+        assert p_gq.shape[-1] == self.nalpha
+        pwutil.ciderpw_add_potential_vj(
+            self._ptr,
+            vfeat_g.ctypes.data_as(ctypes.c_void_p),
+            p_gq.ctypes.data_as(ctypes.c_void_p),
+        )
 
 
 class FFTWrapper:

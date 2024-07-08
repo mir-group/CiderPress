@@ -30,11 +30,6 @@ struct ciderpw_kernel {
     double *expnts_ab;
     double *norms_ab;
     int num_l1_feats;
-    int nk;
-    double *k2_G;
-    double *kx_G;
-    double *ky_G;
-    double *kz_G;
 };
 
 struct ciderpw_data_obj {
@@ -65,6 +60,12 @@ struct ciderpw_data_obj {
     // to reuse this struct for SDMX or R3.5, which will have c2c tranforms.
     fftw_plan plan_g2k;
     fftw_plan plan_k2g;
+
+    int nk;
+    double *k2_G;
+    double *kx_G;
+    double *ky_G;
+    double *kz_G;
 
     int errorcode;
 };

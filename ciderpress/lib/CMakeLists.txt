@@ -73,6 +73,12 @@ include_directories(${CMAKE_INSTALL_PREFIX}/include)
 link_directories(${PROJECT_SOURCE_DIR}/deps/lib ${PROJECT_SOURCE_DIR}/deps/lib64)
 link_directories(${CMAKE_INSTALL_PREFIX}/lib ${CMAKE_INSTALL_PREFIX}/lib64)
 
+# See also https://gitlab.kitware.com/cmake/community/wikis/doc/cmake/RPATH-handling
+set(CMAKE_SKIP_BUILD_RPATH  True)
+set(CMAKE_BUILD_WITH_INSTALL_RPATH True)
+set(CMAKE_INSTALL_RPATH "${PROJECT_SOURCE_DIR}:${PROJECT_SOURCE_DIR}/deps/lib:\$ORIGIN/deps/lib64")
+message(RPATH=${CMAKE_INSTALL_RPATH})
+
 include(ExternalProject)
 option(ENABLE_FFTW "Using fftw3" ON)
 option(BUILD_FFTW "Building fftw3" ON)
@@ -89,7 +95,7 @@ if(ENABLE_FFTW AND BUILD_FFTW)
       PREFIX ${PROJECT_BINARY_DIR}/deps
       INSTALL_DIR ${PROJECT_SOURCE_DIR}/deps
       BUILD_IN_SOURCE True
-      CONFIGURE_COMMAND ./configure --enable-static=no --enable-shared=yes --enable-threads --enable-mpi=yes CXX=${CMAKE_CXX_COMPILER} CC=${CMAKE_C_COMPILER} prefix=<INSTALL_DIR>
+      CONFIGURE_COMMAND ./configure --enable-static=yes --enable-shared=yes --enable-threads --enable-mpi=yes --enable-openmp MPILIBS=-lmpi CXX=${CMAKE_CXX_COMPILER} CC=${CMAKE_C_COMPILER} prefix=<INSTALL_DIR>
       BUILD_COMMAND make -j4 install
     )
     add_dependencies(pwutil libfftw3)

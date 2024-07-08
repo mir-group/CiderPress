@@ -56,6 +56,8 @@ class TestEnergy(unittest.TestCase):
 
     test_nl_gga = generate_test("CIDER23X_NL_GGA")
 
+    test_nl_mgga = generate_test("CIDER23X_NL_MGGA_DTR")
+
 
 if __name__ == "__main__":
     unittest.main()

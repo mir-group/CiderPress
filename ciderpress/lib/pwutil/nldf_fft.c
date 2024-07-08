@@ -121,7 +121,6 @@ void ciderpw_create(ciderpw_data *cider, double scale, int *N_c,
     ciderpw_data data = ciderpw_new_anyspin(1);
     ciderpw_set_unit_cell(data, N_c, cell_cv);
     cider[0] = data;
-    printf("CIDER has been created\n");
 }
 
 void ciderpw_setup_kernel(ciderpw_data data, int nalpha, int nbeta,
@@ -138,16 +137,59 @@ void ciderpw_setup_kernel(ciderpw_data data, int nalpha, int nbeta,
     int alpha, beta;
     int ab = 0;
     int ba, a, b;
+    double fac = 1.0 / data->Nglobal;
     for (a = 0; a < nalpha; a++) {
         for (b = 0; b < nbeta; b++, ab++) {
             ba = b * nalpha + a;
             data->kernel.expnts_ab[ab] = -1 * expnts_ab[ab];
             data->kernel.expnts_ba[ba] = -1 * expnts_ab[ab];
-            data->kernel.norms_ab[ab] = norms_ab[ab];
-            data->kernel.norms_ba[ba] = norms_ab[ab];
+            data->kernel.norms_ab[ab] = fac * norms_ab[ab];
+            data->kernel.norms_ba[ba] = fac * norms_ab[ab];
         }
     }
-    printf("CIDER kernel has been initialized\n");
+}
+
+void cider_pw_setup_reciprocal_vectors(ciderpw_data data) {
+    int N0, N1, N2;
+    int N1glob, N0glob, N2glob;
+    int kindex;
+    data->nk =
+        data->icell.Nlocal[1] * data->icell.Nlocal[0] * data->icell.Nlocal[2];
+    data->kx_G = (double *)malloc(sizeof(double) * data->nk);
+    data->ky_G = (double *)malloc(sizeof(double) * data->nk);
+    data->kz_G = (double *)malloc(sizeof(double) * data->nk);
+    data->k2_G = (double *)malloc(sizeof(double) * data->nk);
+    for (N1 = 0; N1 < data->icell.Nlocal[1]; N1++) {
+        N1glob = N1 + data->icell.offset[1];
+        for (N0 = 0; N0 < data->icell.Nlocal[0]; N0++) {
+            N0glob = N0 + data->icell.offset[0];
+            for (N2 = 0; N2 < data->icell.Nlocal[2]; N2++) {
+                N2glob = N2 + data->icell.offset[2];
+                kindex = N2 + data->icell.Nlocal[2] *
+                                  (N0 + data->icell.Nlocal[0] * N1);
+                int k0 = ((N0glob + data->cell.Nglobal[0] / 2) %
+                          data->cell.Nglobal[0]) -
+                         data->cell.Nglobal[0] / 2;
+                int k1 = ((N1glob + data->cell.Nglobal[1] / 2) %
+                          data->cell.Nglobal[1]) -
+                         data->cell.Nglobal[1] / 2;
+                int k2 = ((N2glob + data->cell.Nglobal[2] / 2) %
+                          data->cell.Nglobal[2]) -
+                         data->cell.Nglobal[2] / 2;
+                double kx = data->icell.vec[0] * k0 + data->icell.vec[3] * k1 +
+                            data->icell.vec[6] * k2;
+                double ky = data->icell.vec[1] * k0 + data->icell.vec[4] * k1 +
+                            data->icell.vec[7] * k2;
+                double kz = data->icell.vec[2] * k0 + data->icell.vec[5] * k1 +
+                            data->icell.vec[8] * k2;
+                double ksq = kx * kx + ky * ky + kz * kz;
+                data->kx_G[kindex] = kx;
+                data->ky_G[kindex] = ky;
+                data->kz_G[kindex] = kz;
+                data->k2_G[kindex] = ksq;
+            }
+        }
+    }
 }
 
 void ciderpw_init_mpi(ciderpw_data data, MPI_Comm mpi_comm, int nalpha,
@@ -210,9 +252,8 @@ void ciderpw_init_mpi(ciderpw_data data, MPI_Comm mpi_comm, int nalpha,
 
     assert(data->plan_g2k != NULL);
     assert(data->plan_k2g != NULL);
-    fftw_execute(data->plan_g2k);
     ciderpw_allocate_buffers(data);
-    printf("CIDER has been initialized\n");
+    cider_pw_setup_reciprocal_vectors(data);
 }
 
 void ciderpw_init_mpi_from_gpaw(ciderpw_data data, PyObject *gpaw_comm,
@@ -223,13 +264,13 @@ void ciderpw_init_mpi_from_gpaw(ciderpw_data data, PyObject *gpaw_comm,
 }
 
 void ciderpw_g2k_mpi(ciderpw_data data) {
-    // fftw_execute(data->plan_g2k);
-    if (data->fft_type == CIDERPW_R2C) {
-        fftw_mpi_execute_dft_r2c(data->plan_g2k, (double *)data->work_ska,
-                                 data->work_ska);
-    } else {
-        fftw_mpi_execute_dft(data->plan_g2k, data->work_ska, data->work_ska);
-    }
+    fftw_execute(data->plan_g2k);
+    // if (data->fft_type == CIDERPW_R2C) {
+    //     fftw_mpi_execute_dft_r2c(data->plan_g2k, (double *)data->work_ska,
+    //                              data->work_ska);
+    // } else {
+    //     fftw_mpi_execute_dft(data->plan_g2k, data->work_ska, data->work_ska);
+    // }
 }
 
 void ciderpw_k2g_mpi(ciderpw_data data) {
@@ -335,13 +376,13 @@ void ciderpw_multiply_l1(ciderpw_data data) {
     double complex *work_a;
     int kindex, b;
     if (n1 > 0) {
-        for (kindex = 0; kindex < data->kernel.nk; kindex++) {
+        for (kindex = 0; kindex < data->nk; kindex++) {
             work_a = work_ska + kindex * data->kernel.work_size;
             for (b = data->kernel.nbeta - 3 * n1; b < data->kernel.nbeta;
                  b += 3) {
-                work_a[b + 0] *= I * data->kernel.kx_G[kindex];
-                work_a[b + 1] *= I * data->kernel.ky_G[kindex];
-                work_a[b + 2] *= I * data->kernel.kz_G[kindex];
+                work_a[b + 0] *= I * data->kx_G[kindex];
+                work_a[b + 1] *= I * data->ky_G[kindex];
+                work_a[b + 2] *= I * data->kz_G[kindex];
             }
         }
     }
@@ -357,10 +398,9 @@ void ciderpw_convolution_fwd(ciderpw_data data) {
     double complex F;
     double *ikernel_ba;
     double complex *work_a;
-    for (kindex = 0; kindex < data->kernel.nk; kindex++) {
+    for (kindex = 0; kindex < data->nk; kindex++) {
         work_a = work_ska + kindex * data->kernel.work_size;
-        ciderpw_compute_kernels(&data->kernel, data->kernel.k2_G[kindex],
-                                kernel_ba);
+        ciderpw_compute_kernels(&data->kernel, data->k2_G[kindex], kernel_ba);
         ikernel_ba = kernel_ba;
         for (b = 0; b < data->kernel.nbeta; b++) {
             F = 0.0;
@@ -387,10 +427,9 @@ void ciderpw_convolution_bwd(ciderpw_data data) {
     double *ikernel_ab;
     double complex *work_a;
     ciderpw_multiply_l1(data);
-    for (kindex = 0; kindex < data->kernel.nk; kindex++) {
+    for (kindex = 0; kindex < data->nk; kindex++) {
         work_a = work_ska + kindex * data->kernel.work_size;
-        ciderpw_compute_kernels_t(&data->kernel, data->kernel.k2_G[kindex],
-                                  kernel_ab);
+        ciderpw_compute_kernels_t(&data->kernel, data->k2_G[kindex], kernel_ab);
         ikernel_ab = kernel_ab;
         for (a = 0; a < data->kernel.nalpha; a++) {
             F = 0.0;
@@ -411,8 +450,77 @@ void ciderpw_compute_features(ciderpw_data data) {
     ciderpw_k2g_mpi(data);
 }
 
-void ciderow_compute_potential(ciderpw_data data) {
+void ciderpw_compute_potential(ciderpw_data data) {
     ciderpw_g2k_mpi(data);
     ciderpw_convolution_bwd(data);
     ciderpw_k2g_mpi(data);
+}
+
+/*
+void ciderpw_eval_feature_vj(ciderpw_data data, double *feat_g, double *dfeat_g,
+                             double *p_gq, double *dp_gq) {
+    int N0, N1, N2;
+    int N = 0;
+    double *work_ga = (double *)data->work_ska;
+    double tot = 0;
+    int ind;
+    for (N0 = 0; N0 < data->cell.Nlocal[0]; N0++) {
+        for (N1 = 0; N1 < data->cell.Nlocal[1]; N1++) {
+            for (N2 = 0; N2 < data->cell.Nlocal[2]; N2++, N++) {
+                feat_g[N2] = 0;
+                dfeat_g[N2] = 0;
+                for (a = 0; a < nalpha; a++) {
+                    ind = N2 * nalpha + a;
+                    feat_g[N2] += work_ga[ind] * p_g[ind];
+                    dfeat_g[N2] += work_ga[ind] * dp_g[ind];
+                }
+            }
+            work_ga += data->gLDA * nalpha;
+            p_qg += data->cell.Nlocal[2] * nalpha;
+            dp_qg += data->cell.Nlocal[2] * nalpha;
+            feat_g += data->cell.Nlocal[2];
+            dfeat_g += data->cell.Nlocal[2];
+        }
+    }
+}
+*/
+
+void ciderpw_eval_feature_vj(ciderpw_data data, double *feat_g, double *p_gq) {
+    int N0, N1, N2;
+    double *work_ga = (double *)data->work_ska;
+    int ind, a;
+    for (N0 = 0; N0 < data->cell.Nlocal[0]; N0++) {
+        for (N1 = 0; N1 < data->cell.Nlocal[1]; N1++) {
+            for (N2 = 0; N2 < data->cell.Nlocal[2]; N2++) {
+                feat_g[N2] = 0;
+                for (a = 0; a < data->kernel.nalpha; a++) {
+                    ind = N2 * data->kernel.nalpha + a;
+                    feat_g[N2] += work_ga[ind] * p_gq[ind];
+                }
+            }
+            work_ga += data->gLDA * data->kernel.work_size;
+            p_gq += data->cell.Nlocal[2] * data->kernel.nalpha;
+            feat_g += data->cell.Nlocal[2];
+        }
+    }
+}
+
+void ciderpw_add_potential_vj(ciderpw_data data, double *vfeat_g,
+                              double *p_gq) {
+    int N0, N1, N2;
+    double *work_ga = (double *)data->work_ska;
+    int ind, a;
+    for (N0 = 0; N0 < data->cell.Nlocal[0]; N0++) {
+        for (N1 = 0; N1 < data->cell.Nlocal[1]; N1++) {
+            for (N2 = 0; N2 < data->cell.Nlocal[2]; N2++) {
+                for (a = 0; a < data->kernel.nalpha; a++) {
+                    ind = N2 * data->kernel.nalpha + a;
+                    work_ga[ind] += vfeat_g[N2] * p_gq[ind];
+                }
+            }
+            work_ga += data->gLDA * data->kernel.work_size;
+            p_gq += data->cell.Nlocal[2] * data->kernel.nalpha;
+            vfeat_g += data->cell.Nlocal[2];
+        }
+    }
 }

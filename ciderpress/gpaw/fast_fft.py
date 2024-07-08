@@ -159,25 +159,26 @@ class _FastCiderBase:
             p, dp = self._plan.get_interpolation_coefficients(
                 arg_sg[s], i=-1, vbuf=p, dbuf=dp
             )
-            tmp = f_sgq[s].ravel()
-            tmp.shape = (fun_sg[s].size, self._plan.nalpha)
-            print(f_sgq.shape, fun_sg.shape, p.shape)
-            tmp[:] = fun_sg[s].ravel()[:, None] * p
+            tmp = f_sgq[s]
+            p.shape = fun_sg.shape[-3:] + (p.shape[-1],)
+            tmp[:] = fun_sg[s][..., None] * p
         self.fft_obj.compute_forward_convolution()
         return f_sgq
 
     def call_bwd(self, arg_sg, fun_sg):
         f_sgq = self.fft_obj.get_real_array()
         self.fft_obj.compute_backward_convolution()
-        dedarg_sg = np.zeros(f_sgq.shape[:-1])
-        dedfun_sg = np.zeros(f_sgq.shape[:-1])
+        dedarg_sg = np.empty(f_sgq.shape[:-1])
+        dedfun_sg = np.empty(f_sgq.shape[:-1])
         p, dp = None, None
         for s in range(self.nspin):
             p, dp = self._plan.get_interpolation_coefficients(
                 arg_sg[s], i=-1, vbuf=p, dbuf=dp
             )
-            dedarg_sg[s] += np.einsum("gq,gq->g", dp, f_sgq[s]) * fun_sg[s]
-            dedfun_sg[s] += np.einsum("gq,gq->g", p, f_sgq[s])
+            p.shape = fun_sg.shape[-3:] + (p.shape[-1],)
+            dp.shape = fun_sg.shape[-3:] + (dp.shape[-1],)
+            dedarg_sg[s] = np.einsum("...q,...q->...", dp, f_sgq[s]) * fun_sg[s]
+            dedfun_sg[s] = np.einsum("...q,...q->...", p, f_sgq[s])
         return dedarg_sg, dedfun_sg
 
     def calc_cider(
@@ -193,20 +194,19 @@ class _FastCiderBase:
             self._setup_plan()
             self.fft_obj.initialize_backend()
         plan = self._plan
-        sigma_xg = get_sigma(rho_sxg)
+        sigma_xg = get_sigma(rho_sxg[:, 1:4])
         dedsigma_xg = np.zeros_like(sigma_xg)
-        rho_tuple = plan.get_rho_tuple(rho_sxg)
+        rho_tuple = plan.get_rho_tuple(rho_sxg, with_spin=True)
         nt_sg = rho_tuple[0]
         v_sg = np.zeros_like(nt_sg)
         if len(rho_tuple) == 2:
             tau_sg = None
             dedtau_sg = None
         else:
-            tau_sg = rho_tuple[2]
+            tau_sg = rho_tuple[2].copy()
             dedtau_sg = np.zeros_like(tau_sg)
         arg_sg, darg_sg = plan.get_interpolation_arguments(rho_tuple, i=-1)
         fun_sg, dfun_sg = plan.get_function_to_convolve(rho_tuple)
-
         f_sgq = self.call_fwd(arg_sg, fun_sg)
 
         feat_sig = np.empty(
@@ -223,17 +223,31 @@ class _FastCiderBase:
             )
             + e_g.shape
         )
+        p_gq, dp_gq = None, None
         for s in range(nspin):
-            plan.eval_rho_full(
-                f_sgq[s],
-                rho_sxg[s],
-                spin=s,
-                feat=feat_sig[s],
-                dfeat=dfeat_sjg[s],
-                cache_p=True,
-                apply_transformation=False,  # TODO True?
-                coeff_multipliers=None,  # TODO need multipliers?
-            )
+            for i in range(plan.num_vj):
+                _rho_tuple = (x[s] for x in rho_tuple)
+                a_g = plan.get_interpolation_arguments(_rho_tuple, i=i)[0]
+                p_gq, dp_gq = plan.get_interpolation_coefficients(
+                    a_g, i=i, vbuf=p_gq, dbuf=dp_gq
+                )
+                if False:  # TODO might need this later
+                    coeff_multipliers = None
+                    p_gq[:] *= coeff_multipliers
+                    dp_gq[:] *= coeff_multipliers
+                if False:  # TODO might need this later
+                    plan.get_transformed_interpolation_terms(
+                        p_gq, i=i, fwd=True, inplace=True
+                    )
+                    plan.get_transformed_interpolation_terms(
+                        dp_gq, i=i, fwd=True, inplace=True
+                    )
+                p_gq.shape = a_g.shape + (plan.nalpha,)
+                dp_gq.shape = a_g.shape + (plan.nalpha,)
+                self.fft_obj.fill_vj_feature_(feat_sig[s, i], p_gq)
+                self.fft_obj.fill_vj_feature_(dfeat_sjg[s, i], dp_gq)
+        # TODO version i features
+        feat_sig[:] *= plan.nspin
 
         if tau_sg is None:  # GGA
             vfeat_sig = self.cider_kernel.calculate(
@@ -244,21 +258,44 @@ class _FastCiderBase:
                 e_g, nt_sg, v_sg, sigma_xg, dedsigma_xg, tau_sg, dedtau_sg, feat_sig
             )
 
+        vfeat_sig[:] *= plan.nspin
         f_sgq[:] = 0.0
         for s in range(nspin):
-            plan.eval_vxc_full(
-                vfeat_sig[s],
-                dedrho_sxg[s],
-                dfeat_sjg[s],
-                rho_sxg[s],
-                spin=s,
-                vf=f_sgq[s],
-            )
+            for i in range(plan.num_vj):
+                _rho_tuple = (x[s] for x in rho_tuple)
+                a_g, da_g = plan.get_interpolation_arguments(_rho_tuple, i=i)
+                p_gq, dp_gq = plan.get_interpolation_coefficients(
+                    a_g, i=i, vbuf=p_gq, dbuf=dp_gq
+                )
+                p_gq.shape = a_g.shape + (plan.nalpha,)
+                dp_gq.shape = a_g.shape + (plan.nalpha,)
+                self.fft_obj.fill_vj_potential_(vfeat_sig[s, i], p_gq)
+                tmp = dfeat_sjg[s, i] * vfeat_sig[s, i]
+                v_sg[s] += da_g[0] * tmp
+                dedsigma_xg[2 * s] += da_g[1] * tmp
+                if tau_sg is not None:
+                    dedtau_sg[s] += da_g[2] * tmp
+                # dedrho_sxg[s, 0] += da_g[0] * tmp
+                # dedrho_sxg[s, 1:4] += 2 * da_g[1] * rho_sxg[s, 1:4] * tmp
+                # if tau_sg is not None:
+                #    dedrho_sxg[s, 4] += da_g[2] * tmp
+        dedarg_sg, dedfun_sg = self.call_bwd(arg_sg, fun_sg)
 
-        dedarg_sg, dedfun_sg = self._call_bwd(arg_sg, fun_sg)
+        for i, term in enumerate(darg_sg):
+            term[:] *= dedarg_sg
+            term[:] += dedfun_sg * dfun_sg[i]
+        for s in range(plan.nspin):
+            v_sg[s] += darg_sg[0][s]
+            dedsigma_xg[2 * s] += darg_sg[1][s]
+            # if tau_sg is not None:
+            #     dedtau_sg[s] += darg_sg[2][s]
 
-        self.add_scale_derivs(dedarg_sg, darg_sg, v_sg, dedsigma_xg, dedtau_sg)
-        self.add_scale_derivs(dedfun_sg, dfun_sg, v_sg, dedsigma_xg, dedtau_sg)
+        dedrho_sxg[:, 0] += v_sg
+        dedrho_sxg[:, 1:4] += 2 * rho_sxg[:, 1:4] * dedsigma_xg[::2]
+        if plan.nspin == 2:
+            dedrho_sxg[:, 1:4] += rho_sxg[::-1, 1:4] * dedsigma_xg[1]
+        # if tau_sg is not None:
+        #     dedrho_sxg[:, 4] += dedtau_sg
 
     def _distribute_to_cider_grid(self, n_xg):
         shape = (len(n_xg),)
@@ -273,7 +310,29 @@ class _FastCiderBase:
         # TODO don't calculate sigma/dedsigma here
         # instead just compute the gradient and dedgrad
         # for sake of generality
-        rho_sxg = get_rho_sxg(n_sg, self.grad_v, None)
+        if self.type == "MGGA":
+            if self.fixed_ke:
+                taut_sG = self._fixed_taut_sG
+                if not self._taut_gradv_init:
+                    self._taut_gradv_init = True
+                    # ensure initialization for calculation potential
+                    self.wfs.calculate_kinetic_energy_density()
+            else:
+                taut_sG = self.wfs.calculate_kinetic_energy_density()
+
+            if taut_sG is None:
+                taut_sG = self.wfs.gd.zeros(len(n_sg))
+
+            taut_sg = np.empty_like(n_sg)
+
+            for taut_G, taut_g in zip(taut_sG, taut_sg):
+                self.distribute_and_interpolate(taut_G, taut_g)
+
+            dedtaut_sg = np.zeros_like(n_sg)
+        else:
+            taut_sg = None
+            dedtaut_sg = None
+        rho_sxg = get_rho_sxg(n_sg, self.grad_v, taut_sg)
         tmp_dedrho_sxg = np.zeros_like(rho_sxg)
         shape = rho_sxg.shape[:2]
         rho_sxg.shape = (rho_sxg.shape[0] * rho_sxg.shape[1],) + rho_sxg.shape[-3:]
@@ -281,12 +340,21 @@ class _FastCiderBase:
         rho_sxg.shape = shape + rho_sxg.shape[-3:]
         dedrho_sxg = np.zeros_like(rho_sxg)
         _e = self._distribute_to_cider_grid(np.zeros_like(e_g)[None, :])[0]
+        e_g[:] = 0.0
         self.process_cider(_e, rho_sxg, dedrho_sxg)
         self._add_from_cider_grid(e_g[None, :], _e[None, :])
         for s in range(len(n_sg)):
-            self._add_from_cider_grid(tmp_dedrho_sxg[s], rho_sxg[s])
+            self._add_from_cider_grid(tmp_dedrho_sxg[s], dedrho_sxg[s])
         v_sg[:] = tmp_dedrho_sxg[:, 0]
         add_gradient_correction(self.grad_v, tmp_dedrho_sxg, v_sg)
+
+        if dedtaut_sg is not None:
+            dedtaut_sg[:] = tmp_dedrho_sxg[:, 4]
+            self.dedtaut_sG = self.wfs.gd.empty(self.wfs.nspins)
+            self.ekin = 0.0
+            for s in range(self.wfs.nspins):
+                self.restrict_and_collect(dedtaut_sg[s], self.dedtaut_sG[s])
+                self.ekin -= self.wfs.gd.integrate(self.dedtaut_sG[s] * taut_sG[s])
 
     def process_cider(*args, **kwargs):
         raise NotImplementedError
@@ -326,7 +394,7 @@ def get_rho_sxg(n_sg, grad_v, tau_sg=None):
     if tau_sg is None:
         shape = shape[:1] + [4] + shape[1:]
     else:
-        shape = shape[1:] + [5] + shape[1:]
+        shape = shape[:1] + [5] + shape[1:]
     rho_sxg = np.empty(shape)
     rho_sxg[:, 0] = n_sg
     for v in range(3):
@@ -342,3 +410,34 @@ def add_gradient_correction(grad_v, dedrho_sxg, v_sg):
         for s in range(nspin):
             grad_v[v](dedrho_sxg[s, v + 1], vv_g)
             v_sg[s] -= vv_g
+
+
+class CiderMGGA(_FastCiderBase, MGGA):
+    def __init__(self, cider_kernel, **kwargs):
+        if cider_kernel.mlfunc.settings.sl_settings.level != "MGGA":
+            raise ValueError("CiderMGGA only supports MGGA functionals!")
+        _FastCiderBase.__init__(self, cider_kernel, **kwargs)
+
+        MGGA.__init__(self, LibXC("PBE"), stencil=2)
+        self.type = "MGGA"
+        self.name = "CIDER_{}".format(self.cider_kernel.xmix)
+
+    def todict(self):
+        d = super(CiderMGGA, self).todict()
+        d["_cider_type"] = "CiderMGGA"
+        return d
+
+    def set_positions(self, spos_ac):
+        self.spos_ac = spos_ac
+
+    def set_grid_descriptor(self, gd):
+        MGGA.set_grid_descriptor(self, gd)
+        _FastCiderBase.set_grid_descriptor(self, gd)
+
+    def calculate_paw_correction(
+        self, setup, D_sp, dEdD_sp=None, addcoredensity=True, a=None
+    ):
+        return 0
+
+    def process_cider(self, e_g, rho_sxg, dedrho_sxg):
+        self.calc_cider(e_g, rho_sxg, dedrho_sxg)
