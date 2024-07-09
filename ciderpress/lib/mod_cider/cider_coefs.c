@@ -190,8 +190,28 @@ void cider_ind_zexp(double *di_g, double *derivi_g, double *exp_g, int ngrids,
     }
 }
 
+void cider_ind_clip(double *di_g, double *derivi_g, int sizem1, int ngrids) {
+#pragma omp parallel
+    {
+        int g;
+        double di;
+        int cond;
+        double dsize = sizem1 - 1e-10;
+#pragma omp for
+        for (g = 0; g < ngrids; g++) {
+            di = di_g[g];
+            cond = di > 0;
+            derivi_g[g] = (cond ? derivi_g[g] : 0);
+            di_g[g] = (cond ? di : 0);
+            cond = di < sizem1;
+            derivi_g[g] = (cond ? derivi_g[g] : 0);
+            di_g[g] = (cond ? di : dsize);
+        }
+    }
+}
+
 void cider_coefs_spline_gq(double *p_ga, double *dp_ga, double *di_g,
-                           double *w_iap, int ngrids, int nalpha, double amax,
+                           double *w_iap, int ngrids, int nalpha,
                            double lambd) {
 #pragma omp parallel
     {
@@ -215,7 +235,7 @@ void cider_coefs_spline_gq(double *p_ga, double *dp_ga, double *di_g,
 }
 
 void cider_coefs_spline_qg(double *p_ag, double *dp_ag, double *di_g,
-                           double *w_iap, int ngrids, int nalpha, double amax,
+                           double *w_iap, int ngrids, int nalpha,
                            double lambd) {
 #pragma omp parallel
     {

@@ -110,6 +110,7 @@ class LibCiderPW:
         Return a numpy array whose data is the real-space values
         of the C work array used for FFTW.
         """
+        raise NotImplementedError
         return self._data_arr[:, :, :, : self._local_shape_real[2], :]
 
     def get_reciprocal_array(self):
@@ -117,6 +118,7 @@ class LibCiderPW:
         Return a numpy array whose data is the reciprocal-space values
         of the C work array used for FFTW.
         """
+        raise NotImplementedError
         arr = self._data_arr.view()
         nspin = 1
         nalpha = self.nalpha
@@ -155,6 +157,7 @@ class LibCiderPW:
         self._glda = size_data[3]
         self._local_shape_recip = size_data[4:7]
         self._klda = size_data[7]
+        """
         obj = pwutil.ciderpw_get_work_pointer(self._ptr)
         # TODO nspin
         nspin = 1
@@ -164,6 +167,7 @@ class LibCiderPW:
         shape = (nspin, shape[0], shape[1], lda, nalpha)
         arr = np.ctypeslib.as_array(obj, shape=shape)
         self._data_arr = arr
+        """
 
         self.initialized = True
 
@@ -210,6 +214,20 @@ class LibCiderPW:
             vfeat_g.ctypes.data_as(ctypes.c_void_p),
             p_gq.ctypes.data_as(ctypes.c_void_p),
         )
+
+    def set_work(self, fun_g, p_gq):
+        assert fun_g.flags.c_contiguous
+        assert p_gq.flags.c_contiguous
+        assert fun_g.shape == p_gq.shape[:-1] == tuple(self._local_shape_real)
+        assert p_gq.shape[-1] == self.nalpha
+        pwutil.ciderpw_set_work(
+            self._ptr,
+            fun_g.ctypes.data_as(ctypes.c_void_p),
+            p_gq.ctypes.data_as(ctypes.c_void_p),
+        )
+
+    def reset_work(self):
+        pwutil.ciderpw_zero_work(self._ptr)
 
 
 class FFTWrapper:

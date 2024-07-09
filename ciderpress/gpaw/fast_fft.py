@@ -152,33 +152,98 @@ class _FastCiderBase:
         self.gd = gd
         self.distribution = FFTDistribution(gd, [gd.comm.size, 1, 1])
 
-    def call_fwd(self, arg_sg, fun_sg):
-        f_sgq = self.fft_obj.get_real_array()
+    def call_fwd(self, rho_tuple):
         p, dp = None, None
-        for s in range(self.nspin):
-            p, dp = self._plan.get_interpolation_coefficients(
+        plan = self._plan
+        arg_sg, darg_sg = plan.get_interpolation_arguments(rho_tuple, i=-1)
+        fun_sg, dfun_sg = plan.get_function_to_convolve(rho_tuple)
+        feat_sig = np.empty(
+            (
+                plan.nspin,
+                plan.nldf_settings.nfeat,
+            )
+            + arg_sg.shape[1:]
+        )
+        dfeat_sjg = np.empty(
+            (
+                plan.nspin,
+                plan.num_vj,
+            )
+            + arg_sg.shape[1:]
+        )
+        for s in range(plan.nspin):
+            _rho_tuple = tuple(x[s] for x in rho_tuple)
+            p, dp = plan.get_interpolation_coefficients(
                 arg_sg[s], i=-1, vbuf=p, dbuf=dp
             )
-            tmp = f_sgq[s]
             p.shape = fun_sg.shape[-3:] + (p.shape[-1],)
-            tmp[:] = fun_sg[s][..., None] * p
-        self.fft_obj.compute_forward_convolution()
-        return f_sgq
+            self.fft_obj.set_work(fun_sg[s], p)
+            self.fft_obj.compute_forward_convolution()
+            for i in range(plan.num_vj):
+                a_g = plan.get_interpolation_arguments(_rho_tuple, i=i)[0]
+                p, dp = plan.get_interpolation_coefficients(a_g, i=i, vbuf=p, dbuf=dp)
+                if False:  # TODO might need this later
+                    coeff_multipliers = None
+                    p[:] *= coeff_multipliers
+                    dp[:] *= coeff_multipliers
+                if False:  # TODO might need this later
+                    plan.get_transformed_interpolation_terms(
+                        p, i=i, fwd=True, inplace=True
+                    )
+                    plan.get_transformed_interpolation_terms(
+                        dp, i=i, fwd=True, inplace=True
+                    )
+                p.shape = a_g.shape + (plan.nalpha,)
+                dp.shape = a_g.shape + (plan.nalpha,)
+                self.fft_obj.fill_vj_feature_(feat_sig[s, i], p)
+                self.fft_obj.fill_vj_feature_(dfeat_sjg[s, i], dp)
+        return feat_sig, dfeat_sjg, arg_sg, darg_sg, fun_sg, dfun_sg, p, dp
 
-    def call_bwd(self, arg_sg, fun_sg):
-        f_sgq = self.fft_obj.get_real_array()
-        self.fft_obj.compute_backward_convolution()
-        dedarg_sg = np.empty(f_sgq.shape[:-1])
-        dedfun_sg = np.empty(f_sgq.shape[:-1])
-        p, dp = None, None
-        for s in range(self.nspin):
-            p, dp = self._plan.get_interpolation_coefficients(
-                arg_sg[s], i=-1, vbuf=p, dbuf=dp
+    def call_bwd(
+        self,
+        rho_tuple,
+        vfeat_sig,
+        dfeat_sjg,
+        arg_sg,
+        fun_sg,
+        v_sg,
+        dedsigma_xg,
+        dedtau_sg,
+        p_gq=None,
+        dp_gq=None,
+    ):
+        dedarg_sg = np.empty(v_sg.shape)
+        dedfun_sg = np.empty(v_sg.shape)
+        plan = self._plan
+        for s in range(plan.nspin):
+            self.fft_obj.reset_work()
+            for i in range(plan.num_vj):
+                _rho_tuple = (x[s] for x in rho_tuple)
+                a_g, da_g = plan.get_interpolation_arguments(_rho_tuple, i=i)
+                p_gq, dp_gq = plan.get_interpolation_coefficients(
+                    a_g, i=i, vbuf=p_gq, dbuf=dp_gq
+                )
+                p_gq.shape = a_g.shape + (plan.nalpha,)
+                dp_gq.shape = a_g.shape + (plan.nalpha,)
+                self.fft_obj.fill_vj_potential_(vfeat_sig[s, i], p_gq)
+                tmp = dfeat_sjg[s, i] * vfeat_sig[s, i]
+                v_sg[s] += da_g[0] * tmp
+                dedsigma_xg[2 * s] += da_g[1] * tmp
+                if len(rho_tuple) == 3:
+                    dedtau_sg[s] += da_g[2] * tmp
+                # dedrho_sxg[s, 0] += da_g[0] * tmp
+                # dedrho_sxg[s, 1:4] += 2 * da_g[1] * rho_sxg[s, 1:4] * tmp
+                # if tau_sg is not None:
+                #    dedrho_sxg[s, 4] += da_g[2] * tmp
+            self.fft_obj.compute_backward_convolution()
+            p_gq, dp_gq = plan.get_interpolation_coefficients(
+                arg_sg[s], i=-1, vbuf=p_gq, dbuf=dp_gq
             )
-            p.shape = fun_sg.shape[-3:] + (p.shape[-1],)
-            dp.shape = fun_sg.shape[-3:] + (dp.shape[-1],)
-            dedarg_sg[s] = np.einsum("...q,...q->...", dp, f_sgq[s]) * fun_sg[s]
-            dedfun_sg[s] = np.einsum("...q,...q->...", p, f_sgq[s])
+            p_gq.shape = fun_sg.shape[-3:] + (p_gq.shape[-1],)
+            dp_gq.shape = fun_sg.shape[-3:] + (dp_gq.shape[-1],)
+            self.fft_obj.fill_vj_feature_(dedarg_sg[s], dp_gq)
+            self.fft_obj.fill_vj_feature_(dedfun_sg[s], p_gq)
+        dedarg_sg[:] *= fun_sg
         return dedarg_sg, dedfun_sg
 
     def calc_cider(
@@ -205,47 +270,9 @@ class _FastCiderBase:
         else:
             tau_sg = rho_tuple[2].copy()
             dedtau_sg = np.zeros_like(tau_sg)
-        arg_sg, darg_sg = plan.get_interpolation_arguments(rho_tuple, i=-1)
-        fun_sg, dfun_sg = plan.get_function_to_convolve(rho_tuple)
-        f_sgq = self.call_fwd(arg_sg, fun_sg)
 
-        feat_sig = np.empty(
-            (
-                nspin,
-                plan.nldf_settings.nfeat,
-            )
-            + e_g.shape
-        )
-        dfeat_sjg = np.empty(
-            (
-                nspin,
-                plan.num_vj,
-            )
-            + e_g.shape
-        )
-        p_gq, dp_gq = None, None
-        for s in range(nspin):
-            for i in range(plan.num_vj):
-                _rho_tuple = (x[s] for x in rho_tuple)
-                a_g = plan.get_interpolation_arguments(_rho_tuple, i=i)[0]
-                p_gq, dp_gq = plan.get_interpolation_coefficients(
-                    a_g, i=i, vbuf=p_gq, dbuf=dp_gq
-                )
-                if False:  # TODO might need this later
-                    coeff_multipliers = None
-                    p_gq[:] *= coeff_multipliers
-                    dp_gq[:] *= coeff_multipliers
-                if False:  # TODO might need this later
-                    plan.get_transformed_interpolation_terms(
-                        p_gq, i=i, fwd=True, inplace=True
-                    )
-                    plan.get_transformed_interpolation_terms(
-                        dp_gq, i=i, fwd=True, inplace=True
-                    )
-                p_gq.shape = a_g.shape + (plan.nalpha,)
-                dp_gq.shape = a_g.shape + (plan.nalpha,)
-                self.fft_obj.fill_vj_feature_(feat_sig[s, i], p_gq)
-                self.fft_obj.fill_vj_feature_(dfeat_sjg[s, i], dp_gq)
+        res = self.call_fwd(rho_tuple)
+        feat_sig, dfeat_sjg, arg_sg, darg_sg, fun_sg, dfun_sg, p_gq, dp_gq = res
         # TODO version i features
         feat_sig[:] *= plan.nspin
 
@@ -259,43 +286,33 @@ class _FastCiderBase:
             )
 
         vfeat_sig[:] *= plan.nspin
-        f_sgq[:] = 0.0
-        for s in range(nspin):
-            for i in range(plan.num_vj):
-                _rho_tuple = (x[s] for x in rho_tuple)
-                a_g, da_g = plan.get_interpolation_arguments(_rho_tuple, i=i)
-                p_gq, dp_gq = plan.get_interpolation_coefficients(
-                    a_g, i=i, vbuf=p_gq, dbuf=dp_gq
-                )
-                p_gq.shape = a_g.shape + (plan.nalpha,)
-                dp_gq.shape = a_g.shape + (plan.nalpha,)
-                self.fft_obj.fill_vj_potential_(vfeat_sig[s, i], p_gq)
-                tmp = dfeat_sjg[s, i] * vfeat_sig[s, i]
-                v_sg[s] += da_g[0] * tmp
-                dedsigma_xg[2 * s] += da_g[1] * tmp
-                if tau_sg is not None:
-                    dedtau_sg[s] += da_g[2] * tmp
-                # dedrho_sxg[s, 0] += da_g[0] * tmp
-                # dedrho_sxg[s, 1:4] += 2 * da_g[1] * rho_sxg[s, 1:4] * tmp
-                # if tau_sg is not None:
-                #    dedrho_sxg[s, 4] += da_g[2] * tmp
-        dedarg_sg, dedfun_sg = self.call_bwd(arg_sg, fun_sg)
-
+        dedarg_sg, dedfun_sg = self.call_bwd(
+            rho_tuple,
+            vfeat_sig,
+            dfeat_sjg,
+            arg_sg,
+            fun_sg,
+            v_sg,
+            dedsigma_xg,
+            dedtau_sg,
+            p_gq=p_gq,
+            dp_gq=dp_gq,
+        )
         for i, term in enumerate(darg_sg):
             term[:] *= dedarg_sg
             term[:] += dedfun_sg * dfun_sg[i]
         for s in range(plan.nspin):
             v_sg[s] += darg_sg[0][s]
             dedsigma_xg[2 * s] += darg_sg[1][s]
-            # if tau_sg is not None:
-            #     dedtau_sg[s] += darg_sg[2][s]
+            if tau_sg is not None:
+                dedtau_sg[s] += darg_sg[2][s]
 
         dedrho_sxg[:, 0] += v_sg
-        dedrho_sxg[:, 1:4] += 2 * rho_sxg[:, 1:4] * dedsigma_xg[::2]
+        dedrho_sxg[:, 1:4] += 2 * rho_sxg[:, 1:4] * dedsigma_xg[::2, None, ...]
         if plan.nspin == 2:
-            dedrho_sxg[:, 1:4] += rho_sxg[::-1, 1:4] * dedsigma_xg[1]
-        # if tau_sg is not None:
-        #     dedrho_sxg[:, 4] += dedtau_sg
+            dedrho_sxg[:, 1:4] += rho_sxg[::-1, 1:4] * dedsigma_xg[1:2, None, ...]
+        if tau_sg is not None:
+            dedrho_sxg[:, 4] += dedtau_sg
 
     def _distribute_to_cider_grid(self, n_xg):
         shape = (len(n_xg),)
@@ -400,6 +417,8 @@ def get_rho_sxg(n_sg, grad_v, tau_sg=None):
     for v in range(3):
         for s in range(nspin):
             grad_v[v](n_sg[s], rho_sxg[s, v + 1])
+    if tau_sg is not None:
+        rho_sxg[:, 4] = tau_sg
     return rho_sxg
 
 

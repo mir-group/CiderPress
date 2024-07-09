@@ -21,6 +21,8 @@ def run_calc(xc, spinpol, setups="paw", fast=False):
         use_paw=False if setups == "sg15" else True,
         fast=fast,
     )
+    # from gpaw.xc.libxc import LibXC
+    # xc = LibXC("MGGA_X_R2SCAN+MGGA_C_R2SCAN")
 
     atoms.calc = CiderGPAW(
         h=0.18,  # use a reasonably small grid spacing
@@ -28,7 +30,7 @@ def run_calc(xc, spinpol, setups="paw", fast=False):
         mode=PW(520),  # plane-wave mode with 520 eV cutoff.
         txt="-",  # output file, '-' for stdout
         occupations={"name": "fermi-dirac", "width": 0.01},
-        kpts={"size": (12, 12, 12), "gamma": False},  # kpt mesh parameters
+        kpts={"size": (8, 8, 8), "gamma": False},  # kpt mesh parameters
         convergence={"energy": 1e-5},  # convergence energy in eV/electron
         spinpol=spinpol,
         setups=setups,
@@ -41,13 +43,13 @@ def run_calc(xc, spinpol, setups="paw", fast=False):
 def generate_test(xcname):
     def run_test(self):
         with np.errstate(all="ignore"):
-            # e_rks_slow = run_calc(xcname, False, setups="sg15", fast=False)
-            # e_uks_slow = run_calc(xcname, True, setups="sg15", fast=False)
+            e_rks_slow = run_calc(xcname, False, setups="sg15", fast=False)
+            e_uks_slow = run_calc(xcname, True, setups="sg15", fast=False)
             e_rks_fast = run_calc(xcname, False, setups="sg15", fast=True)
-            # e_uks_fast = run_calc(xcname, True, setups="sg15", fast=True)
-            # assert_almost_equal(e_rks_slow, e_uks_slow)
+            e_uks_fast = run_calc(xcname, True, setups="sg15", fast=True)
+            assert_almost_equal(e_rks_slow, e_uks_slow)
             assert_almost_equal(e_rks_fast, e_rks_slow)
-            # assert_almost_equal(e_uks_fast, e_uks_slow)
+            assert_almost_equal(e_uks_fast, e_uks_slow)
 
     return run_test
 

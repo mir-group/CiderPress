@@ -1434,9 +1434,9 @@ class NLDFAuxiliaryPlan(ABC):
             drho = rho_data[:, 1:4]
             sigma = np.einsum("sx...,sx...->s...", drho, drho)
             if self.nldf_settings.sl_level == "MGGA":
-                return rho_data[:, 0], sigma, rho_data[:, 4]
+                return rho_data[:, 0].copy(), sigma, rho_data[:, 4].copy()
             else:
-                return rho_data[:, 0], sigma
+                return rho_data[:, 0].copy(), sigma
         else:
             drho = rho_data[1:4]
             sigma = np.einsum("x...,x...->...", drho, drho)
@@ -2016,6 +2016,12 @@ class NLDFSplinePlan(NLDFAuxiliaryPlan):
         if self._spline_size != self.nalpha:
             di[:] *= (self._spline_size - 1) / (self.nalpha - 1)
             derivi[:] *= (self._spline_size - 1) / (self.nalpha - 1)
+        libcider.cider_ind_clip(
+            di.ctypes.data_as(ctypes.c_void_p),
+            derivi.ctypes.data_as(ctypes.c_void_p),
+            ctypes.c_int(self._spline_size - 1),
+            ctypes.c_int(exp_g.size),
+        )
         return di, derivi
 
     def _get_interpolation_arguments(self, rho_tuple, i=-1):
@@ -2048,7 +2054,6 @@ class NLDFSplinePlan(NLDFAuxiliaryPlan):
             ctypes.c_int(ngrids),
             ctypes.c_int(nalpha),
             ctypes.c_int(w_kap.shape[0]),
-            ctypes.c_double(self.alpha0),
             ctypes.c_double(self.lambd),
         )
         return p, dp
