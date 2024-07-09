@@ -276,14 +276,17 @@ class _FastCiderBase:
         # TODO version i features
         feat_sig[:] *= plan.nspin
 
-        if tau_sg is None:  # GGA
-            vfeat_sig = self.cider_kernel.calculate(
-                e_g, nt_sg, v_sg, sigma_xg, dedsigma_xg, feat_sig
-            )
-        else:  # MGGA
-            vfeat_sig = self.cider_kernel.calculate(
-                e_g, nt_sg, v_sg, sigma_xg, dedsigma_xg, tau_sg, dedtau_sg, feat_sig
-            )
+        if e_g.size > 0:
+            if tau_sg is None:  # GGA
+                vfeat_sig = self.cider_kernel.calculate(
+                    e_g, nt_sg, v_sg, sigma_xg, dedsigma_xg, feat_sig
+                )
+            else:  # MGGA
+                vfeat_sig = self.cider_kernel.calculate(
+                    e_g, nt_sg, v_sg, sigma_xg, dedsigma_xg, tau_sg, dedtau_sg, feat_sig
+                )
+        else:
+            vfeat_sig = np.zeros_like(feat_sig)
 
         vfeat_sig[:] *= plan.nspin
         dedarg_sg, dedfun_sg = self.call_bwd(
