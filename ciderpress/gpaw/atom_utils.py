@@ -1121,7 +1121,6 @@ class AtomPASDWSlice:
         spos_c,
         psetup,
         rmax=0,
-        order="C",
         sphere=True,
         ovlp_fit=False,
         store_funcs=False,
@@ -1241,6 +1240,14 @@ class AtomPASDWSlice:
                 self.psetup.lmlist_i,
             )
         return funcs_vig
+
+    @property
+    def num_funcs(self):
+        return len(self.psetup.nlist_i)
+
+    @property
+    def num_grids(self):
+        return self.rad_g.size
 
     def setup_ovlpt(self):
         rad_pfuncs_ng = pwutil.eval_cubic_spline(

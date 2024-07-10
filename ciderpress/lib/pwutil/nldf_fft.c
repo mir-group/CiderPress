@@ -1,6 +1,7 @@
 #include "config.h"
 #include <assert.h>
 #include <complex.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #ifdef HAVE_MPI
@@ -149,7 +150,16 @@ void ciderpw_setup_kernel(ciderpw_data data, int nalpha, int nbeta,
     }
 }
 
-void cider_pw_setup_reciprocal_vectors(ciderpw_data data) {
+void ciderpw_get_bound_inds(ciderpw_data data, int *bound_inds) {
+    bound_inds[0] = data->cell.offset[0];
+    bound_inds[1] = data->cell.offset[1];
+    bound_inds[2] = data->cell.offset[2];
+    bound_inds[3] = bound_inds[0] + data->cell.Nlocal[0];
+    bound_inds[4] = bound_inds[1] + data->cell.Nlocal[1];
+    bound_inds[5] = bound_inds[2] + data->cell.Nlocal[2];
+}
+
+void ciderpw_setup_reciprocal_vectors(ciderpw_data data) {
     int N0, N1, N2;
     int N1glob, N0glob, N2glob;
     int kindex;
@@ -253,7 +263,7 @@ void ciderpw_init_mpi(ciderpw_data data, MPI_Comm mpi_comm, int nalpha,
     assert(data->plan_g2k != NULL);
     assert(data->plan_k2g != NULL);
     ciderpw_allocate_buffers(data);
-    cider_pw_setup_reciprocal_vectors(data);
+    ciderpw_setup_reciprocal_vectors(data);
 }
 
 void ciderpw_init_mpi_from_gpaw(ciderpw_data data, PyObject *gpaw_comm,
@@ -561,6 +571,80 @@ void ciderpw_zero_work(ciderpw_data data) {
                 }
             }
             work_ga += data->kLDA * data->kernel.work_size;
+        }
+    }
+}
+
+void ciderpw_fill_atom_info(ciderpw_data data, int64_t *inds_c, double *disps_c,
+                            int64_t *num_c, double *r_vg, int64_t *locs_g) {
+    int64_t num_x = num_c[0];
+    int64_t num_y = num_c[1];
+    int64_t num_z = num_c[2];
+    int64_t num_t = num_x * num_y * num_z;
+    int64_t *indx = inds_c;
+    int64_t *indy = indx + num_x;
+    int64_t *indz = indy + num_y;
+    double *dispx = disps_c;
+    double *dispy = dispx + num_x;
+    double *dispz = dispy + num_y;
+    int ix, iy, iz;
+    int g = 0;
+    int nlocy = data->cell.Nlocal[1];
+    for (ix = 0; ix < num_x; ix++) {
+        for (iy = 0; iy < num_y; iy++) {
+            for (iz = 0; iz < num_z; iz++, g++) {
+                locs_g[g] =
+                    indz[iz] + data->gLDA * (indy[iy] + nlocy * indx[ix]);
+                double rx = data->cell.vec[0] * dispx[ix] +
+                            data->cell.vec[3] * dispy[iy] +
+                            data->cell.vec[6] * dispz[iz];
+                double ry = data->cell.vec[1] * dispx[ix] +
+                            data->cell.vec[4] * dispy[iy] +
+                            data->cell.vec[7] * dispz[iz];
+                double rz = data->cell.vec[2] * dispx[ix] +
+                            data->cell.vec[5] * dispy[iy] +
+                            data->cell.vec[8] * dispz[iz];
+                r_vg[g] = sqrt(rx * rx + ry * ry + rz * rz + 1e-16);
+                r_vg[1 * num_t + g] = rx / r_vg[g];
+                r_vg[2 * num_t + g] = ry / r_vg[g];
+                r_vg[3 * num_t + g] = rz / r_vg[g];
+            }
+        }
+    }
+}
+
+void ciderpw_add_atom_info(ciderpw_data data, double *funcs_ga, int64_t *locs_g,
+                           int ng) {
+    double *work_ga = (double *)data->work_ska;
+    double *work_a;
+    double *funcs_a;
+    int64_t loc;
+    int a;
+    const int nalpha = data->kernel.nalpha;
+    for (int g = 0; g < ng; g++) {
+        loc = locs_g[g];
+        work_a = work_ga + loc * nalpha;
+        funcs_a = funcs_ga + g * nalpha;
+        for (a = 0; a < nalpha; a++) {
+            work_a[a] += funcs_a[a];
+        }
+    }
+}
+
+void ciderpw_set_atom_info(ciderpw_data data, double *funcs_ga, int64_t *locs_g,
+                           int ng) {
+    double *work_ga = (double *)data->work_ska;
+    double *work_a;
+    double *funcs_a;
+    int64_t loc;
+    int a;
+    const int nalpha = data->kernel.nalpha;
+    for (int g = 0; g < ng; g++) {
+        loc = locs_g[g];
+        work_a = work_ga + loc * nalpha;
+        funcs_a = funcs_ga + g * nalpha;
+        for (a = 0; a < nalpha; a++) {
+            funcs_a[a] = work_a[a];
         }
     }
 }

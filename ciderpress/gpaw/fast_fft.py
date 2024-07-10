@@ -152,9 +152,25 @@ class _FastCiderBase:
         self.gd = gd
         self.distribution = FFTDistribution(gd, [gd.comm.size, 1, 1])
 
+    def set_fft_work(self, s, pot=False):
+        pass
+
+    def get_fft_work(self, s, pot=False):
+        pass
+
+    def _set_paw_terms(self):
+        pass
+
+    def _calculate_paw_energy_and_potential(self):
+        pass
+
+    def _get_dH_asp(self):
+        pass
+
     def call_fwd(self, rho_tuple):
         p, dp = None, None
         plan = self._plan
+        self._set_paw_terms()
         arg_sg, darg_sg = plan.get_interpolation_arguments(rho_tuple, i=-1)
         fun_sg, dfun_sg = plan.get_function_to_convolve(rho_tuple)
         feat_sig = np.empty(
@@ -178,7 +194,11 @@ class _FastCiderBase:
             )
             p.shape = fun_sg.shape[-3:] + (p.shape[-1],)
             self.fft_obj.set_work(fun_sg[s], p)
+            self.set_fft_work(s, pot=False)
+            self.timer.start("FFT and kernel")
             self.fft_obj.compute_forward_convolution()
+            self.timer.stop("FFT and kernel")
+            self.get_fft_work(s, pot=False)
             for i in range(plan.num_vj):
                 a_g = plan.get_interpolation_arguments(_rho_tuple, i=i)[0]
                 p, dp = plan.get_interpolation_coefficients(a_g, i=i, vbuf=p, dbuf=dp)
@@ -215,6 +235,7 @@ class _FastCiderBase:
         dedarg_sg = np.empty(v_sg.shape)
         dedfun_sg = np.empty(v_sg.shape)
         plan = self._plan
+        self._calculate_paw_energy_and_potential()
         for s in range(plan.nspin):
             self.fft_obj.reset_work()
             for i in range(plan.num_vj):
@@ -235,7 +256,11 @@ class _FastCiderBase:
                 # dedrho_sxg[s, 1:4] += 2 * da_g[1] * rho_sxg[s, 1:4] * tmp
                 # if tau_sg is not None:
                 #    dedrho_sxg[s, 4] += da_g[2] * tmp
+            self.set_fft_work(s, pot=True)
+            self.timer.start("FFT and kernel")
             self.fft_obj.compute_backward_convolution()
+            self.timer.stop("FFT and kernel")
+            self.get_fft_work(s, pot=True)
             p_gq, dp_gq = plan.get_interpolation_coefficients(
                 arg_sg[s], i=-1, vbuf=p_gq, dbuf=dp_gq
             )
@@ -244,7 +269,11 @@ class _FastCiderBase:
             self.fft_obj.fill_vj_feature_(dedarg_sg[s], dp_gq)
             self.fft_obj.fill_vj_feature_(dedfun_sg[s], p_gq)
         dedarg_sg[:] *= fun_sg
+        self._get_dH_asp()
         return dedarg_sg, dedfun_sg
+
+    def initialize_more_things(self):
+        pass
 
     def calc_cider(
         self,
@@ -258,6 +287,7 @@ class _FastCiderBase:
         if self._plan is None:
             self._setup_plan()
             self.fft_obj.initialize_backend()
+            self.initialize_more_things()
         plan = self._plan
         sigma_xg = get_sigma(rho_sxg[:, 1:4])
         dedsigma_xg = np.zeros_like(sigma_xg)

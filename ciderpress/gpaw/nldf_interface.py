@@ -229,6 +229,56 @@ class LibCiderPW:
     def reset_work(self):
         pwutil.ciderpw_zero_work(self._ptr)
 
+    def get_radial_info_for_atom(self, local_indices, local_fdisps):
+        num_c = []
+        for i in range(3):
+            num_c.append(len(local_indices[i]))
+            assert len(local_fdisps[i]) == num_c[i]
+        ngrid = np.prod(num_c)
+        r_g = np.empty((4, ngrid), order="C")
+        inds = np.ascontiguousarray(np.concatenate(local_indices).astype(np.int64))
+        disps = np.ascontiguousarray(np.concatenate(local_fdisps).astype(np.float64))
+        locs_g = np.empty(ngrid, dtype=np.int64)
+        num_c = np.asarray(num_c, order="C", dtype=np.int64)
+        pwutil.ciderpw_fill_atom_info(
+            self._ptr,
+            inds.ctypes.data_as(ctypes.c_void_p),
+            disps.ctypes.data_as(ctypes.c_void_p),
+            num_c.ctypes.data_as(ctypes.c_void_p),
+            r_g.ctypes.data_as(ctypes.c_void_p),
+            locs_g.ctypes.data_as(ctypes.c_void_p),
+        )
+        return locs_g, r_g[0], r_g[1:].T
+
+    def add_paw2grid(self, funcs_gb, indset):
+        assert funcs_gb.flags.c_contiguous
+        assert funcs_gb.dtype == np.float64
+        assert indset.flags.c_contiguous
+        assert indset.dtype == np.int64
+        pwutil.ciderpw_add_atom_info(
+            self._ptr,
+            funcs_gb.ctypes.data_as(ctypes.c_void_p),
+            indset.ctypes.data_as(ctypes.c_void_p),
+            ctypes.c_int(indset.size),
+        )
+
+    def set_grid2paw(self, funcs_gb, indset):
+        assert funcs_gb.flags.c_contiguous
+        assert indset.flags.c_contiguous
+        pwutil.ciderpw_set_atom_info(
+            self._ptr,
+            funcs_gb.ctypes.data_as(ctypes.c_void_p),
+            indset.ctypes.data_as(ctypes.c_void_p),
+            ctypes.c_int(indset.size),
+        )
+
+    def get_bound_inds(self):
+        bound_inds = np.zeros(6, dtype=np.int32)
+        pwutil.ciderpw_get_bound_inds(
+            self._ptr, bound_inds.ctypes.data_as(ctypes.c_void_p)
+        )
+        return bound_inds[:3], bound_inds[3:]
+
 
 class FFTWrapper:
     def __init__(self, fft_obj, distribution, pd, timer=nulltimer):

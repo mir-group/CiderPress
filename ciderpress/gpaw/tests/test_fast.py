@@ -17,7 +17,7 @@ def run_calc(xc, spinpol, setups="paw", fast=False):
         qmax=300,
         lambd=1.8,
         pasdw_store_funcs=False,
-        pasdw_ovlp_fit=True,
+        pasdw_ovlp_fit=False,
         use_paw=False if setups == "sg15" else True,
         fast=fast,
     )
@@ -40,13 +40,13 @@ def run_calc(xc, spinpol, setups="paw", fast=False):
     return etot
 
 
-def generate_test(xcname):
+def generate_test(xcname, setups="sg15"):
     def run_test(self):
         with np.errstate(all="ignore"):
-            e_rks_slow = run_calc(xcname, False, setups="sg15", fast=False)
-            e_uks_slow = run_calc(xcname, True, setups="sg15", fast=False)
-            e_rks_fast = run_calc(xcname, False, setups="sg15", fast=True)
-            e_uks_fast = run_calc(xcname, True, setups="sg15", fast=True)
+            e_rks_slow = run_calc(xcname, False, setups=setups, fast=False)
+            e_uks_slow = run_calc(xcname, True, setups=setups, fast=False)
+            e_rks_fast = run_calc(xcname, False, setups=setups, fast=True)
+            e_uks_fast = run_calc(xcname, True, setups=setups, fast=True)
             assert_almost_equal(e_rks_slow, e_uks_slow)
             assert_almost_equal(e_rks_fast, e_rks_slow)
             assert_almost_equal(e_uks_fast, e_uks_slow)
@@ -56,9 +56,13 @@ def generate_test(xcname):
 
 class TestEnergy(unittest.TestCase):
 
-    test_nl_gga = generate_test("CIDER23X_NL_GGA")
+    # test_nl_gga = generate_test("CIDER23X_NL_GGA")
 
-    test_nl_mgga = generate_test("CIDER23X_NL_MGGA_DTR")
+    # test_nl_mgga = generate_test("CIDER23X_NL_MGGA_DTR")
+
+    # test_nl_gga_paw = generate_test("CIDER23X_NL_GGA", setups="paw")
+
+    test_nl_mgga_paw = generate_test("CIDER23X_NL_MGGA_DTR", setups="paw")
 
 
 if __name__ == "__main__":

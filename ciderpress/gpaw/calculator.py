@@ -132,7 +132,11 @@ def get_cider_functional(
             cider_kernel = SLCiderMGGAHybridWrapper(mlfunc, xmix, xkernel, ckernel)
             return SLCiderMGGA(cider_kernel)
         cider_kernel = CiderMGGAHybridKernel(mlfunc, xmix, xkernel, ckernel)
-        if use_paw:
+        if use_paw and fast:
+            from ciderpress.gpaw.fast_paw import CiderMGGAPASDW as FastMGGAPASDW
+
+            cls = FastMGGAPASDW
+        elif use_paw:
             cls = CiderMGGAPASDW
         elif fast:
             from ciderpress.gpaw.fast_fft import CiderMGGA as FastMGGA
@@ -147,7 +151,11 @@ def get_cider_functional(
             cider_kernel = SLCiderGGAHybridWrapper(mlfunc, xmix, xkernel, ckernel)
             return SLCiderGGA(cider_kernel)
         cider_kernel = CiderGGAHybridKernel(mlfunc, xmix, xkernel, ckernel)
-        if use_paw:
+        if use_paw and fast:
+            from ciderpress.gpaw.fast_paw import CiderGGAPASDW as FastGGAPASDW
+
+            cls = FastGGAPASDW
+        elif use_paw:
             cls = CiderGGAPASDW
         elif fast:
             from ciderpress.gpaw.fast_fft import CiderGGA as FastGGA
