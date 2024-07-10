@@ -35,7 +35,7 @@ def get_ag_indices(fft_obj, gd, shape, spos_c, rmax, buffer=0):
 class FastAtomPASDWSlice(AtomPASDWSlice):
     def __init__(self, *args, **kwargs):
         super(FastAtomPASDWSlice, self).__init__(*args, **kwargs)
-        self.indset = np.ascontiguousarray(np.stack(self.indset).T.astype(np.int64))
+        self.indset = np.ascontiguousarray(self.indset.astype(np.int64))
 
     @classmethod
     def from_gd_and_setup(

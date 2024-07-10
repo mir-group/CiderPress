@@ -1096,7 +1096,10 @@ class AtomPASDWSlice:
         ovlp_fit=False,
         store_funcs=False,
     ):
-        self.indset = np.ascontiguousarray(np.stack(indset).T.astype(np.int32))
+        if len(indset) > 0:
+            self.indset = np.ascontiguousarray(np.stack(indset).T.astype(np.int32))
+        else:
+            self.indset = np.empty(0, dtype=np.int32)
         self.t_g = np.ascontiguousarray(g.astype(np.int32))
         self.dt_g = np.ascontiguousarray(dg.astype(np.float64))
         self.rad_g = rad_g

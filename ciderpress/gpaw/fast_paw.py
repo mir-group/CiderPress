@@ -1,5 +1,4 @@
 import numpy as np
-from gpaw.arraydict import ArrayDict
 from gpaw.xc.mgga import MGGA
 
 from ciderpress.gpaw.cider_paw import _CiderPASDW_MPRoutines
@@ -39,7 +38,7 @@ class _FastPASDW_MPRoutines(_CiderPASDW_MPRoutines):
         self.timer.stop()
 
     def write_augfeat_to_rbuf(self, c_abi, pot=False):
-        self.timer.start("part1")
+        self.timer.start("PAW TO GRID")
         if self.atom_slices is None:
             self._setup_atom_slices()
 
@@ -56,32 +55,33 @@ class _FastPASDW_MPRoutines(_CiderPASDW_MPRoutines):
             (self._plan.nalpha, atom_slices[a].num_funcs)
             for a in range(len(self.setups))
         ]
-        c_abi = ArrayDict(self.atom_partition, shapes, dtype=np.float64, d=c_abi)
-        c_abi = self.atomdist.from_work(c_abi)
-        self.timer.stop("part1")
+        max_size = np.max([s[0] * s[1] for s in shapes])
+        buf = np.empty(max_size, dtype=np.float64)
 
+        rank_a = self.atom_partition.rank_a
+        comm = self.atom_partition.comm
         for a in range(len(self.setups)):
-            if atom_slices[a] is not None and atom_slices[a].rad_g.size > 0:
-                atom_slice: FastAtomPASDWSlice = atom_slices[a]
+            atom_slice = atom_slices[a]
+            coefs_bi = np.ndarray(shapes[a], buffer=buf)
+            if comm.rank == rank_a[a]:
+                coefs_bi[:] = c_abi[a]
+            comm.broadcast(coefs_bi, rank_a[a])
+            if atom_slice is not None and atom_slices[a].rad_g.size > 0:
                 funcs_ig = atom_slice.get_funcs()
-                coefs_bi = c_abi[a]
                 # TODO this ovlp fitting should be done before
                 # collecting the c_abi using from_work
-                self.timer.start("part3")
                 if atom_slice.sinv_pf is not None:
                     coefs_bi = coefs_bi.dot(atom_slice.sinv_pf.T)
                 coefs_bi[:] /= self._plan.alpha_norms[:, None]
                 funcs_gb = np.dot(funcs_ig.T, coefs_bi.T)
-                self.timer.stop("part3")
-                self.timer.start("part2")
                 self.fft_obj.add_paw2grid(
                     funcs_gb,
                     atom_slice.indset,
                 )
-                self.timer.stop("part2")
+        self.timer.stop()
 
     def interpolate_rbuf_onto_atoms(self, pot=False):
-        self.timer.start("part1")
+        self.timer.start("GRID TO PAW")
         if self.atom_slices is None:
             self._setup_atom_slices()
 
@@ -98,35 +98,37 @@ class _FastPASDW_MPRoutines(_CiderPASDW_MPRoutines):
             (self._plan.nalpha, atom_slices[a].num_funcs)
             for a in range(len(self.setups))
         ]
-        c_abi = ArrayDict(self.atom_partition, shapes, dtype=np.float64)
-        self.timer.stop("part1")
+        max_size = np.max([s[0] * s[1] for s in shapes])
+        buf = np.empty(max_size, dtype=np.float64)
 
+        c_abi = {}
+        rank_a = self.atom_partition.rank_a
+        comm = self.atom_partition.comm
         for a in range(len(self.setups)):
             atom_slice: FastAtomPASDWSlice = atom_slices[a]
             if atom_slice.rad_g.size > 0:
-                self.timer.start("part2")
                 funcs_ig = atom_slice.get_funcs()
                 funcs_gb = np.empty((funcs_ig.shape[1], self._plan.nalpha))
                 self.fft_obj.set_grid2paw(
                     funcs_gb,
                     atom_slice.indset,
                 )
-                self.timer.stop("part2")
-                self.timer.start("part3")
-                coefs_bi = np.dot(funcs_ig, funcs_gb).T
+                coefs_bi = np.dot(funcs_gb.T, funcs_ig.T)
                 coefs_bi[:] *= atom_slice.dv
                 coefs_bi[:] /= self._plan.alpha_norms[:, None]
                 if atom_slice.sinv_pf is not None:
                     coefs_bi = coefs_bi.dot(atom_slice.sinv_pf)
                 # TODO this ovlp fitting should be done after
                 # scattering the c_abi using to_work
-                c_abi[a] = np.ascontiguousarray(coefs_bi)
-                self.timer.stop("part3")
             else:
-                c_abi[a] = np.zeros((self._plan.nalpha, atom_slice.sinv_pf.shape[0]))
-            self.atomdist.broadcast_comm.sum(c_abi[a])
+                coefs_bi = np.zeros(shapes[a])
+            comm.sum(coefs_bi, rank_a[a])
+            if rank_a[a] == comm.rank:
+                assert coefs_bi is not None
+                c_abi[a] = coefs_bi
 
-        return self.atomdist.to_work(c_abi)
+        self.timer.stop()
+        return c_abi
 
     def set_fft_work(self, s, pot=False):
         self.write_augfeat_to_rbuf(self.c_sabi[s], pot=pot)
@@ -351,6 +353,7 @@ class CiderMGGAPASDW(_FastPASDW_MPRoutines, CiderMGGA):
         # instead just compute the gradient and dedgrad
         # for sake of generality
         # TODO clearn approach?
+        self.timer.start("KED SETUP")
         if self.type == "MGGA":
             if self.fixed_ke:
                 taut_sG = self._fixed_taut_sG
@@ -374,6 +377,8 @@ class CiderMGGAPASDW(_FastPASDW_MPRoutines, CiderMGGA):
         else:
             taut_sg = None
             dedtaut_sg = None
+        self.timer.stop()
+        self.timer.start("Reorganize density")
         rho_sxg = get_rho_sxg(n_sg, self.grad_v, taut_sg)
         tmp_dedrho_sxg = np.zeros_like(rho_sxg)
         shape = rho_sxg.shape[:2]
@@ -383,7 +388,9 @@ class CiderMGGAPASDW(_FastPASDW_MPRoutines, CiderMGGA):
         dedrho_sxg = np.zeros_like(rho_sxg)
         _e = self._distribute_to_cider_grid(np.zeros_like(e_g)[None, :])[0]
         e_g[:] = 0.0
+        self.timer.stop()
         self.process_cider(_e, rho_sxg, dedrho_sxg)
+        self.timer.start("Reorganize potential")
         self._add_from_cider_grid(e_g[None, :], _e[None, :])
         for s in range(len(n_sg)):
             self._add_from_cider_grid(tmp_dedrho_sxg[s], dedrho_sxg[s])
@@ -399,3 +406,4 @@ class CiderMGGAPASDW(_FastPASDW_MPRoutines, CiderMGGA):
                 self.ekin -= self.wfs.gd.integrate(
                     self.dedtaut_sG[s] * (taut_sG[s] - self.tauct_G / self.wfs.nspins)
                 )
+        self.timer.stop()

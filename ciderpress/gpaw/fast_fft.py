@@ -198,6 +198,7 @@ class _FastCiderBase:
             self.timer.start("FFT and kernel")
             self.fft_obj.compute_forward_convolution()
             self.timer.stop("FFT and kernel")
+            self.timer.start("Features")
             self.get_fft_work(s, pot=False)
             for i in range(plan.num_vj):
                 a_g = plan.get_interpolation_arguments(_rho_tuple, i=i)[0]
@@ -217,6 +218,7 @@ class _FastCiderBase:
                 dp.shape = a_g.shape + (plan.nalpha,)
                 self.fft_obj.fill_vj_feature_(feat_sig[s, i], p)
                 self.fft_obj.fill_vj_feature_(dfeat_sjg[s, i], dp)
+            self.timer.stop()
         return feat_sig, dfeat_sjg, arg_sg, darg_sg, fun_sg, dfun_sg, p, dp
 
     def call_bwd(
@@ -237,6 +239,7 @@ class _FastCiderBase:
         plan = self._plan
         self._calculate_paw_energy_and_potential()
         for s in range(plan.nspin):
+            self.timer.start("Feature potential")
             self.fft_obj.reset_work()
             for i in range(plan.num_vj):
                 _rho_tuple = (x[s] for x in rho_tuple)
@@ -256,6 +259,7 @@ class _FastCiderBase:
                 # dedrho_sxg[s, 1:4] += 2 * da_g[1] * rho_sxg[s, 1:4] * tmp
                 # if tau_sg is not None:
                 #    dedrho_sxg[s, 4] += da_g[2] * tmp
+            self.timer.stop()
             self.set_fft_work(s, pot=True)
             self.timer.start("FFT and kernel")
             self.fft_obj.compute_backward_convolution()
