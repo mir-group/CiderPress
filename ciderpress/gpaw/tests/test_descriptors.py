@@ -20,6 +20,8 @@ from ciderpress.gpaw.descriptors import (
 )
 from ciderpress.gpaw.xc_tools import non_self_consistent_eigenvalues as nscfeig
 
+USE_FAST_CIDER = False
+
 
 def get_xc(fname, use_paw=True, force_nl=False):
     return get_cider_functional(
@@ -27,9 +29,10 @@ def get_xc(fname, use_paw=True, force_nl=False):
         qmax=300,
         lambd=1.8,
         xmix=0.25,
-        pasdw_ovlp_fit=True,
+        pasdw_ovlp_fit=not USE_FAST_CIDER,
         pasdw_store_funcs=False,
         use_paw=use_paw,
+        fast=USE_FAST_CIDER,
         _force_nonlocal=force_nl,
     )
 

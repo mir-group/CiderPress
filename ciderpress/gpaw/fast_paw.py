@@ -256,8 +256,6 @@ class CiderGGAPASDW(_FastPASDW_MPRoutines, CiderGGA):
         self.spos_ac = spos_ac
         self.atom_slices = None
 
-    calc_cider = CiderGGA.calc_cider
-
     def initialize(self, density, hamiltonian, wfs):
         self.dens = density
         self._hamiltonian = hamiltonian
@@ -267,6 +265,13 @@ class CiderGGAPASDW(_FastPASDW_MPRoutines, CiderGGA):
         self.gdfft = None
         self.pwfft = None
         self.rbuf_ag = None
+
+    def calc_cider(self, *args, **kwargs):
+        if (self.setups is None) or (self.atom_slices is None):
+            self._setup_plan()
+            self.fft_obj.initialize_backend()
+            self.initialize_more_things()
+        CiderGGA.calc_cider(self, *args, **kwargs)
 
 
 class CiderMGGAPASDW(_FastPASDW_MPRoutines, CiderMGGA):
@@ -346,8 +351,6 @@ class CiderMGGAPASDW(_FastPASDW_MPRoutines, CiderMGGA):
         self.kbuf_ak = None
         self.theta_ak = None
 
-    calc_cider = CiderMGGA.calc_cider
-
     def calculate_impl(self, gd, n_sg, v_sg, e_g):
         # TODO don't calculate sigma/dedsigma here
         # instead just compute the gradient and dedgrad
@@ -380,6 +383,7 @@ class CiderMGGAPASDW(_FastPASDW_MPRoutines, CiderMGGA):
         self.timer.stop()
         self.timer.start("Reorganize density")
         rho_sxg = get_rho_sxg(n_sg, self.grad_v, taut_sg)
+        self.nspin = len(rho_sxg)
         tmp_dedrho_sxg = np.zeros_like(rho_sxg)
         shape = rho_sxg.shape[:2]
         rho_sxg.shape = (rho_sxg.shape[0] * rho_sxg.shape[1],) + rho_sxg.shape[-3:]
@@ -407,3 +411,10 @@ class CiderMGGAPASDW(_FastPASDW_MPRoutines, CiderMGGA):
                     self.dedtaut_sG[s] * (taut_sG[s] - self.tauct_G / self.wfs.nspins)
                 )
         self.timer.stop()
+
+    def calc_cider(self, *args, **kwargs):
+        if (self.setups is None) or (self.atom_slices is None):
+            self._setup_plan()
+            self.fft_obj.initialize_backend()
+            self.initialize_more_things()
+        CiderMGGA.calc_cider(self, *args, **kwargs)

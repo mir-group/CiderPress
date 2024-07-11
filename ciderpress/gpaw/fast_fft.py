@@ -288,7 +288,7 @@ class _FastCiderBase:
     ):
         nspin = len(rho_sxg)
         self.nspin = nspin
-        if self._plan is None:
+        if self._plan is None or self._plan.nspin != nspin:
             self._setup_plan()
             self.fft_obj.initialize_backend()
             self.initialize_more_things()
@@ -392,6 +392,7 @@ class _FastCiderBase:
         rho_sxg.shape = (rho_sxg.shape[0] * rho_sxg.shape[1],) + rho_sxg.shape[-3:]
         rho_sxg = self._distribute_to_cider_grid(rho_sxg)
         rho_sxg.shape = shape + rho_sxg.shape[-3:]
+        self.nspin = len(rho_sxg)
         dedrho_sxg = np.zeros_like(rho_sxg)
         _e = self._distribute_to_cider_grid(np.zeros_like(e_g)[None, :])[0]
         e_g[:] = 0.0

@@ -500,35 +500,3 @@ class MetaPAWCiderContribUtils(PAWCiderContribUtils):
             dedtau_sg[s] += vtau_sg[s]
 
         self.contract_kinetic_potential(dedtau_sg, ae)
-
-
-class BasePAWCiderKernel(PAWCiderKernelShell, PAWCiderContribUtils):
-    def __init__(
-        self,
-        cider_kernel,
-        Nalpha,
-        lambd,
-        encut,
-        world,
-        timer,
-        Nalpha_small,
-        cut_xcgrid,
-        **kwargs
-    ):
-
-        if world is None:
-            self.world = mpi.world
-        else:
-            self.world = world
-
-        self.Nalpha_small = Nalpha_small
-        self.Nalpha = Nalpha
-        self.lambd = lambd
-        self.encut = encut
-
-        self.cider_kernel = cider_kernel
-
-        self.verbose = False
-        self.timer = timer
-
-        self.cut_xcgrid = cut_xcgrid
