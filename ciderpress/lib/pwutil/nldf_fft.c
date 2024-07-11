@@ -35,6 +35,14 @@ void ciderpw_set_communicator_from_gpaw(ciderpw_data data,
     ciderpw_set_communicator(data, mpi_comm);
 }
 
+void ciderpw_all_gatherv_from_gpaw(PyObject *gpaw_mpi_obj, double *sendbuf,
+                                   int sendcount, double *recvbuf,
+                                   const int *counts, const int *displs) {
+    MPI_Comm mpi_comm = unpack_gpaw_comm(gpaw_mpi_obj);
+    MPI_Allgatherv(sendbuf, sendcount, MPI_DOUBLE, recvbuf, counts, displs,
+                   MPI_DOUBLE, mpi_comm);
+}
+
 int ciderpw_get_struct_size() { return sizeof(struct ciderpw_data_obj); }
 
 void ciderpw_nullify(ciderpw_data data) {

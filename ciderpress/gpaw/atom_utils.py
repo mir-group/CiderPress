@@ -95,12 +95,14 @@ def calculate_paw_cider_features(self, setups, D_asp):
         slgd = setup.xc_correction.rgd
         RCUT = np.max(setup.rcut_j)
 
+        self.timer.start("coefs")
         rcalc = CiderRadialFeatureCalculator(setup.cider_contribs)
         expansion = CiderRadialExpansion(rcalc)
         dx_sbgL, dxt_sbgL = calculate_cider_paw_correction(
             expansion, setup, D_sp, separate_ae_ps=True
         )
         dx_sbgL -= dxt_sbgL
+        self.timer.stop()
 
         rcut = RCUT
         rmax = slgd.r_g[-1]
@@ -109,13 +111,16 @@ def calculate_paw_cider_features(self, setups, D_asp):
         fcut[slgd.r_g > rmax] = 0.0
         dxt_sbgL *= fcut[:, None]
 
+        self.timer.start("transform and convolve")
         dx_sbLk = setup.etb_projector.r2k(dx_sbgL.transpose(0, 1, 3, 2))
         dxt_sbLk = setup.etb_projector.r2k(dxt_sbgL.transpose(0, 1, 3, 2))
 
         y_sbLk = get_atomic_convolution(setup.cider_contribs, dx_sbLk, xcc)
         yref_sbLk = get_atomic_convolution(setup.cider_contribs, dxt_sbLk, xcc)
         yref_sbLg = 2 / np.pi * setup.etb_projector.k2r(yref_sbLk)
+        self.timer.stop()
 
+        self.timer.start("separate long and short-range")
         c_sib, df_sLpb = psetup.get_c_and_df(y_sbLk[:, :Nalpha_sm], realspace=False)
         yt_sbLg = psetup.get_f_realspace_contribs(c_sib, sl=True)
         df_sLpb = np.append(
@@ -127,6 +132,7 @@ def calculate_paw_cider_features(self, setups, D_asp):
         y_asbLg[a] = df_sbLg.copy()
         self.yref_asbLg[a] = yref_sbLg
         self.yref_asbLg[a][:, :Nalpha_sm] += yt_sbLg
+        self.timer.stop()
         for s in range(nspin):
             c_sabi[s][a] = c_sib[s].T
 

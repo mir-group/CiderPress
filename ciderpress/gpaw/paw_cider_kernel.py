@@ -89,6 +89,7 @@ class PAWCiderContribUtils:
         return p_qg, dp_qg
 
     def get_paw_atom_contribs(self, n_sg, sigma_xg, tau_sg=None, ae=True):
+        self.timer.start("inner coefs")
         nspin = n_sg.shape[0]
         x_sag = np.zeros((nspin, self.Nalpha, n_sg.shape[-1]))
         xd_sag = np.zeros((nspin, self.Nalpha, n_sg.shape[-1]))
@@ -104,6 +105,7 @@ class PAWCiderContribUtils:
             for a in range(self.Nalpha):
                 x_sag[s, a] = p_qg[a] * func_sg[s]
                 xd_sag[s, a] = dp_qg[a] * func_sg[s]
+        self.timer.stop()
         return x_sag, xd_sag
 
     def get_paw_atom_contribs_en(
