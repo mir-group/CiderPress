@@ -1,3 +1,5 @@
+import ctypes
+
 import numpy as np
 from gpaw.xc.mgga import MGGA
 
@@ -9,6 +11,7 @@ from ciderpress.gpaw.fast_fft import (
     add_gradient_correction,
     get_rho_sxg,
 )
+from ciderpress.gpaw.nldf_interface import pwutil as libpwutil
 
 
 class _FastPASDW_MPRoutines(_CiderPASDW_MPRoutines):
@@ -42,6 +45,7 @@ class _FastPASDW_MPRoutines(_CiderPASDW_MPRoutines):
         if self.atom_slices is None:
             self._setup_atom_slices()
 
+        self.timer.start("setup")
         if pot:
             atom_slices = self.atom_slices_2
             self.par_cider.pa_comm
@@ -55,18 +59,65 @@ class _FastPASDW_MPRoutines(_CiderPASDW_MPRoutines):
             (self._plan.nalpha, atom_slices[a].num_funcs)
             for a in range(len(self.setups))
         ]
-        max_size = np.max([s[0] * s[1] for s in shapes])
-        buf = np.empty(max_size, dtype=np.float64)
-
+        sizes = np.array([s[0] * s[1] for s in shapes])
         rank_a = self.atom_partition.rank_a
         comm = self.atom_partition.comm
+        atoms = [[] for r in range(comm.size)]
+        for a in range(len(self.setups)):
+            atoms[rank_a[a]].append(a)
+        alocs = {}
+        rlocs = []
+        rsizes = []
+        tot = 0
+        for r in range(comm.size):
+            rlocs.append(tot)
+            for a in atoms[r]:
+                alocs[a] = tot
+                tot += sizes[a]
+            rsizes.append(tot - rlocs[-1])
+        sendbuf = np.empty(rsizes[comm.rank], dtype=np.float64)
+        rtot = 0
+        for a in atoms[comm.rank]:
+            # assert c_abi[a].flags.c_contiguous
+            sendbuf[rtot : rtot + sizes[a]] = np.ascontiguousarray(c_abi[a]).ravel()
+            rtot += sizes[a]
+        np.asarray([rtot] * comm.size)
+        np.asarray([0] * comm.size)
+        recvbuf = np.empty(tot, dtype=np.float64)
+        self.timer.stop()
+        self.timer.start("comm")
+        rsizes = np.asarray(rsizes, order="C", dtype=np.int32)
+        rlocs = np.asarray(rlocs, order="C", dtype=np.int32)
+        libpwutil.ciderpw_all_gatherv_from_gpaw(
+            ctypes.py_object(comm.get_c_object()),
+            sendbuf.ctypes.data_as(ctypes.c_void_p),
+            ctypes.c_int(rtot),
+            recvbuf.ctypes.data_as(ctypes.c_void_p),
+            rsizes.ctypes.data_as(ctypes.c_void_p),
+            rlocs.ctypes.data_as(ctypes.c_void_p),
+        )
+        # comm.alltoallv(
+        #     sendbuf, scounts, sdispls, recvbuf, np.asarray(rsizes), np.asarray(rlocs)
+        # )
+        self.timer.stop()
+        # sizes = np.array([s[0] * s[1] for s in shapes])
+        # locs = np.asarray(np.append([0], np.cumsum(sizes[:-1])), order="C")
+        # max_size = np.max([s[0] * s[1] for s in shapes])
+        # buf = np.empty(np.sum(sizes), dtype=np.float64)
+        # buf = np.empty(max_size, dtype=np.float64)
+
         for a in range(len(self.setups)):
             atom_slice = atom_slices[a]
-            coefs_bi = np.ndarray(shapes[a], buffer=buf)
-            if comm.rank == rank_a[a]:
-                coefs_bi[:] = c_abi[a]
-            comm.broadcast(coefs_bi, rank_a[a])
+            coefs_bi = np.ndarray(shapes[a], buffer=recvbuf[alocs[a] :])
+            # coefs_bi = np.ndarray(shapes[a], buffer=buf)
+            # coefs_bi = np.ndarray(shapes[a], buffer=buf)
+            # if comm.rank == rank_a[a]:
+            #     coefs_bi[:] = c_abi[a]
+            # self.timer.start("comm")
+            # comm.broadcast(coefs_bi, rank_a[a])
+            # self.timer.stop()
             if atom_slice is not None and atom_slices[a].rad_g.size > 0:
+                self.timer.start("funcs")
                 funcs_ig = atom_slice.get_funcs()
                 # TODO this ovlp fitting should be done before
                 # collecting the c_abi using from_work
@@ -74,10 +125,13 @@ class _FastPASDW_MPRoutines(_CiderPASDW_MPRoutines):
                     coefs_bi = coefs_bi.dot(atom_slice.sinv_pf.T)
                 coefs_bi[:] /= self._plan.alpha_norms[:, None]
                 funcs_gb = np.dot(funcs_ig.T, coefs_bi.T)
+                self.timer.stop()
+                self.timer.start("paw2grid")
                 self.fft_obj.add_paw2grid(
                     funcs_gb,
                     atom_slice.indset,
                 )
+                self.timer.stop()
         self.timer.stop()
 
     def interpolate_rbuf_onto_atoms(self, pot=False):
