@@ -9,11 +9,12 @@ from ciderpress.dft.lcao_convolutions import (
     ConvolutionCollection,
     ConvolutionCollectionK,
     get_convolution_expnts_from_expnts,
+    get_etb_from_expnt_range,
     get_gamma_lists_from_bas_and_env,
 )
 from ciderpress.dft.lcao_interpolation import LCAOInterpolator, LCAOInterpolatorDirect
 from ciderpress.dft.lcao_nldf_generator import LCAONLDFGenerator
-from ciderpress.dft.plans import VI_ID_MAP, NLDFGaussianPlan, NLDFSplinePlan
+from ciderpress.dft.plans import NLDFGaussianPlan, NLDFSplinePlan, get_ccl_settings
 
 
 def aug_etb_for_cider(
@@ -56,10 +57,13 @@ def aug_etb_for_cider(
     newbasis = {}
     for symb in uniq_atoms:
         nuc_charge = gto.charge(symb)
+
+        def_amax = def_afac_max / COVALENT_RADII[nuc_charge] ** 2
+        def_amin = def_afac_min / COVALENT_RADII[nuc_charge] ** 2
+
         max_shells = lmax
         emin_by_l = [1e99] * 8
         emax_by_l = [0] * 8
-        l_max = 7
         for b in mol._basis[symb]:
             l = b[0]
             if l >= max_shells + 1:
@@ -75,41 +79,18 @@ def aug_etb_for_cider(
             emax_by_l[l] = max(es.max(), emax_by_l[l])
             emin_by_l[l] = min(es.min(), emin_by_l[l])
 
-        l_max1 = l_max + 1
-        emin_by_l = np.array(emin_by_l)
-        emax_by_l = np.array(emax_by_l)
-
-        # Estimate the exponents ranges by geometric average
-        emax = np.sqrt(np.einsum("i,j->ij", emax_by_l, emax_by_l))
-        emin = np.sqrt(np.einsum("i,j->ij", emin_by_l, emin_by_l))
-        liljsum = np.arange(l_max1)[:, None] + np.arange(l_max1)
-        emax_by_l = [emax[liljsum == ll].max() for ll in range(l_max1 * 2 - 1)]
-        emin_by_l = [emin[liljsum == ll].min() for ll in range(l_max1 * 2 - 1)]
-        # Tune emin and emax
-        emin_by_l = np.array(emin_by_l) * lower_fac  # *2 for alpha+alpha on same center
-        emax_by_l = np.array(emax_by_l) * upper_fac  # / (np.arange(l_max1*2-1)*.5+1)
-
-        def_amax = def_afac_max / COVALENT_RADII[nuc_charge] ** 2
-        def_amin = def_afac_min / COVALENT_RADII[nuc_charge] ** 2
-
-        cond = emax_by_l == 0
-        emax_by_l[cond] = def_amax
-        emin_by_l[cond] = def_amin
-        emax_by_l = np.maximum(def_amax, emax_by_l[: lmax + 1])
-        emin_by_l = np.minimum(def_amin, emin_by_l[: lmax + 1])
-
-        nmaxs = np.ceil(np.log(emax_by_l) / np.log(beta))
-        nmins = np.floor(np.log(emin_by_l) / np.log(beta))
-        emin_by_l = beta**nmins
-        ns = nmaxs - nmins + 1
-        etb = []
-        for l, n in enumerate(np.ceil(ns).astype(int)):
-            # print(l, n, emin_by_l[l], emax_by_l[l], beta)
-            if n > 0 and l <= lmax:
-                etb.append((l, n, emin_by_l[l], beta))
+        etb = get_etb_from_expnt_range(
+            lmax,
+            beta,
+            emin_by_l,
+            emax_by_l,
+            def_amax,
+            def_amin,
+            lower_fac=lower_fac,
+            upper_fac=upper_fac,
+        )
         newbasis[symb] = gto.expand_etbs(etb)
-
-    return newbasis, ns, np.max(nmaxs) - nmaxs
+    return newbasis
 
 
 def get_gamma_lists_from_mol(mol):
@@ -189,7 +170,7 @@ class PyscfNLDFGenerator(LCAONLDFGenerator):
             rhocut=rhocut,
             expcut=expcut,
         )
-        basis = aug_etb_for_cider(mol, lmax=lmax, beta=aug_beta)[0]
+        basis = aug_etb_for_cider(mol, lmax=lmax, beta=aug_beta)
         mol = gto.M(
             atom=mol.atom,
             basis=basis,
@@ -208,12 +189,7 @@ class PyscfNLDFGenerator(LCAONLDFGenerator):
                 atco_inp, atco_out, plan.alphas, plan.alpha_norms
             )
         else:
-            has_vj = "j" in plan.nldf_settings.nldf_type
-            ifeat_ids = []
-            for spec in plan.nldf_settings.l0_feat_specs:
-                ifeat_ids.append(VI_ID_MAP[spec])
-            for spec in plan.nldf_settings.l1_feat_specs:
-                ifeat_ids.append(VI_ID_MAP[spec])
+            has_vj, ifeat_ids = get_ccl_settings(plan)
             ccl = ConvolutionCollection(
                 atco_inp,
                 atco_out,

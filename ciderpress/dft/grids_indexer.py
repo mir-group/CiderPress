@@ -205,6 +205,10 @@ class AtomicGridsIndexer:
     def reduce_angc_ylm_(self, theta_rlmq, theta_gq, a2y=True, offset=None):
         """
         Project a function between angular coordinates and spherical harmonics.
+        NOTE that this is an in-place operation (with the output being
+        theta_rlmq if a2y=True and theta_gq if a2y=False), but the data
+        in the output array does not need to be initialized, as it is
+        overwritten on output, not added to.
 
         Args:
             theta_rlmq (np.ndarray): Shape (len(rad_arr), nlm, nalpha)
@@ -239,3 +243,16 @@ class AtomicGridsIndexer:
             ctypes.c_int(stride),
             ctypes.c_int(offset),
         )
+
+    @classmethod
+    def make_single_atom_indexer(cls, Y_nL, r_g):
+        nn, nlm = Y_nL.shape
+        lmax = np.sqrt(nlm + 1e-8) - 1
+        ng = r_g.size
+        rad_arr = np.ascontiguousarray(r_g.astype(np.float64))
+        ar_loc = np.zeros(ng, dtype=np.int32, order="C")
+        ra_loc = np.asarray([0, ng], dtype=np.int32, order="C")
+        rad_loc = np.ascontiguousarray((nn * np.arange(0, ng + 1)).astype(np.int32))
+        ylm = np.ascontiguousarray(Y_nL.astype(np.float64))
+        ylm_loc = np.zeros((1,), dtype=np.int32)
+        return cls(1, lmax, rad_arr, ar_loc, ra_loc, rad_loc, ylm, ylm_loc)

@@ -16,6 +16,7 @@ ATOM_OF = 0
 ANG_OF = 1
 PTR_EXP = 5
 PTR_COEFF = 6
+BAS_WIDTH = 8
 
 IFEAT_ID_TO_CONTRIB = {
     0: 0,  # squared-exponential
@@ -52,6 +53,41 @@ def gto_norm(l, expnt):
         raise ValueError("l should be >= 0")
 
 
+def get_etb_from_expnt_range(
+    lmax, beta, emin_by_l, emax_by_l, def_amax, def_amin, lower_fac=1.0, upper_fac=1.0
+):
+    emin_by_l = np.array(emin_by_l)
+    emax_by_l = np.array(emax_by_l)
+    l_max1 = np.min(emin_by_l.size)
+    assert emin_by_l.size == emax_by_l.size
+    # Estimate the exponents ranges by geometric average
+    emax = np.sqrt(np.einsum("i,j->ij", emax_by_l, emax_by_l))
+    emin = np.sqrt(np.einsum("i,j->ij", emin_by_l, emin_by_l))
+    liljsum = np.arange(l_max1)[:, None] + np.arange(l_max1)
+    emax_by_l = [emax[liljsum == ll].max() for ll in range(l_max1 * 2 - 1)]
+    emin_by_l = [emin[liljsum == ll].min() for ll in range(l_max1 * 2 - 1)]
+    # Tune emin and emax
+    emin_by_l = np.array(emin_by_l) * lower_fac  # *2 for alpha+alpha on same center
+    emax_by_l = np.array(emax_by_l) * upper_fac  # / (np.arange(l_max1*2-1)*.5+1)
+
+    cond = emax_by_l == 0
+    emax_by_l[cond] = def_amax
+    emin_by_l[cond] = def_amin
+    emax_by_l = np.maximum(def_amax, emax_by_l[: lmax + 1])
+    emin_by_l = np.minimum(def_amin, emin_by_l[: lmax + 1])
+
+    nmaxs = np.ceil(np.log(emax_by_l) / np.log(beta))
+    nmins = np.floor(np.log(emin_by_l) / np.log(beta))
+    emin_by_l = beta**nmins
+    ns = nmaxs - nmins + 1
+    etb = []
+    for l, n in enumerate(np.ceil(ns).astype(int)):
+        # print(l, n, emin_by_l[l], emax_by_l[l], beta)
+        if n > 0 and l <= lmax:
+            etb.append((l, n, emin_by_l[l], beta))
+    return etb
+
+
 def get_gamma_lists_from_bas_and_env(bas, env):
     natm = np.max(bas[:, ATOM_OF]) + 1
     atom2l0 = [0]
@@ -77,6 +113,38 @@ def get_gamma_lists_from_bas_and_env(bas, env):
         all_exps.append(np.concatenate(exps))
         all_coefs.append(np.concatenate(coefs))
         atom2l0.append(len(gamma_loc) - 1)
+    gamma_loc = np.asarray(np.cumsum(gamma_loc), dtype=np.int32, order="C")
+    lmaxs = np.asarray(lmaxs, dtype=np.int32, order="C")
+    all_exps = np.asarray(np.concatenate(all_exps), dtype=np.float64, order="C")
+    all_coefs = np.asarray(np.concatenate(all_coefs), dtype=np.float64, order="C")
+    atom2l0 = np.asarray(atom2l0, dtype=np.int32, order="C")
+    return atom2l0, lmaxs, gamma_loc, all_coefs, all_exps
+
+
+def get_gamma_lists_from_etb_list(etb_list):
+    natm = len(etb_list)
+    atom2l0 = [0]
+    lmaxs = []
+    gamma_loc = [0]
+    all_exps = []
+    all_coefs = []
+    for ia in range(natm):
+        etb = etb_list[ia]
+        lmax = -1
+        exps = []
+        coefs = []
+        for l, nexp, emin, beta in etb:
+            assert l == lmax + 1, "l values must be in ascending order"
+            lmax = l
+            exps_l = emin * beta ** (np.flip(np.arange(nexp)).astype(np.float64))
+            coefs_l = gto_norm(l, exps_l)
+            gamma_loc.append(len(exps_l))
+            exps.append(exps_l)
+            coefs.append(coefs_l)
+        all_exps.append(np.concatenate(exps))
+        all_coefs.append(np.concatenate(coefs))
+        atom2l0.append(len(gamma_loc) - 1)
+        lmaxs.append(lmax)
     gamma_loc = np.asarray(np.cumsum(gamma_loc), dtype=np.int32, order="C")
     lmaxs = np.asarray(lmaxs, dtype=np.int32, order="C")
     all_exps = np.asarray(np.concatenate(all_exps), dtype=np.float64, order="C")
@@ -222,6 +290,9 @@ class ATCBasis:
         and project it onto the atomic orbital basis. This is an in-place
         operation, where theta_rlmq is written if rad2orb is False and
         p_uq is written if rad2orb is True.
+        NOTE: This is an in-place operation, and it is ADDITIVE, i.e.
+        the output is added to rather than overwritten and therefore
+        must be initialized before passing as an argument.
         - If rad2orb is True, loc has
           shape (natm + 1,), and theta_rlmq[loc[ia] : loc[ia+1]] is
           the set of functions on atom ia. This corresponds to

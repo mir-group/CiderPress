@@ -74,10 +74,12 @@ class DiffPAWXCCorrection:
         d_qg,
         dt_qg,
         e_xc0,
+        Lmax,
         tau_npg=None,
         taut_npg=None,
         tauc_g=None,
         tauct_g=None,
+        ke_order_ng=True,
     ):
         self.rgd = rgd
         self.nc_g = nc_g
@@ -92,6 +94,7 @@ class DiffPAWXCCorrection:
         self.d_qg = d_qg
         self.dt_qg = dt_qg
         self.e_xc0 = e_xc0
+        self.Lmax = Lmax
         self.tau_npg = tau_npg
         self.taut_npg = taut_npg
         self.tauc_g = tauc_g
@@ -99,12 +102,22 @@ class DiffPAWXCCorrection:
         self.Y_nL = Y_nL
         if self.tau_npg is not None:
             NP = self.tau_npg.shape[1]
-            self.tau_pg = np.ascontiguousarray(
-                self.tau_npg.transpose(1, 0, 2).reshape(NP, -1)
-            )
-            self.taut_pg = np.ascontiguousarray(
-                self.taut_npg.transpose(1, 0, 2).reshape(NP, -1)
-            )
+            if ke_order_ng:
+                # radial coordinate is last index
+                self.tau_pg = np.ascontiguousarray(
+                    self.tau_npg.transpose(1, 0, 2).reshape(NP, -1)
+                )
+                self.taut_pg = np.ascontiguousarray(
+                    self.taut_npg.transpose(1, 0, 2).reshape(NP, -1)
+                )
+            else:
+                # angular coordinate is last index
+                self.tau_pg = np.ascontiguousarray(
+                    self.tau_npg.transpose(1, 2, 0).reshape(NP, -1)
+                )
+                self.taut_pg = np.ascontiguousarray(
+                    self.taut_npg.transpose(1, 2, 0).reshape(NP, -1)
+                )
 
     @classmethod
     def from_setup(cls, setup, build_kinetic=False):
@@ -182,6 +195,7 @@ class DiffPAWXCCorrection:
             np.array([_interpc(n_g) for n_g in d_qg]),
             np.array([_interpc(nt_g) for nt_g in dt_qg]),
             xcc.e_xc0,
+            xcc.Lmax,
             tau_npg,
             taut_npg,
             _interpc(core_dens["tauc_g"]),

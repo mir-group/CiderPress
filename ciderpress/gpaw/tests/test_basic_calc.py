@@ -7,6 +7,8 @@ from numpy.testing import assert_almost_equal
 
 from ciderpress.gpaw.calculator import CiderGPAW, get_cider_functional
 
+USE_FAST_GPAW = False
+
 
 def run_calc(xc, spinpol, setups="paw"):
     atoms = bulk("Si")
@@ -17,8 +19,9 @@ def run_calc(xc, spinpol, setups="paw"):
         qmax=300,
         lambd=1.8,
         pasdw_store_funcs=False,
-        pasdw_ovlp_fit=True,
+        pasdw_ovlp_fit=not USE_FAST_GPAW,
         use_paw=False if setups == "sg15" else True,
+        fast=USE_FAST_GPAW,
     )
 
     atoms.calc = CiderGPAW(

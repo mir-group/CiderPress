@@ -34,9 +34,6 @@ class PAWCiderKernelShell:
 
 
 class PAWCiderContribUtils:
-    # Note: Abstract class, contains functions for
-    # computing PAW contributions
-
     def __init__(self, cider_kernel, nspin, encut, lambd, timer, Nalpha, cut_xcgrid):
 
         self.cider_kernel = cider_kernel

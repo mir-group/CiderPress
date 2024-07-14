@@ -204,6 +204,16 @@ def _construct_cubic_splines_old(self):
     self.q_a = q
 
 
+def get_ccl_settings(plan):
+    has_vj = "j" in plan.nldf_settings.nldf_type
+    ifeat_ids = []
+    for spec in plan.nldf_settings.l0_feat_specs:
+        ifeat_ids.append(VI_ID_MAP[spec])
+    for spec in plan.nldf_settings.l1_feat_specs:
+        ifeat_ids.append(VI_ID_MAP[spec])
+    return has_vj, ifeat_ids
+
+
 class SemilocalPlan:
     def __init__(self, settings, nspin):
         """
@@ -1361,6 +1371,22 @@ class NLDFAuxiliaryPlan(ABC):
             self.alpha_norms = (np.pi / (2 * self.alphas)) ** -0.75
 
         self._run_setup()
+
+    def new(self, **kwargs):
+        new_kwargs = dict(
+            nldf_settings=self.nldf_settings,
+            nspin=self.nspin,
+            alpha0=self.alpha0,
+            lambd=self.lambd,
+            nalph=self.nalpha,
+            coef_order=self.coef_order,
+            alpha_formula=self.alpha_formula,
+            proc_inds=self.proc_inds,
+            rhocut=self.rhocut,
+            expcut=self.expcut,
+        )
+        new_kwargs.update(kwargs)
+        return self.__class__(**kwargs)
 
     @abstractmethod
     def _run_setup(self):

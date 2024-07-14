@@ -14,7 +14,7 @@ class ETBProjector:
         Z = int(Z)
         spin = 0 if Z % 2 == 0 else 1
         tmp_mol = gto.M(atom=str(Z), basis="ano-rcc", spin=spin)
-        basis = aug_etb_for_cider(tmp_mol, beta=beta, upper_fac=5.0, lmax=10)[0]
+        basis = aug_etb_for_cider(tmp_mol, beta=beta, upper_fac=5.0, lmax=10)
         basis = list(basis.values())[0]
         # print(basis)
         expnt_dict = {}
