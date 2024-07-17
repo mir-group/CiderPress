@@ -4,7 +4,7 @@ import numpy as np
 from gpaw.xc.mgga import MGGA
 
 from ciderpress.gpaw.cider_paw import _CiderPASDW_MPRoutines
-from ciderpress.gpaw.fast_atom_utils import FastAtomPASDWSlice
+from ciderpress.gpaw.fast_atom_utils import FastAtomPASDWSlice, FastPASDWCiderKernel
 from ciderpress.gpaw.fast_fft import (
     CiderGGA,
     CiderMGGA,
@@ -15,6 +15,20 @@ from ciderpress.gpaw.nldf_interface import pwutil as libpwutil
 
 
 class _FastPASDW_MPRoutines(_CiderPASDW_MPRoutines):
+    def initialize_paw_kernel(self, cider_kernel_inp, Nalpha_atom, encut_atom):
+        self.paw_kernel = FastPASDWCiderKernel(
+            cider_kernel_inp,
+            self._plan,
+            self.gd,
+            self.cut_xcgrid,
+        )
+        self.paw_kernel.initialize(
+            self.dens, self.atomdist, self.atom_partition, self.setups
+        )
+        self.paw_kernel.initialize_more_things(self.setups)
+        self.paw_kernel.interpolate_dn1 = self.interpolate_dn1
+        self.atom_slices = None
+
     def _setup_atom_slices(self):
         self.timer.start("ATOM SLICE SETUP")
         self.atom_slices = {}
@@ -195,30 +209,57 @@ class _FastPASDW_MPRoutines(_CiderPASDW_MPRoutines):
         D_asp = self.get_D_asp()
         if not (D_asp.partition.rank_a == self.atom_partition.rank_a).all():
             raise ValueError("rank_a mismatch")
-        self.c_sabi, self.df_asbLg = self.paw_kernel.calculate_paw_feat_corrections(
+        self.c_asiq, self.df_asgLq = self.paw_kernel.calculate_paw_feat_corrections(
             self.setups, D_asp
         )
-        if len(self.c_sabi.keys()) == 0:
+        if len(self.c_asiq.keys()) == 0:
             self.c_sabi = {s: {} for s in range(self.nspin)}
+        else:
+            self.c_sabi = {
+                s: {a: self.c_asiq[a][s].T for a in self.c_asiq}
+                for s in range(self.nspin)
+            }
         self.D_asp = D_asp
         self.timer.stop()
 
     def _calculate_paw_energy_and_potential(self):
         self.timer.start("PAW ENERGY")
-        v_sabi, deltaE, deltaV = self.paw_kernel.calculate_paw_feat_corrections(
-            self.setups, self.D_asp, D_sabi=self.c_sabi, df_asbLg=self.df_asbLg
+        if len(self.c_sabi.keys()) == 0:
+            self.c_asiq = {}
+        else:
+            if not hasattr(self, "c_asiq"):
+                self.c_asiq = {}
+            for a in self.c_sabi[0]:
+                self.c_asiq[a] = np.stack(
+                    [self.c_sabi[s][a].T for s in range(self.nspin)]
+                )
+        self.c_asiq, deltaE, deltaV = self.paw_kernel.calculate_paw_feat_corrections(
+            self.setups, self.D_asp, D_asiq=self.c_asiq, df_asgLq=self.df_asgLq
         )
-        self.c_sabi = v_sabi
         self.E_a_tmp = deltaE
         self.deltaV = deltaV
         if len(self.c_sabi.keys()) == 0:
             self.c_sabi = {s: {} for s in range(self._plan.nspin)}
+        else:
+            self.c_sabi = {
+                s: {a: self.c_asiq[a][s].T for a in self.c_asiq}
+                for s in range(self.nspin)
+            }
         self.timer.stop()
 
     def _get_dH_asp(self):
         self.timer.start("PAW POTENTIAL")
+        if len(self.c_sabi.keys()) == 0:
+            self.c_asiq = {}
+        else:
+            if not hasattr(self, "c_asiq"):
+                self.c_asiq = {}
+            for a in self.c_sabi[0]:
+                self.c_asiq[a] = np.stack(
+                    [self.c_sabi[s][a].T for s in range(self.nspin)]
+                )
         dH_asp = self.paw_kernel.calculate_paw_feat_corrections(
-            self.setups, self.D_asp, vc_sabi=self.c_sabi
+            self.setups, self.D_asp, vc_asiq=self.c_asiq
         )
         for a in self.D_asp.keys():
             dH_asp[a] += self.deltaV[a]

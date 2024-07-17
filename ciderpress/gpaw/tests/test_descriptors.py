@@ -20,7 +20,7 @@ from ciderpress.gpaw.descriptors import (
 )
 from ciderpress.gpaw.xc_tools import non_self_consistent_eigenvalues as nscfeig
 
-USE_FAST_CIDER = False
+USE_FAST_CIDER = True
 
 
 def get_xc(fname, use_paw=True, force_nl=False):
@@ -572,6 +572,15 @@ class TestDescriptors(unittest.TestCase):
             )
             run_vxc_test("PBE", xc, spinpol=False, use_pp=use_pp, safe=not use_pp)
             run_vxc_test("PBE", xc, spinpol=True, use_pp=use_pp, safe=not use_pp)
+
+    def test_vxc_quick(self):
+        xc = get_xc(
+            "functionals/CIDER23X_NL_MGGA_DTR.yaml",
+            use_paw=True,
+            force_nl=True,
+        )
+        run_vxc_test("PBE", xc, spinpol=False, use_pp=False, safe=True)
+        run_vxc_test("PBE", xc, spinpol=True, use_pp=False, safe=True)
 
     def test_sl_features(self):
         # run_sl_feature_test(spinpol=False, use_pp=True)

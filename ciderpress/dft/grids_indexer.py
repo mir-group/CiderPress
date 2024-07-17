@@ -225,6 +225,8 @@ class AtomicGridsIndexer:
         assert theta_rlmq.shape == (self.nrad, self.nlm, nalpha)
         assert theta_gq.flags.c_contiguous
         assert theta_gq.shape == (self.all_weights.size, stride)
+        assert theta_rlmq.dtype == np.float64
+        assert theta_gq.dtype == np.float64
         assert nalpha + offset <= stride
         if a2y:
             fn = libcider.reduce_angc_to_ylm
@@ -247,12 +249,12 @@ class AtomicGridsIndexer:
     @classmethod
     def make_single_atom_indexer(cls, Y_nL, r_g):
         nn, nlm = Y_nL.shape
-        lmax = np.sqrt(nlm + 1e-8) - 1
+        lmax = int(np.sqrt(nlm + 1e-8)) - 1
         ng = r_g.size
         rad_arr = np.ascontiguousarray(r_g.astype(np.float64))
         ar_loc = np.zeros(ng, dtype=np.int32, order="C")
         ra_loc = np.asarray([0, ng], dtype=np.int32, order="C")
         rad_loc = np.ascontiguousarray((nn * np.arange(0, ng + 1)).astype(np.int32))
         ylm = np.ascontiguousarray(Y_nL.astype(np.float64))
-        ylm_loc = np.zeros((1,), dtype=np.int32)
+        ylm_loc = np.zeros((ng,), dtype=np.int32)
         return cls(1, lmax, rad_arr, ar_loc, ra_loc, rad_loc, ylm, ylm_loc)

@@ -7,7 +7,7 @@ from numpy.testing import assert_almost_equal
 
 from ciderpress.gpaw.calculator import CiderGPAW, get_cider_functional
 
-USE_FAST_GPAW = False
+USE_FAST_GPAW = True
 
 
 def run_calc(xc, spinpol, setups="paw"):
@@ -34,6 +34,7 @@ def run_calc(xc, spinpol, setups="paw"):
         convergence={"energy": 1e-5},  # convergence energy in eV/electron
         spinpol=spinpol,
         setups=setups,
+        parallel={"augment_grids": True},
     )
     etot = atoms.get_potential_energy()  # run the calculation
     return etot

@@ -12,7 +12,13 @@ from ciderpress.dft.lcao_convolutions import (
     get_gamma_lists_from_etb_list,
 )
 from ciderpress.dft.plans import NLDFAuxiliaryPlan, get_ccl_settings
-from ciderpress.gpaw.atom_utils import AtomPASDWSlice, SBTGridContainer
+from ciderpress.gpaw.atom_utils import (
+    AtomPASDWSlice,
+    PAOnlySetup,
+    PSOnlySetup,
+    SBTGridContainer,
+)
+from ciderpress.gpaw.etb_util import ETBProjector
 from ciderpress.gpaw.fit_paw_gauss_pot import get_dv
 from ciderpress.gpaw.interp_paw import (
     DiffPAWXCCorrection,
@@ -113,26 +119,33 @@ class PAWCiderContribs:
     grids_indexer: AtomicGridsIndexer
     plan: NLDFAuxiliaryPlan
 
-    def __init__(self, plan, ccl, xcc):
+    def __init__(self, plan, cider_kernel, ccl, xcc):
         self.plan = plan
+        self.cider_kernel = cider_kernel
         self.ccl = ccl
-        self.w_g = xcc.rgd.dv_g[:, None] * weight_n
-        self.r_g = xcc.rgd.rgd
+        self.ccl.compute_integrals_()
+        self.ccl.solve_projection_coefficients()
+        self.w_g = (xcc.rgd.dv_g[:, None] * weight_n).ravel()
+        self.r_g = xcc.rgd.r_g
+        self.xcc = xcc
         self.grids_indexer = AtomicGridsIndexer.make_single_atom_indexer(
-            self.Y_nL, self.r_g
+            Y_nL[:, : xcc.Lmax], self.r_g
         )
+        self.grids_indexer.set_weights(self.w_g)
+        from gpaw.utilities.timing import Timer
+
+        self.timer = Timer()
 
     @classmethod
-    def from_plan(cls, plan, Z, xcc, beta=1.8):
+    def from_plan(cls, plan, cider_kernel, Z, xcc, beta=1.8):
         lmax = int(np.sqrt(xcc.Lmax + 1e-8)) - 1
-        rmax = np.max(xcc.rgd)
-        lp1 = 2 * lmax + 1
-        # TODO tune this
+        rmax = np.max(xcc.rgd.r_g)
+        # TODO tune this and adjust size
         # min_exps = 0.5 / (rmax * rmax) * np.ones(lp1)
-        min_exps = 0.125 / (rmax * rmax) * np.ones(lp1)
+        min_exps = 0.125 / (rmax * rmax) * np.ones(4)
         max_exps = get_hgbs_max_exps(Z)
         etb = get_etb_from_expnt_range(
-            lmax, beta, min_exps, max_exps, 0.0, 0.0, lower_fac=0.25, upper_fac=4.0
+            lmax, beta, min_exps, max_exps, 0.0, 1e99, lower_fac=1.0, upper_fac=1.0
         )
         inputs_to_atco = get_gamma_lists_from_etb_list([etb])
         atco = ATCBasis(*inputs_to_atco)
@@ -141,7 +154,7 @@ class PAWCiderContribs:
             atco, atco, plan.alphas, plan.alpha_norms, has_vj, ifeat_ids
         )
         # TODO need to define w_g
-        return cls(plan.nspin, ccl)
+        return cls(plan, cider_kernel, ccl, xcc)
 
     @property
     def is_mgga(self):
@@ -150,6 +163,15 @@ class PAWCiderContribs:
     @property
     def nspin(self):
         return self.plan.nspin
+
+    def get_interpolation_coefficients(self, arg_g, i=-1):
+        p_gq, dp_gq = self.plan.get_interpolation_coefficients(arg_g, i=i)
+        # p_gq[:] *= self.plan.alpha_norms
+        # dp_gq[:] *= self.plan.alpha_norms
+        # if 0 <= i < self.plan.num_vj:
+        #     p_gq[:] *= self.plan.nspin
+        #     dp_gq[:] *= self.plan.nspin
+        return p_gq, dp_gq
 
     def get_kinetic_energy(self, ae):
         # TODO need to be careful about the order of g
@@ -162,7 +184,10 @@ class PAWCiderContribs:
             tau_pg = xcc.taut_pg
             tauc_g = xcc.tauct_g / (np.sqrt(4 * np.pi) * nspins)
         nn = tau_pg.shape[-1] // tauc_g.shape[0]
-        tau_sg = np.dot(self._D_sp, tau_pg) + np.tile(tauc_g, nn)
+        tau_sg = np.dot(self._D_sp, tau_pg)
+        tau_sg.shape = (tau_sg.shape[0], -1, nn)
+        tau_sg[:] += tauc_g[:, None]
+        tau_sg.shape = (tau_sg.shape[0], -1)
         return tau_sg
 
     def contract_kinetic_potential(self, dedtau_sg, ae):
@@ -178,55 +203,82 @@ class PAWCiderContribs:
 
     def vec_radial_vars(self, n_sLg, Y_nL, dndr_sLg, rnablaY_nLv, ae):
         nspin = len(n_sLg)
-        ngrid = n_sLg.shape[-1]
+        ngrid = n_sLg.shape[-1] * weight_n.size
         nx = 5 if self.is_mgga else 4
         rho_sxg = np.empty((nspin, nx, ngrid))
-        rho_sxg[:, 0] = np.dot(Y_nL, n_sLg).transpose(1, 0, 2).reshape(nspin, -1)
-        b_vsng = np.dot(rnablaY_nLv.transpose(0, 2, 1), n_sLg).transpose(1, 2, 0, 3)
-        b_vsng[..., 1:] /= self.xcc.rgd.r_g[1:]
-        b_vsng[..., 0] = b_vsng[..., 1]
-        a_sng = np.dot(Y_nL, dndr_sLg).transpose(1, 0, 2)
-        b_vsng += R_nv.T[:, None, :, None] * a_sng[None, :, :]
+        rho_sxg[:, 0] = np.dot(Y_nL, n_sLg).transpose(1, 2, 0).reshape(nspin, -1)
+        b_vsgn = np.dot(rnablaY_nLv.transpose(0, 2, 1), n_sLg).transpose(1, 2, 3, 0)
+        b_vsgn[..., 1:, :] /= self.xcc.rgd.r_g[1:, None]
+        b_vsgn[..., 0, :] = b_vsgn[..., 1, :]
+        a_sgn = np.dot(Y_nL, dndr_sLg).transpose(1, 2, 0)
+        b_vsgn += R_nv.T[:, None, None, :] * a_sgn[None, :, :]
         N = Y_nL.shape[0]
         e_g = self.xcc.rgd.empty(N).reshape(-1)
         e_g[:] = 0
-        rho_sxg[:, 1:4] = b_vsng.transpose(1, 0, 2, 3).reshape(nspin, 3, -1)
+        rho_sxg[:, 1:4] = b_vsgn.transpose(1, 0, 2, 3).reshape(nspin, 3, -1)
         if self.is_mgga:
             rho_sxg[:, 4] = self.get_kinetic_energy(ae)
         vrho_sxg = np.zeros_like(rho_sxg)
         return e_g, rho_sxg, vrho_sxg
 
-    def convert_rad2orb_(self, nspin, x_sgLq, x_suq, rad2orb=True, inp=True):
+    @property
+    def atco_feat(self):
+        # TODO this will need to be different for vi and vij
+        return self.ccl.atco_out
+
+    def convert_rad2orb_(
+        self, nspin, x_sgLq, x_suq, rad2orb=True, inp=True, indexer=None
+    ):
         if inp:
             atco = self.ccl.atco_inp
         else:
             atco = self.atco_feat
+        if indexer is None:
+            indexer = self.grids_indexer
         for s in range(nspin):
             atco.convert_rad2orb_(
                 x_sgLq[s],
                 x_suq[s],
-                self.grids_indexer,
-                self.grids_indexer.rad_arr,
+                indexer,
+                indexer.rad_arr,
                 rad2orb=rad2orb,
                 offset=0,
             )
 
+    def set_D_sp(self, D_sp, xcc):
+        self._dH_sp = np.zeros_like(D_sp)
+        self._D_sp = D_sp
+
+    def get_dH_sp(self):
+        return self._dH_sp
+
     def perform_convolution(
-        self, theta_sgLq, fwd=True, out_sgLq=None, return_orbs=False
+        self,
+        theta_sgLq,
+        fwd=True,
+        out_sgLq=None,
+        return_orbs=False,
+        indexer_in=None,
+        indexer_out=None,
     ):
+        theta_sgLq = np.ascontiguousarray(theta_sgLq)
         nspin = self.nspin
         nalpha = self.ccl.nalpha
         nbeta = self.ccl.nbeta
         is_not_vi = self.plan.nldf_settings.nldf_type != "i"
-        inp_arr = np.empty((nspin, self.ccl.atco_inp.nao, nalpha), order="C")
-        out_arr = np.empty((nspin, self.ccl.atco_out.nao, nbeta), order="C")
+        inp_arr = np.zeros((nspin, self.ccl.atco_inp.nao, nalpha), order="C")
+        out_arr = np.zeros((nspin, self.ccl.atco_out.nao, nbeta), order="C")
+        if indexer_in is None:
+            indexer_in = self.grids_indexer
+        if indexer_out is None:
+            indexer_out = self.grids_indexer
         if out_sgLq is None:
             if fwd:
                 nout = nbeta
             else:
                 nout = nalpha
             out_sgLq = np.stack(
-                [self.grids_indexer.empty_rlmq(nalpha=nout) for s in range(nspin)]
+                [indexer_out.empty_rlmq(nalpha=nout) for s in range(nspin)]
             )
             out_sgLq[:] = 0.0
         if fwd:
@@ -239,7 +291,9 @@ class PAWCiderContribs:
             i_out = -1
             theta_suq = out_arr
             conv_svq = inp_arr
-        self.convert_rad2orb_(nspin, theta_sgLq, theta_suq, rad2orb=True, inp=fwd)
+        self.convert_rad2orb_(
+            nspin, theta_sgLq, theta_suq, rad2orb=True, inp=fwd, indexer=indexer_in
+        )
         for s in range(nspin):
             if (fwd) or (is_not_vi):
                 self.plan.get_transformed_interpolation_terms(
@@ -254,7 +308,9 @@ class PAWCiderContribs:
                     inplace=True,
                 )
         # TODO this should be a modified atco for l1 interpolation
-        self.convert_rad2orb_(nspin, out_sgLq, conv_svq, rad2orb=False, inp=not fwd)
+        self.convert_rad2orb_(
+            nspin, out_sgLq, conv_svq, rad2orb=False, inp=not fwd, indexer=indexer_out
+        )
         if return_orbs:
             return out_sgLq, conv_svq
         else:
@@ -278,7 +334,6 @@ class PAWCiderContribs:
             p_gq = self.get_interpolation_coefficients(arg_g.ravel(), i=-1)[0]
             x_gq[:] = p_gq * fun_g[:, None]
             self.grids_indexer.reduce_angc_ylm_(x_srLq[s], x_gq, a2y=True, offset=0)
-        self.timer.stop()
         return x_srLq
 
     def get_paw_atom_contribs_en(self, e_g, rho_sxg, vrho_sxg, f_srLq, feat_only=False):
@@ -286,13 +341,14 @@ class PAWCiderContribs:
         # gn instead of previous ng
         nspin = rho_sxg.shape[0]
         ngrid = rho_sxg.shape[2]
+        f_srLq = np.ascontiguousarray(f_srLq)
         vf_srLq = np.empty_like(f_srLq)
-        feat_sig = np.zeros((nspin, self._plan.nldf_settings.nfeat, ngrid))
-        dfeat_sig = np.zeros((nspin, self._plan.num_vj, ngrid))
+        feat_sig = np.zeros((nspin, self.plan.nldf_settings.nfeat, ngrid))
+        dfeat_sig = np.zeros((nspin, self.plan.num_vj, ngrid))
         f_gq = self.grids_indexer.empty_gq(nalpha=self.plan.nalpha)
         for s in range(nspin):
             self.grids_indexer.reduce_angc_ylm_(f_srLq[s], f_gq, a2y=False, offset=0)
-            self._plan.eval_rho_full(
+            self.plan.eval_rho_full(
                 f_gq,
                 rho_sxg[s],
                 spin=s,
@@ -301,7 +357,7 @@ class PAWCiderContribs:
                 cache_p=True,
                 # TODO might need to be True for gaussian interp
                 apply_transformation=False,
-                coeff_multipliers=self._plan.alpha_norms,
+                # coeff_multipliers=self.plan.alpha_norms,
             )
         if feat_only:
             return feat_sig
@@ -309,6 +365,7 @@ class PAWCiderContribs:
         dedsigma_xg = np.zeros_like(sigma_xg)
         nspin = feat_sig.shape[0]
         dedn_sg = np.zeros_like(vrho_sxg[:, 0])
+        e_g[:] = 0.0
         args = [
             e_g,
             rho_sxg[:, 0].copy(),
@@ -352,9 +409,9 @@ class PAWCiderContribs:
         for s in range(nspin):
             self.grids_indexer.reduce_angc_ylm_(vx_srLq[s], vx_gq, a2y=False, offset=0)
             rho_tuple = self.plan.get_rho_tuple(rho_sxg[s])
-            arg_g, darg_g = self._plan.get_interpolation_arguments(rho_tuple, i=-1)
+            arg_g, darg_g = self.plan.get_interpolation_arguments(rho_tuple, i=-1)
             # TODO need to account for dfunc
-            fun_g, dfun_g = self._plan.get_function_to_convolve(rho_tuple)
+            fun_g, dfun_g = self.plan.get_function_to_convolve(rho_tuple)
             p_gq, dp_gq = self.get_interpolation_coefficients(arg_g, i=-1)
             dedarg_g = np.einsum("gq,gq->g", dp_gq, vx_gq) * fun_g
             dedfun_g = np.einsum("gq,gq->g", p_gq, vx_gq)
@@ -363,6 +420,30 @@ class PAWCiderContribs:
             vrho_sxg[s, 1:4] += 2 * rho_sxg[s, 1:4] * tmp
             if len(darg_g) == 2:
                 vrho_sxg[s, 4] += dedarg_g * darg_g[2] + dedfun_g * dfun_g[2]
+
+    # TODO remove these last two functions
+    # get the y values
+    def calc_y_sbLk(self, dx_sLkb, ks=None):
+        # dx_sqkL = (nspin, Nq, Nk, (L+1)^2)
+        # needs to be separate for CIDER and VDW
+        if ks is None:
+            ks = self.krad
+        y_bsLk = np.zeros(np.array(dx_sLkb.shape)[[3, 0, 1, 2]])
+        for b in range(y_bsLk.shape[0]):
+            aexp = self.plan.alphas[b] + self.plan.alphas
+            fac = (np.pi / aexp) ** 1.5
+            y_bsLk[b, :, :, :] += np.einsum(
+                "kq,sLkq->sLk",
+                np.exp(-ks[:, None] ** 2 / (4 * aexp)) * fac,
+                dx_sLkb,
+            )
+        return y_bsLk.transpose(1, 0, 2, 3)
+
+    def get_atomic_convolution(self, y_sbLk, xcc):
+        k_g = xcc.big_rgd.k_g
+        return np.ascontiguousarray(
+            self.calc_y_sbLk(y_sbLk.transpose(0, 2, 3, 1), ks=k_g)
+        )
 
 
 class CiderRadialFeatureCalculator:
@@ -386,9 +467,12 @@ class CiderRadialEnergyCalculator:
         e_g, rho_sxg, vrho_sxg = self.xc.vec_radial_vars(
             n_sLg, Y_nL, dndr_sLg, rnablaY_nLv, ae
         )
-        return self.xc.get_paw_atom_contribs_en_(
+        vf_srLq = self.xc.get_paw_atom_contribs_en(
             e_g, rho_sxg, vrho_sxg, f_srLq, feat_only=False
         )
+        if rho_sxg.shape[1] == 5:
+            self.xc.contract_kinetic_potential(vrho_sxg[:, 4], ae)
+        return e_g, vrho_sxg[:, 0], vrho_sxg[:, 1:4], vf_srLq
 
 
 class CiderRadialPotentialCalculator:
@@ -400,7 +484,10 @@ class CiderRadialPotentialCalculator:
         e_g, rho_sxg, vrho_sxg = self.xc.vec_radial_vars(
             n_sLg, Y_nL, dndr_sLg, rnablaY_nLv, ae
         )
-        return self.xc.get_paw_atom_contribs_pot(rho_sxg, vrho_sxg, vx_srLq)
+        self.xc.get_paw_atom_contribs_pot(rho_sxg, vrho_sxg, vx_srLq)
+        if rho_sxg.shape[1] == 5:
+            self.xc.contract_kinetic_potential(vrho_sxg[:, 4], ae)
+        return vrho_sxg[:, 0], vrho_sxg[:, 1:4]
 
 
 class CiderRadialExpansion:
@@ -441,21 +528,22 @@ class CiderRadialExpansion:
             )
             nn = Y_nL.shape[0]
             nq = f_srLq.shape[-1]
-            dedn_sng = dedn_sg.reshape(nspins, nn, -1)
-            dedgrad_svng = dedgrad_svg.reshape(nspins, 3, nn, -1)
-            dedgrad_sng = np.einsum("svng,nv->sng", dedgrad_svng, R_nv)
-            dEdD_snq = np.dot(rgd.dv_g * dedn_sng, n_qg.T)
-            dEdD_snq += np.dot(rgd.dv_g * dedgrad_sng, dndr_qg.T)
+            dedn_sgn = dedn_sg.reshape(nspins, -1, nn)
+            dedgrad_svgn = dedgrad_svg.reshape(nspins, 3, -1, nn)
+            dedgrad_sgn = np.einsum("svgn,nv->sgn", dedgrad_svgn, R_nv)
+            dEdD_sqn = np.einsum("qg,sgn->sqn", n_qg * rgd.dv_g, dedn_sgn)
+            dEdD_sqn += np.einsum("qg,sgn->sqn", dndr_qg * rgd.dv_g, dedgrad_sgn)
             dEdD_sqL = np.einsum(
-                "snq,nL->sqL", dEdD_snq, weight_n[:, None] * Y_nL[:, :Lmax]
+                "sqn,nL->sqL", dEdD_sqn, weight_n[:, None] * Y_nL[:, :Lmax]
             )
-            B_svnq = np.dot(dedgrad_svng * rgd.dr_g * rgd.r_g, n_qg.T)
+            tmp = rgd.dr_g * rgd.r_g
+            B_svqn = np.einsum("qg,svgn->svqn", n_qg * tmp, dedgrad_svgn)
             dEdD_sqL += np.einsum(
-                "nLv,svnq->sqL",
+                "nLv,svqn->sqL",
                 (4 * np.pi) * weight_n[:, None, None] * rnablaY_nLv[:, :Lmax],
-                B_svnq,
+                B_svqn,
             )
-            E = weight_n.dot(rgd.integrate(e_g.reshape(nn, -1)))
+            E = rgd.integrate(e_g.reshape(-1, nn).dot(weight_n))
             return E, dEdD_sqL, vf_srLq
         else:
             f_srLq = self.ft_srLq + self.df_srLq if ae else self.ft_srLq
@@ -470,24 +558,28 @@ class CiderRadialExpansion:
             )
             nn = Y_nL.shape[0]
             nq = f_srLq.shape[-1]
-            dedn_sng = dedn_sg.reshape(nspins, nn, -1)
-            dedgrad_svng = dedgrad_svg.reshape(nspins, 3, nn, -1)
-            dedgrad_sng = np.einsum("svng,nv->sng", dedgrad_svng, R_nv)
-            dEdD_snq = np.dot(rgd.dv_g * dedn_sng, n_qg.T)
-            dEdD_snq += np.dot(rgd.dv_g * dedgrad_sng, dndr_qg.T)
+            dedn_sgn = dedn_sg.reshape(nspins, -1, nn)
+            dedgrad_svgn = dedgrad_svg.reshape(nspins, 3, -1, nn)
+            dedgrad_sgn = np.einsum("svgn,nv->sgn", dedgrad_svgn, R_nv)
+            dEdD_sqn = np.einsum("qg,sgn->sqn", n_qg * rgd.dv_g, dedn_sgn)
+            dEdD_sqn += np.einsum("qg,sgn->sqn", dndr_qg * rgd.dv_g, dedgrad_sgn)
+            # dEdD_sqn = np.einsum("qg,sgn->sqn", n_qg, dedn_sgn)
+            # dEdD_sqn += np.einsum("qg,sgn->sqn", dndr_qg, dedgrad_sgn)
             dEdD_sqL = np.einsum(
-                "snq,nL->sqL", dEdD_snq, weight_n[:, None] * Y_nL[:, :Lmax]
+                "sqn,nL->sqL", dEdD_sqn, weight_n[:, None] * Y_nL[:, :Lmax]
             )
-            B_svnq = np.dot(dedgrad_svng * rgd.dr_g * rgd.r_g, n_qg.T)
+            tmp = rgd.dr_g * rgd.r_g
+            B_svqn = np.einsum("qg,svgn->svqn", n_qg * tmp, dedgrad_svgn)
             dEdD_sqL += np.einsum(
-                "nLv,svnq->sqL",
+                "nLv,svqn->sqL",
                 (4 * np.pi) * weight_n[:, None, None] * rnablaY_nLv[:, :Lmax],
-                B_svnq,
+                B_svqn,
             )
             return dEdD_sqL
 
 
 class FastPASDWCiderKernel:
+    is_cider_functional = True
     """
     This class is a bit confusing because there are a lot of intermediate
     terms and contributions for the pseudo and all-electron parts of the
@@ -547,7 +639,12 @@ class FastPASDWCiderKernel:
         self.Nalpha_small = plan.nalpha
         self.cut_xcgrid = cut_xcgrid
         self._amin = np.min(self.bas_exp_fit)
+        self.plan = plan
         self.is_mgga = plan.nldf_settings.sl_level == "MGGA"
+
+    @property
+    def lambd(self):
+        return self.plan.lambd
 
     def get_D_asp(self):
         return self.atomdist.to_work(self.dens.D_asp)
@@ -558,13 +655,14 @@ class FastPASDWCiderKernel:
         self.atom_partition = atom_partition
         self.setups = setups
 
-    def initialize_more_things(self):
+    def initialize_more_things(self, setups=None):
         self.nspin = self.dens.nt_sg.shape[0]
-        setups = self.dens.setups
+        if setups is None:
+            setups = self.dens.setups
         for setup in setups:
             if not hasattr(setup, "nlxc_correction"):
                 setup.xc_correction = DiffPAWXCCorrection.from_setup(
-                    setup, build_kinetic=self.is_mgga
+                    setup, build_kinetic=self.is_mgga, ke_order_ng=False
                 )
                 # TODO it would be good to remove this
                 setup.nlxc_correction = SBTGridContainer.from_setup(
@@ -575,7 +673,7 @@ class FastPASDWCiderKernel:
                     encut=5e6,
                     d=0.015,
                 )
-                encut = setup.Z**2 * 10
+                encut = setup.Z**2 * 20
                 if encut - 1e-7 <= np.max(self.bas_exp_fit):
                     encut0 = np.max(self.bas_exp_fit)
                     Nalpha = self.bas_exp_fit.size
@@ -595,7 +693,26 @@ class FastPASDWCiderKernel:
                     )
                 atom_plan = self.plan.new(nalpha=Nalpha)
                 setup.cider_contribs = PAWCiderContribs.from_plan(
-                    atom_plan, setup.Z, setup.xc_correction, beta=1.8
+                    atom_plan, self.cider_kernel, setup.Z, setup.xc_correction, beta=1.8
+                )
+                if setup.cider_contribs.plan is not None:
+                    assert (
+                        abs(np.max(setup.cider_contribs.plan.alphas) - encut0) < 1e-10
+                    )
+                setup.pasdw_setup = PSOnlySetup.from_setup(
+                    setup,
+                    self.bas_exp_fit,
+                    self.bas_exp_fit,
+                    # alpha_norms=self.plan.alpha_norms,
+                    pmax=encut0,
+                )
+                setup.paonly_setup = PAOnlySetup.from_setup(setup)
+                setup.etb_projector = ETBProjector(
+                    setup.Z,
+                    # setup.xc_correction.rgd,
+                    setup.nlxc_correction.big_rgd,
+                    setup.nlxc_correction.big_rgd,
+                    alpha_min=2 * self._amin,
                 )
 
     def calculate_paw_cider_features(self, setups, D_asp):
@@ -635,6 +752,7 @@ class FastPASDWCiderKernel:
             )
             dx_sgLq -= xt_sgLq
             self.timer.stop()
+            alpha_norms = setup.cider_contribs.plan.alpha_norms
 
             rcut = RCUT
             rmax = slgd.r_g[-1]
@@ -646,18 +764,26 @@ class FastPASDWCiderKernel:
             self.timer.start("transform and convolve")
             # TODO would be faster to stay in orbital space for
             # get_f_realspace_contribs and get_df_only
+            indexer = AtomicGridsIndexer.make_single_atom_indexer(
+                Y_nL[:, : setup.xc_correction.Lmax], rgd.r_g
+            )
             dy_sgLq = setup.cider_contribs.perform_convolution(
-                dx_sgLq, fwd=True, return_orbs=False
+                dx_sgLq, fwd=True, return_orbs=False, indexer_out=indexer
             )
             yt_sgLq = setup.cider_contribs.perform_convolution(
                 xt_sgLq, fwd=True, return_orbs=False
             )
             self.timer.stop()
-
             self.timer.start("separate long and short-range")
             # TODO between here and the block comment should be replaced
             # with the code in the block comment after everything else works.
-            dy_sqLk = setup.etb_projector.r2k(dy_sgLq.transpose(0, 3, 2, 1))
+            # dv_g = get_dv(slgd)
+
+            # dy_sqLk = setup.etb_projector.r2k((dy_sgLq).transpose(0, 3, 2, 1))
+            dy_sqLk = setup.etb_projector.r2k(
+                (dy_sgLq / alpha_norms).transpose(0, 3, 2, 1)
+            )
+
             c_siq, df_sLpq = psetup.get_c_and_df(
                 dy_sqLk[:, :Nalpha_sm], realspace=False
             )
@@ -689,6 +815,7 @@ class FastPASDWCiderKernel:
             df_sgLq = psetup.get_df_realspace_contribs(df_suq, sl=True)
             """
             self.df_asgLq[a] = df_sgLq
+            yt_sgLq /= alpha_norms
             self.fr_asgLq[a] = yt_sgLq
             self.fr_asgLq[a][..., :Nalpha_sm] += dfr_sgLq
             self.timer.stop()
@@ -696,8 +823,7 @@ class FastPASDWCiderKernel:
             # if self.ovlp_fit:
             #     c_siq[:] = atom_slice.sinv_pf.dot(c_siq)
             self.c_asiq[a] = c_siq
-
-        return self.c_asiq
+        return self.c_asiq, self.df_asgLq
 
     def calculate_paw_cider_energy(self, setups, D_asp, D_asiq):
         """
@@ -719,6 +845,8 @@ class FastPASDWCiderKernel:
         a0 = list(D_asp.keys())[0]
         nspin = D_asp[a0].shape[0]
         dvD_asiq = {}
+        self.vfr_asgLq = {}
+        self.vdf_asgLq = {}
 
         for a, D_sp in D_asp.items():
             setup = setups[a]
@@ -735,19 +863,19 @@ class FastPASDWCiderKernel:
             for i in range(ni):
                 L = psetup.lmlist_i[i]
                 n = psetup.nlist_i[i]
-                Dref_sq = fr_sgLq[:, :, L, :Nalpha_sm].dot(psetup.pfuncs_ng[n] * dv_g)
+                Dref_sq = (psetup.pfuncs_ng[n] * dv_g).dot(fr_sgLq[:, :, L, :Nalpha_sm])
                 j = psetup.jlist_i[i]
                 for s in range(nspin):
                     ft_sgLq[s, :, L, :Nalpha_sm] += (
                         D_asiq[a][s, i] - Dref_sq[s]
-                    ) * psetup.ffuncs_jg[j][:, None, None]
+                    ) * psetup.ffuncs_jg[j][:, None]
             ft_sgLq[:] += fr_sgLq
             rcalc = CiderRadialEnergyCalculator(setup.cider_contribs)
+            alpha_norms = setup.cider_contribs.plan.alpha_norms
             expansion = CiderRadialExpansion(
                 rcalc,
-                ft_sgLq,
-                df_sgLq,
-                f_in_sph_harm=True,
+                ft_sgLq * alpha_norms,
+                df_sgLq * alpha_norms,
             )
             deltaE[a], deltaV[a], vf_sgLq, vft_sgLq = calculate_cider_paw_correction(
                 expansion,
@@ -755,6 +883,8 @@ class FastPASDWCiderKernel:
                 D_sp,
                 separate_ae_ps=True,
             )
+            vf_sgLq[:] *= alpha_norms
+            vft_sgLq[:] *= alpha_norms
             vfr_sgLq = vf_sgLq - vft_sgLq
             vft_sgLq[:] = vfr_sgLq
             dvD_asiq[a] = np.zeros((nspin, ni, Nalpha_sm))
@@ -765,14 +895,14 @@ class FastPASDWCiderKernel:
                 dvD_sq = np.einsum(
                     "sgq,g->sq",
                     vft_sgLq[:, :, L, :Nalpha_sm],
-                    psetup.ffuncs_jg[j] * dv_g,
+                    psetup.ffuncs_jg[j],
                 )
-                dvD_asiq[a][s, i] = dvD_sq
+                dvD_asiq[a][:, i] = dvD_sq
                 vfr_sgLq[:, :, L, :Nalpha_sm] -= (
-                    dvD_sq[:, None, :] * psetup.pfuncs_ng[n][:, None, None]
-                )
-            self.vfr_asbLg[a] = vfr_sgLq
-            self.vdf_asbLg[a] = vf_sgLq
+                    dvD_sq[:, None, :] * psetup.pfuncs_ng[n][:, None]
+                ) * dv_g[:, None]
+            self.vfr_asgLq[a] = vfr_sgLq
+            self.vdf_asgLq[a] = vf_sgLq
         return dvD_asiq, deltaE, deltaV
 
     def calculate_paw_cider_potential(self, setups, D_asp, vc_asiq):
@@ -801,10 +931,11 @@ class FastPASDWCiderKernel:
             Nalpha_sm = psetup.phi_jabg.shape[1]
             RCUT = np.max(setup.rcut_j)
             # TODO overlap fit here
+            alpha_norms = setup.cider_contribs.plan.alpha_norms
             vc_siq = vc_asiq[a]
-            vfr_sgLq = self.vfr_asgLq[a]
             vdf_sgLq = self.vdf_asgLq[a]
-            vyt_sgLq = vfr_sgLq[..., :Nalpha_sm]
+            vdfr_sgLq = self.vfr_asgLq[a][..., :Nalpha_sm]
+            vyt_sgLq = self.vfr_asgLq[a] / alpha_norms
             """
             vc_siq += psetup.get_vf_realspace_contribs(vyt_sgLq, slgd, sl=True)
             vdf_suq = psetup.get_vdf_realspace_contribs(vdf_sgLq, slgd, sl=True)
@@ -817,10 +948,10 @@ class FastPASDWCiderKernel:
             """
             # TODO remove below code block and replace with comment block above
             vc_siq += psetup.get_vf_realspace_contribs(
-                vyt_sgLq.transpose(0, 3, 2, 1), slgd, sl=True
+                vdfr_sgLq.transpose(0, 3, 2, 1), None, sl=True
             )
             vdf_sLpq = psetup.get_vdf_realspace_contribs(
-                vdf_sgLq.transpose(0, 3, 2, 1), slgd, sl=True
+                vdf_sgLq.transpose(0, 3, 2, 1), None, sl=True
             )
             vdy_sqLk = psetup.get_v_from_c_and_df(
                 vc_siq, vdf_sLpq[..., :Nalpha_sm], realspace=False
@@ -830,16 +961,24 @@ class FastPASDWCiderKernel:
                 psetup.get_vdf_only(vdf_sLpq[..., Nalpha_sm:], realspace=False),
                 axis=1,
             )
+
             vdy_sgLq = setup.etb_projector.k2r(vdy_sqLk).transpose(0, 3, 2, 1)
+            vdy_sgLq[:] /= alpha_norms
+            vdy_sgLq[:] *= (
+                get_dv(setup.nlxc_correction.big_rgd)[:, None, None] * 2 / np.pi
+            )
 
             self.timer.start("transform and convolve")
             # TODO would be faster to stay in orbital space for
             # get_f_realspace_contribs and get_df_only
+            indexer = AtomicGridsIndexer.make_single_atom_indexer(
+                Y_nL[:, : setup.xc_correction.Lmax], setup.nlxc_correction.big_rgd.r_g
+            )
             vdx_sgLq = setup.cider_contribs.perform_convolution(
-                vdy_sgLq, fwd=False, return_orbs=False
+                vdy_sgLq, fwd=False, return_orbs=False, indexer_in=indexer
             )
             vxt_sgLq = setup.cider_contribs.perform_convolution(
-                vyt_sgLq, fwd=True, return_orbs=False
+                vyt_sgLq, fwd=False, return_orbs=False
             )
             self.timer.stop()
 
@@ -852,6 +991,7 @@ class FastPASDWCiderKernel:
 
             F_sbLg = vdx_sgLq - vxt_sgLq
             y_sbLg = vxt_sgLq.copy()
+
             rcalc = CiderRadialPotentialCalculator(setup.cider_contribs)
             expansion = CiderRadialExpansion(
                 rcalc,
@@ -862,3 +1002,48 @@ class FastPASDWCiderKernel:
                 expansion, setup, D_sp, separate_ae_ps=True
             )
         return dH_asp
+
+    def calculate_paw_feat_corrections(
+        self,
+        setups,
+        D_asp,
+        D_asiq=None,
+        df_asgLq=None,
+        vc_asiq=None,
+    ):
+        """
+        This function performs one of three PAW correction routines,
+        depending on the inputs.
+            1) If D_sabi is None and vc_sabi is None: Computes the
+            contributions to the convolutions F_beta arising
+            from the PAW contributions. Projects them onto
+            the PAW grids, and also computes the compensation function
+            coefficients c_sia that reproduce the F_beta contributions
+            outside the augmentation region.
+            2) If D_sabi is NOT None (df_asbLg must also be given): Taking the
+            projections of the pseudo-convolutions F_beta onto the PASDW
+            projectors (coefficients given by D_sabi), as well as the
+            reference F_beta contributions from part (1), computes the PAW
+            XC energy and potential, as well as the functional derivative
+            with respect to D_sabi
+            3) If D_sabi is None and vc_sabi is NOT None: Given functional
+            derivatives with respect to the augmentation function coefficients
+            (c_sabi), as well as other atom-centered functional derivative
+            contributions stored from part (2), compute the XC potential arising
+            from the nonlocal density dependence of the CIDER features.
+
+        Args:
+            setups: GPAW atomic setups
+            D_asp: Atomic PAW density matrices
+            D_sabi: Atomic PAW PASDW projections
+            df_asbLg: delta-F_beta convolutions
+            vc_sabi: functional derivatives with respect to coefficients c_sabi
+        """
+        if D_asiq is None and vc_asiq is None:
+            return self.calculate_paw_cider_features(setups, D_asp)
+        elif D_asiq is not None:
+            assert df_asgLq is not None
+            return self.calculate_paw_cider_energy(setups, D_asp, D_asiq)
+        else:
+            assert vc_asiq is not None
+            return self.calculate_paw_cider_potential(setups, D_asp, vc_asiq)

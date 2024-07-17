@@ -1378,7 +1378,7 @@ class NLDFAuxiliaryPlan(ABC):
             nspin=self.nspin,
             alpha0=self.alpha0,
             lambd=self.lambd,
-            nalph=self.nalpha,
+            nalpha=self.nalpha,
             coef_order=self.coef_order,
             alpha_formula=self.alpha_formula,
             proc_inds=self.proc_inds,
@@ -1386,7 +1386,7 @@ class NLDFAuxiliaryPlan(ABC):
             expcut=self.expcut,
         )
         new_kwargs.update(kwargs)
-        return self.__class__(**kwargs)
+        return self.__class__(**new_kwargs)
 
     @abstractmethod
     def _run_setup(self):

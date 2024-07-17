@@ -120,7 +120,7 @@ class DiffPAWXCCorrection:
                 )
 
     @classmethod
-    def from_setup(cls, setup, build_kinetic=False):
+    def from_setup(cls, setup, build_kinetic=False, ke_order_ng=True):
 
         if hasattr(setup, "old_xc_correction"):
             xcc = setup.old_xc_correction
@@ -200,6 +200,7 @@ class DiffPAWXCCorrection:
             taut_npg,
             _interpc(core_dens["tauc_g"]),
             _interpc(core_dens["tauct_g"]),
+            ke_order_ng=ke_order_ng,
         )
 
 

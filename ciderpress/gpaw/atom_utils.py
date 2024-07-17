@@ -480,6 +480,7 @@ class PASDWData:
         rcut_feat,
         Z=None,
         alphas_ae=None,
+        alpha_norms=None,
         pmax=None,
     ):
         self.nn = pfuncs_ng.shape[0]
@@ -510,6 +511,9 @@ class PASDWData:
 
         self.alphas = alphas
         self.alphas_ae = alphas_ae
+        if alpha_norms is None:
+            alpha_norms = np.ones_like(alphas_ae)
+        self.alpha_norms = alpha_norms
         self.pmax = pmax
         self.nalpha = len(self.alphas)
 
@@ -690,7 +694,7 @@ class PSOnlySetup(PASDWData):
         self.ffuncs_jg = ffuncs_jg
 
     def initialize_a2g(self):
-        self.w_b = np.ones(self.alphas_ae.size)
+        self.w_b = np.ones(self.alphas_ae.size)  # / self.alpha_norms**2
         # self.w_b = self.alphas_ae**-0.5
         if self.pmax is None:
             pmax = 4 * np.max(self.alphas_ae)
@@ -712,6 +716,8 @@ class PSOnlySetup(PASDWData):
         pfuncs_jg = np.stack([self.pfuncs_ng2[n] for n in self.nlist_j])
         pfuncs_k = get_pfuncs_k(pfuncs_jg, self.llist_j, rgd, ns=self.nlist_j)
         phi_jabk = get_phi_iabk(pfuncs_k, rgd.k_g, self.alphas, betas=self.alphas_ae)
+        # phi_jabk[:] *= self.alpha_norms[:, None, None]
+        # phi_jabk[:] *= self.alpha_norms[:, None]
         REG11 = 1e-6
         REG22 = 1e-5
         FAC22 = 1e-2
@@ -841,7 +847,10 @@ class PSOnlySetup(PASDWData):
         return yt_sbLg
 
     def get_vf_realspace_contribs(self, vyt_sbLg, rgd, sl=False):
-        dv_g = get_dv(rgd)
+        if rgd is None:
+            dv_g = np.ones(vyt_sbLg.shape[-1])
+        else:
+            dv_g = get_dv(rgd)
         phi_jabg = self.phi_sr_jabg if sl else self.phi_jabg
         nspin, nb = vyt_sbLg.shape[:2]
         vc_sib = np.zeros((nspin, self.ni, nb))
@@ -907,7 +916,10 @@ class PSOnlySetup(PASDWData):
         return y_sbLg
 
     def get_vdf_realspace_contribs(self, vy_sbLg, rgd, sl=False):
-        dv_g = get_dv(rgd)
+        if rgd is None:
+            dv_g = np.ones(vy_sbLg.shape[-1])
+        else:
+            dv_g = get_dv(rgd)
         delta_lpg = self.deltasl_lpg if sl else self.delta_lpg
         NP = delta_lpg.shape[1]
         nspin, nb, Lmax, ng = vy_sbLg.shape
@@ -981,7 +993,7 @@ class PSOnlySetup(PASDWData):
         return np.append(b1.flatten(), b2.flatten())
 
     @classmethod
-    def from_setup(cls, setup, alphas, alphas_ae, pmax=None):
+    def from_setup(cls, setup, alphas, alphas_ae, alpha_norms=None, pmax=None):
 
         rgd = setup.xc_correction.rgd
         rcut_feat = np.max(setup.rcut_j)
@@ -1077,6 +1089,7 @@ class PSOnlySetup(PASDWData):
             rcut_feat,
             Z=setup.Z,
             alphas_ae=alphas_ae,
+            alpha_norms=alpha_norms,
             pmax=pmax,
         )
 
