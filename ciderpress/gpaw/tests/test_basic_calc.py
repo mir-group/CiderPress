@@ -18,7 +18,7 @@ def run_calc(xc, spinpol, setups="paw"):
         xmix=0.25,
         qmax=300,
         lambd=1.8,
-        pasdw_store_funcs=False,
+        pasdw_store_funcs=True,
         pasdw_ovlp_fit=not USE_FAST_GPAW,
         use_paw=False if setups == "sg15" else True,
         fast=USE_FAST_GPAW,

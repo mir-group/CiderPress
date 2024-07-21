@@ -185,6 +185,33 @@ def get_convolution_expnts_from_expnts(
     return atom2l0, lmaxs, gamma_loc, all_coefs, all_exps
 
 
+def get_reciprocal_expnts_from_expnts(atom2l0, lmaxs, gamma_loc, all_coefs, all_exps):
+    new_all_exps = []
+    new_all_coefs = []
+    for ia in range(len(atom2l0) - 1):
+        lmax = lmaxs[ia]
+        new_exps = []
+        new_coefs = []
+        for l in range(lmax + 1):
+            loc0 = gamma_loc[atom2l0[ia] + l]
+            loc1 = gamma_loc[atom2l0[ia] + l + 1]
+            old_exps = all_exps[loc0:loc1]
+            exps = 1.0 / (4 * old_exps)
+            old_coefs = all_coefs[loc0:loc1]
+            const = 2 ** (-2 - l) * np.sqrt(np.pi)
+            coefs = old_coefs * const * old_exps ** (-1.5 - l)
+            new_exps.append(exps)
+            new_coefs.append(coefs)
+        new_all_exps.append(np.concatenate(new_exps))
+        new_all_coefs.append(np.concatenate(new_coefs))
+    lmaxs = np.asarray(lmaxs, dtype=np.int32, order="C")
+    all_exps = np.asarray(np.concatenate(new_all_exps), dtype=np.float64, order="C")
+    all_coefs = np.asarray(np.concatenate(new_all_coefs), dtype=np.float64, order="C")
+    assert all_exps.size == all_coefs.size == gamma_loc[-1]
+    atom2l0 = np.asarray(atom2l0, dtype=np.int32, order="C")
+    return atom2l0, lmaxs, gamma_loc, all_coefs, all_exps
+
+
 class ATCBasis:
     """
     A wrapper for the atc_basis_set C object, which is used to store
@@ -233,6 +260,7 @@ class ATCBasis:
             ctypes.c_int(len(atom2l0) - 1),
             ctypes.c_char(b"L" if lower else b"U"),
         )
+        self._lower = lower
         self._atco = atco
 
     def __del__(self):
@@ -281,6 +309,11 @@ class ATCBasis:
         env = np.zeros((2 * nbas,), order="C", dtype=np.float64)
         libcider.get_atco_env(env.ctypes.data_as(ctypes.c_void_p), self._atco)
         return env
+
+    def get_reciprocal_atco(self):
+        args = get_gamma_lists_from_bas_and_env(self.bas, self.env)
+        args = get_reciprocal_expnts_from_expnts(*args)
+        return ATCBasis(*args, lower=True)
 
     def convert_rad2orb_(
         self, theta_rlmq, p_uq, loc, rads, rad2orb=True, offset=None, zero_output=True

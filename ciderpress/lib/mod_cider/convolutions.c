@@ -713,6 +713,67 @@ void solve_atc_coefs(convolution_collection *ccl) {
     }
 }
 
+void solve_atc_coefs_arr(atc_basis_set *atco, double *p_uq, int nalpha) {
+#pragma omp parallel
+    {
+        int ia, dish;
+        int ish0;
+        atc_atom atcc;
+        double *chomat;
+        int info;
+        int max_size = 0;
+        int my_size;
+        int n_mq, mq;
+        double *p_mq;
+        for (ia = 0; ia < atco->natm; ia++) {
+            atcc = atco->atc_convs[ia];
+            for (int l = 0; l < atcc.lmax + 1; l++) {
+                my_size = (2 * l + 1) *
+                          (atcc.global_l_loc[l + 1] - atcc.global_l_loc[l]);
+                max_size = MAX(max_size, my_size);
+            }
+        }
+        max_size *= nalpha;
+        double *buf = (double *)malloc(max_size * sizeof(double));
+#pragma omp for schedule(dynamic, 4)
+        for (ia = 0; ia < atco->natm; ia++) {
+            atcc = atco->atc_convs[ia];
+            for (int l = 0; l < atcc.lmax + 1; l++) {
+                ish0 = atcc.global_l_loc[l];
+                dish = atcc.global_l_loc[l + 1] - ish0;
+                n_mq = (2 * l + 1) * nalpha;
+                for (int sh = 0; sh < dish; sh++) {
+                    p_mq = p_uq + nalpha * atco->ao_loc[ish0 + sh];
+                    for (mq = 0; mq < n_mq; mq++) {
+                        buf[mq * dish + sh] = p_mq[mq];
+                    }
+                }
+                chomat = atcc.gtrans_0 + atcc.l_loc2[l];
+                dpotrs_(&(atco->UPLO), &dish, &n_mq, chomat, &dish, buf, &dish,
+                        &info);
+                for (int sh = 0; sh < dish; sh++) {
+                    p_mq = p_uq + nalpha * atco->ao_loc[ish0 + sh];
+                    for (mq = 0; mq < n_mq; mq++) {
+                        p_mq[mq] = buf[mq * dish + sh];
+                    }
+                }
+            }
+        }
+        free(buf);
+    }
+}
+
+void solve_atc_coefs_arr_ccl(convolution_collection *ccl, double *p_uq,
+                             int nalpha, int inp) {
+    atc_basis_set *atco;
+    if (inp) {
+        atco = ccl->atco_inp;
+    } else {
+        atco = ccl->atco_out;
+    }
+    solve_atc_coefs_arr(atco, p_uq, nalpha);
+}
+
 /**
  * Convolve the input inp_uq to out_vq using the convolution_collection ccl.
  * NOTE this is for version i, j, and ij. Use multiply_atc_integrals_vk for
@@ -809,6 +870,56 @@ void multiply_atc_integrals(double *inp_uq, double *out_vq,
             }
         }
     }
+}
+
+void atc_reciprocal_convolution(double *in_sklmq, double *out_sklmq,
+                                double *k_k, double *alphas,
+                                double *alpha_norms, int nspin, int nk, int nlm,
+                                int nq) {
+    double *conv_facs = (double *)malloc(nq * nq * sizeof(double));
+    double *conv_exps = (double *)malloc(nq * nq * sizeof(double));
+    double FPI = 16 * atan(1.0);
+    printf("HI %d %d %d %d\n", nspin, nk, nlm, nq);
+#pragma omp parallel for
+    for (int n2 = 0; n2 < nq; n2++) {
+        for (int n1 = 0; n1 < nq; n1++) {
+            int ind = n2 * nq + n1;
+            conv_exps[ind] = 0.25 / (alphas[n1] + alphas[n2]);
+            conv_facs[ind] = alpha_norms[n1] * alpha_norms[n2];
+            conv_facs[ind] *= pow(FPI * conv_exps[ind], 1.5);
+        }
+    }
+#pragma omp parallel
+    {
+        int k, q1, q2, lm, ind, displ, s;
+        double *conv = (double *)malloc(nq * nq * sizeof(double));
+        double *in_q, *out_q;
+        double mk2;
+        for (k = 0; k < nk; k++) {
+            mk2 = -1.0 * k_k[k] * k_k[k];
+            for (ind = 0; ind < nq * nq; ind++) {
+                conv[ind] = conv_facs[ind] * exp(mk2 * conv_exps[ind]);
+            }
+            for (s = 0; s < nspin; s++) {
+                for (lm = 0; lm < nlm; lm++) {
+                    // TODO blas
+                    ind = 0;
+                    displ = nq * (lm + nlm * (k + nk * s));
+                    in_q = in_sklmq + displ;
+                    out_q = out_sklmq + displ;
+                    for (q2 = 0; q2 < nq; q2++) {
+                        out_q[q2] = 0.0;
+                        for (q1 = 0; q1 < nq; q1++, ind++) {
+                            out_q[q2] += conv[ind] * in_q[q1];
+                        }
+                    }
+                }
+            }
+        }
+        free(conv);
+    }
+    free(conv_exps);
+    free(conv_facs);
 }
 
 /**
