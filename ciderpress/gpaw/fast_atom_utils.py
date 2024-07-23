@@ -39,7 +39,7 @@ from ciderpress.gpaw.interp_paw import (
     calculate_cider_paw_correction,
 )
 
-USE_GAUSSIAN_PAW_CONV = False
+USE_GAUSSIAN_PAW_CONV = True
 
 
 def _interpc(func, ref_rgd, r_g):
@@ -52,7 +52,6 @@ def _interpc(func, ref_rgd, r_g):
 
 
 def get_ag_indices(fft_obj, gd, shape, spos_c, rmax, buffer=0, get_global_disps=False):
-    ng3 = np.prod(shape)
     center = np.round(spos_c * shape).astype(int)
     disp = np.empty(3, dtype=int)
     lattice = gd.cell_cv
@@ -173,7 +172,6 @@ class PAWCiderContribs:
         # min_exps = 0.5 / (rmax * rmax) * np.ones(lp1)
         min_exps = 0.125 / (rmax * rmax) * np.ones(4)
         max_exps = get_hgbs_max_exps(Z)
-        print(min_exps, max_exps)
         etb = get_etb_from_expnt_range(
             lmax, beta, min_exps, max_exps, 0.0, 1e99, lower_fac=1.0, upper_fac=1.0
         )
@@ -634,7 +632,6 @@ class CiderRadialPotentialCalculator:
         )
         self.xc.get_paw_atom_contribs_pot(rho_sxg, vrho_sxg, vx_srLq)
         if rho_sxg.shape[1] == 5:
-            print("Contracting ae potential")
             self.xc.contract_kinetic_potential(vrho_sxg[:, 4], ae)
         return vrho_sxg[:, 0], vrho_sxg[:, 1:4]
 
@@ -705,7 +702,6 @@ class CiderRadialExpansion:
                 f_srLq,
                 ae=ae,
             )
-            print(dedn_sg.sum(), dedgrad_svg.sum())
             nn = Y_nL.shape[0]
             nq = f_srLq.shape[-1]
             dedn_sgn = dedn_sg.reshape(nspins, -1, nn)
@@ -725,7 +721,6 @@ class CiderRadialExpansion:
                 (4 * np.pi) * weight_n[:, None, None] * rnablaY_nLv[:, :Lmax],
                 B_svqn,
             )
-            print(dEdD_sqL.sum())
             return dEdD_sqL
 
 
@@ -912,23 +907,14 @@ class FastPASDWCiderKernel:
             self.timer.start("separate long and short-range")
             # TODO between here and the block comment should be replaced
             # with the code in the block comment after everything else works.
-            # dv_g = get_dv(slgd)
-
-            # dy_sqLk = setup.etb_projector.r2k((dy_sgLq).transpose(0, 3, 2, 1))
-            # dy_sqLk = setup.etb_projector.r2k(
-            #     (dy_sgLq / alpha_norms).transpose(0, 3, 2, 1)
-            # )
             dy_sqLk = dy_skLq.transpose(0, 3, 2, 1) / alpha_norms[:, None, None]
 
-            # print("INPUT", (dy_sqLk[:, :Nalpha_sm] * get_dvk(rgd)).sum())
             c_siq, df_sLpq = psetup.get_c_and_df(
                 dy_sqLk[:, :Nalpha_sm], realspace=False
             )
-            # print("OUTPUT", c_siq.sum(), c_siq.shape, c_siq[0, :, 10])
             dfr_sgLq = psetup.get_f_realspace_contribs(c_siq, sl=True).transpose(
                 0, 3, 2, 1
             )
-            # print("OUTPUT2", (dfr_sgLq * get_dv(slgd)[:, None, None]).sum())
             df_sLpq = np.append(
                 df_sLpq,
                 psetup.get_df_only(
@@ -999,7 +985,6 @@ class FastPASDWCiderKernel:
             df_sgLq = self.df_asgLq[a]
             ft_sgLq = np.zeros_like(df_sgLq)
             fr_sgLq = self.fr_asgLq[a]
-            print("INPUT", D_asiq[a][0].sum(), df_sgLq.sum(), fr_sgLq.sum())
             for i in range(ni):
                 L = psetup.lmlist_i[i]
                 n = psetup.nlist_i[i]
@@ -1043,14 +1028,6 @@ class FastPASDWCiderKernel:
                 ) * dv_g[:, None]
             self.vfr_asgLq[a] = vfr_sgLq
             self.vdf_asgLq[a] = vf_sgLq
-            print(
-                "OUTPUT",
-                deltaE[a],
-                deltaV[a].sum(),
-                vfr_sgLq.sum(),
-                vf_sgLq.sum(),
-                dvD_asiq[a][0].sum(),
-            )
         return dvD_asiq, deltaE, deltaV
 
     def calculate_paw_cider_potential(self, setups, D_asp, vc_asiq):
@@ -1109,10 +1086,6 @@ class FastPASDWCiderKernel:
                 psetup.get_vdf_only(vdf_sLpq[..., Nalpha_sm:], realspace=False),
                 axis=1,
             )
-            print("INPUT", vc_siq.sum(), vdy_sqLk.sum(), vyt_sgLq.sum())
-
-            # vdy_sgLq = setup.etb_projector.k2r(vdy_sqLk).transpose(0, 3, 2, 1)
-            # vdy_sgLq[:] /= alpha_norms
             vdy_sgLq = np.ascontiguousarray(
                 vdy_sqLk.transpose(0, 3, 2, 1) / alpha_norms
             )
@@ -1122,8 +1095,6 @@ class FastPASDWCiderKernel:
             vxt_sgLq, vdx_sgLq = setup.cider_contribs.get_paw_conv_potential_terms(
                 vyt_sgLq, vdy_sgLq, setup.nlxc_correction.big_rgd
             )
-
-            print((vxt_sgLq / alpha_norms).sum(), (vdx_sgLq / alpha_norms).sum())
 
             rcut = RCUT
             rmax = slgd.r_g[-1]
@@ -1135,7 +1106,6 @@ class FastPASDWCiderKernel:
             F_sbLg = vdx_sgLq - vxt_sgLq
             y_sbLg = vxt_sgLq.copy()
 
-            print((F_sbLg / alpha_norms).sum(), (y_sbLg / alpha_norms).sum())
             rcalc = CiderRadialPotentialCalculator(setup.cider_contribs)
             expansion = CiderRadialExpansion(
                 rcalc,
@@ -1145,7 +1115,6 @@ class FastPASDWCiderKernel:
             dH_asp[a] = calculate_cider_paw_correction(
                 expansion, setup, D_sp, separate_ae_ps=True
             )
-            print("FINAL OUT", dH_asp[a].sum())
         return dH_asp
 
     def calculate_paw_feat_corrections(
