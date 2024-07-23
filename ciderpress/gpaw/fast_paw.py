@@ -149,7 +149,6 @@ class _FastPASDW_MPRoutines(_CiderPASDW_MPRoutines):
             if atom_slice is not None and atom_slices[a].rad_g.size > 0:
                 self.timer.start("funcs")
                 funcs_ig = atom_slice.get_funcs()
-                coefs_bi[:] /= self._plan.alpha_norms[:, None]
                 funcs_gb = np.dot(funcs_ig.T, coefs_bi.T)
                 self.timer.stop()
                 self.timer.start("paw2grid")
@@ -176,8 +175,8 @@ class _FastPASDW_MPRoutines(_CiderPASDW_MPRoutines):
             (self._plan.nalpha, atom_slices[a].num_funcs)
             for a in range(len(self.setups))
         ]
-        max_size = np.max([s[0] * s[1] for s in shapes])
-        buf = np.empty(max_size, dtype=np.float64)
+        # max_size = np.max([s[0] * s[1] for s in shapes])
+        # buf = np.empty(max_size, dtype=np.float64)
 
         c_abi = {}
         rank_a = self.atom_partition.rank_a
@@ -193,7 +192,6 @@ class _FastPASDW_MPRoutines(_CiderPASDW_MPRoutines):
                 )
                 coefs_bi = np.dot(funcs_gb.T, funcs_ig.T)
                 coefs_bi[:] *= atom_slice.dv
-                coefs_bi[:] /= self._plan.alpha_norms[:, None]
             else:
                 coefs_bi = np.zeros(shapes[a])
             comm.sum(coefs_bi, rank_a[a])

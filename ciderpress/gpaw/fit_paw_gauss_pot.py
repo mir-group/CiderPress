@@ -286,8 +286,12 @@ def get_p22_matrix(phi_iabg, rgd, rcut, l, w_b, nbas_loc, reg=0, cut_func=False)
         phicut_iabg *= np.sqrt(fcut)
     p22_jaja = np.einsum("iacg,jbcg,c->iajb", phicut_iabg, phicut_iabg, w_b)
     nj, na = p22_jaja.shape[:2]
-    p22_ii = p22_jaja.reshape(nj * na, nj * na)
-    p22_ii += reg * np.identity(nj * na)  # TODO make sure this adds to p22_jaja
+    p22_ii = p22_jaja.view()
+    p22_ii.shape = (nj * na, nj * na)
+    # TODO this is closed to previous regularization, but not
+    # necessarily the optimal regularization
+    reg = reg / np.tile(w_b, nj)
+    p22_ii[:] += reg * np.identity(nj * na)
     return p22_jaja
 
 

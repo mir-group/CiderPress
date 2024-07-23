@@ -849,6 +849,7 @@ class FastPASDWCiderKernel:
                     setup,
                     self.bas_exp_fit,
                     self.bas_exp_fit,
+                    alpha_norms=self.plan.alpha_norms,
                     pmax=encut0,
                 )
                 setup.pa_setup = PAugSetup.from_setup(setup)
@@ -890,7 +891,6 @@ class FastPASDWCiderKernel:
             )
             dx_sgLq -= xt_sgLq
             self.timer.stop()
-            alpha_norms = setup.cider_contribs.plan.alpha_norms
 
             rcut = RCUT
             rmax = slgd.r_g[-1]
@@ -907,7 +907,7 @@ class FastPASDWCiderKernel:
             self.timer.start("separate long and short-range")
             # TODO between here and the block comment should be replaced
             # with the code in the block comment after everything else works.
-            dy_sqLk = dy_skLq.transpose(0, 3, 2, 1) / alpha_norms[:, None, None]
+            dy_sqLk = dy_skLq.transpose(0, 3, 2, 1)
 
             c_siq, df_sLpq = psetup.get_c_and_df(
                 dy_sqLk[:, :Nalpha_sm], realspace=False
@@ -940,7 +940,6 @@ class FastPASDWCiderKernel:
             df_sgLq = psetup.get_df_realspace_contribs(df_suq, sl=True)
             """
             self.df_asgLq[a] = df_sgLq
-            yt_sgLq /= alpha_norms
             self.fr_asgLq[a] = yt_sgLq
             self.fr_asgLq[a][..., :Nalpha_sm] += dfr_sgLq
             self.timer.stop()
@@ -979,8 +978,6 @@ class FastPASDWCiderKernel:
             ni = psetup.ni
             slgd = setup.xc_correction.rgd
             Nalpha_sm = D_asiq[a].shape[-1]
-            # TODO ovlp_fit
-            # TODO replace the for loop for with acall to the setup
             dv_g = get_dv(slgd)
             df_sgLq = self.df_asgLq[a]
             ft_sgLq = np.zeros_like(df_sgLq)
@@ -996,11 +993,10 @@ class FastPASDWCiderKernel:
                     ) * psetup.ffuncs_jg[j][:, None]
             ft_sgLq[:] += fr_sgLq
             rcalc = CiderRadialEnergyCalculator(setup.cider_contribs)
-            alpha_norms = setup.cider_contribs.plan.alpha_norms
             expansion = CiderRadialExpansion(
                 rcalc,
-                ft_sgLq * alpha_norms,
-                df_sgLq * alpha_norms,
+                ft_sgLq,
+                df_sgLq,
             )
             deltaE[a], deltaV[a], vf_sgLq, vft_sgLq = calculate_cider_paw_correction(
                 expansion,
@@ -1008,8 +1004,6 @@ class FastPASDWCiderKernel:
                 D_sp,
                 separate_ae_ps=True,
             )
-            vf_sgLq[:] *= alpha_norms
-            vft_sgLq[:] *= alpha_norms
             vfr_sgLq = vf_sgLq - vft_sgLq
             vft_sgLq[:] = vfr_sgLq
             dvD_asiq[a] = np.zeros((nspin, ni, Nalpha_sm))
@@ -1055,12 +1049,10 @@ class FastPASDWCiderKernel:
             slgd = setup.xc_correction.rgd
             Nalpha_sm = psetup.phi_jabg.shape[1]
             RCUT = np.max(setup.rcut_j)
-            # TODO overlap fit here
-            alpha_norms = setup.cider_contribs.plan.alpha_norms
             vc_siq = vc_asiq[a]
             vdf_sgLq = self.vdf_asgLq[a]
             vdfr_sgLq = self.vfr_asgLq[a][..., :Nalpha_sm]
-            vyt_sgLq = self.vfr_asgLq[a] / alpha_norms
+            vyt_sgLq = self.vfr_asgLq[a]
             """
             vc_siq += psetup.get_vf_realspace_contribs(vyt_sgLq, slgd, sl=True)
             vdf_suq = psetup.get_vdf_realspace_contribs(vdf_sgLq, slgd, sl=True)
@@ -1086,9 +1078,7 @@ class FastPASDWCiderKernel:
                 psetup.get_vdf_only(vdf_sLpq[..., Nalpha_sm:], realspace=False),
                 axis=1,
             )
-            vdy_sgLq = np.ascontiguousarray(
-                vdy_sqLk.transpose(0, 3, 2, 1) / alpha_norms
-            )
+            vdy_sgLq = np.ascontiguousarray(vdy_sqLk.transpose(0, 3, 2, 1))
             vdy_sgLq[:] *= get_dvk(setup.nlxc_correction.big_rgd)[
                 :, None, None
             ]  # * 2 / np.pi
@@ -1393,8 +1383,7 @@ class PSmoothSetup(PASDWData):
         self.ffuncs_jg = ffuncs_jg
 
     def initialize_a2g(self):
-        self.w_b = np.ones(self.alphas_ae.size)  # / self.alpha_norms**2
-        # self.w_b = self.alphas_ae**-0.5
+        self.w_b = np.ones(self.alphas_ae.size) / self.alpha_norms**2
         if self.pmax is None:
             pmax = 4 * np.max(self.alphas_ae)
         else:
@@ -1415,8 +1404,8 @@ class PSmoothSetup(PASDWData):
         pfuncs_jg = np.stack([self.pfuncs_ng2[n] for n in self.nlist_j])
         pfuncs_k = get_pfuncs_k(pfuncs_jg, self.llist_j, rgd, ns=self.nlist_j)
         phi_jabk = get_phi_iabk(pfuncs_k, rgd.k_g, self.alphas, betas=self.alphas_ae)
-        # phi_jabk[:] *= self.alpha_norms[:, None, None]
-        # phi_jabk[:] *= self.alpha_norms[:, None]
+        phi_jabk[:] *= self.alpha_norms[:, None, None]
+        phi_jabk[:] *= self.alpha_norms[:, None]
         REG11 = 1e-6
         REG22 = 1e-5
         FAC22 = 1e-2
