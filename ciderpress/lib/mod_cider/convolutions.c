@@ -879,7 +879,6 @@ void atc_reciprocal_convolution(double *in_sklmq, double *out_sklmq,
     double *conv_facs = (double *)malloc(nq * nq * sizeof(double));
     double *conv_exps = (double *)malloc(nq * nq * sizeof(double));
     double FPI = 16 * atan(1.0);
-    printf("HI %d %d %d %d\n", nspin, nk, nlm, nq);
 #pragma omp parallel for
     for (int n2 = 0; n2 < nq; n2++) {
         for (int n1 = 0; n1 < nq; n1++) {

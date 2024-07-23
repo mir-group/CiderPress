@@ -18,14 +18,14 @@ def run_calc(xc, spinpol, setups="paw"):
         xmix=0.25,
         qmax=300,
         lambd=1.8,
-        pasdw_store_funcs=True,
-        pasdw_ovlp_fit=not USE_FAST_GPAW,
+        pasdw_store_funcs=False,
+        pasdw_ovlp_fit=True,  # not USE_FAST_GPAW,
         use_paw=False if setups == "sg15" else True,
         fast=USE_FAST_GPAW,
     )
 
     atoms.calc = CiderGPAW(
-        h=0.18,  # use a reasonably small grid spacing
+        h=0.17,  # use a reasonably small grid spacing
         xc=xc,  # assign the CIDER functional to xc
         mode=PW(520),  # plane-wave mode with 520 eV cutoff.
         txt="-",  # output file, '-' for stdout

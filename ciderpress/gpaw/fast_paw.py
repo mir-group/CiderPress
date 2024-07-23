@@ -27,47 +27,58 @@ class _FastPASDW_MPRoutines(_CiderPASDW_MPRoutines):
         )
         self.paw_kernel.initialize_more_things(self.setups)
         self.paw_kernel.interpolate_dn1 = self.interpolate_dn1
-        self.atom_slices = None
+        self.atom_slices_s = None
 
     def _setup_atom_slices(self):
         self.timer.start("ATOM SLICE SETUP")
-        self.atom_slices = {}
-        self.atom_slices_2 = {}
+        self.atom_slices_s = {}
+        self.atom_slices_a = {}
+        self.global_slices_s = {}
+        self.global_slices_a = {}
+        rank_a = self.atom_partition.rank_a
+        comm = self.atom_partition.comm
         for a in range(len(self.setups)):
             args = [
                 self.gd,
                 self.spos_ac[a],
-                self.setups[a].pasdw_setup,
+                self.setups[a].ps_setup,
                 self.fft_obj,
             ]
             kwargs = dict(
-                rmax=self.setups[a].pasdw_setup.rcut_func,
+                rmax=self.setups[a].ps_setup.rcut_func,
                 sphere=True,
-                ovlp_fit=self.pasdw_ovlp_fit,
                 store_funcs=self.pasdw_store_funcs,
             )
-            self.atom_slices[a] = FastAtomPASDWSlice.from_gd_and_setup(*args, **kwargs)
-            args[2] = self.setups[a].paonly_setup
-            kwargs["rmax"] = self.setups[a].paonly_setup.rcut_func
-            self.atom_slices_2[a] = FastAtomPASDWSlice.from_gd_and_setup(
+            self.atom_slices_s[a] = FastAtomPASDWSlice.from_gd_and_setup(
                 *args, **kwargs
             )
+            if rank_a[a] == comm.rank and self.pasdw_ovlp_fit:
+                self.global_slices_s[a] = FastAtomPASDWSlice.from_gd_and_setup(
+                    *args, is_global=True, ovlp_fit=True, **kwargs
+                )
+            args[2] = self.setups[a].pa_setup
+            kwargs["rmax"] = self.setups[a].pa_setup.rcut_func
+            self.atom_slices_a[a] = FastAtomPASDWSlice.from_gd_and_setup(
+                *args, **kwargs
+            )
+            if rank_a[a] == comm.rank and self.pasdw_ovlp_fit:
+                self.global_slices_a[a] = FastAtomPASDWSlice.from_gd_and_setup(
+                    *args, is_global=True, ovlp_fit=True, **kwargs
+                )
         self.timer.stop()
 
     def write_augfeat_to_rbuf(self, c_abi, pot=False):
         self.timer.start("PAW TO GRID")
-        if self.atom_slices is None:
+        if self.atom_slices_s is None:
             self._setup_atom_slices()
 
         self.timer.start("setup")
         if pot:
-            atom_slices = self.atom_slices_2
-            self.par_cider.pa_comm
-            [s.paonly_setup.ni for s in self.setups]
+            atom_slices = self.atom_slices_a
+            global_slices = self.global_slices_a
         else:
-            atom_slices = self.atom_slices
-            self.par_cider.ps_comm
-            [s.pasdw_setup.ni for s in self.setups]
+            atom_slices = self.atom_slices_s
+            global_slices = self.global_slices_s
 
         shapes = [
             (self._plan.nalpha, atom_slices[a].num_funcs)
@@ -93,7 +104,12 @@ class _FastPASDW_MPRoutines(_CiderPASDW_MPRoutines):
         rtot = 0
         for a in atoms[comm.rank]:
             # assert c_abi[a].flags.c_contiguous
-            sendbuf[rtot : rtot + sizes[a]] = np.ascontiguousarray(c_abi[a]).ravel()
+            if self.pasdw_ovlp_fit:
+                sendbuf[rtot : rtot + sizes[a]] = np.ascontiguousarray(
+                    c_abi[a].dot(global_slices[a].sinv_pf.T)
+                ).ravel()
+            else:
+                sendbuf[rtot : rtot + sizes[a]] = np.ascontiguousarray(c_abi[a]).ravel()
             rtot += sizes[a]
         np.asarray([rtot] * comm.size)
         np.asarray([0] * comm.size)
@@ -133,10 +149,6 @@ class _FastPASDW_MPRoutines(_CiderPASDW_MPRoutines):
             if atom_slice is not None and atom_slices[a].rad_g.size > 0:
                 self.timer.start("funcs")
                 funcs_ig = atom_slice.get_funcs()
-                # TODO this ovlp fitting should be done before
-                # collecting the c_abi using from_work
-                if atom_slice.sinv_pf is not None:
-                    coefs_bi = coefs_bi.dot(atom_slice.sinv_pf.T)
                 coefs_bi[:] /= self._plan.alpha_norms[:, None]
                 funcs_gb = np.dot(funcs_ig.T, coefs_bi.T)
                 self.timer.stop()
@@ -150,17 +162,15 @@ class _FastPASDW_MPRoutines(_CiderPASDW_MPRoutines):
 
     def interpolate_rbuf_onto_atoms(self, pot=False):
         self.timer.start("GRID TO PAW")
-        if self.atom_slices is None:
+        if self.atom_slices_s is None:
             self._setup_atom_slices()
 
         if pot:
-            atom_slices = self.atom_slices
-            self.par_cider.pa_comm
-            [s.paonly_setup.ni for s in self.setups]
+            atom_slices = self.atom_slices_s
+            global_slices = self.global_slices_s
         else:
-            atom_slices = self.atom_slices_2
-            self.par_cider.ps_comm
-            [s.pasdw_setup.ni for s in self.setups]
+            atom_slices = self.atom_slices_a
+            global_slices = self.global_slices_a
 
         shapes = [
             (self._plan.nalpha, atom_slices[a].num_funcs)
@@ -184,16 +194,15 @@ class _FastPASDW_MPRoutines(_CiderPASDW_MPRoutines):
                 coefs_bi = np.dot(funcs_gb.T, funcs_ig.T)
                 coefs_bi[:] *= atom_slice.dv
                 coefs_bi[:] /= self._plan.alpha_norms[:, None]
-                if atom_slice.sinv_pf is not None:
-                    coefs_bi = coefs_bi.dot(atom_slice.sinv_pf)
-                # TODO this ovlp fitting should be done after
-                # scattering the c_abi using to_work
             else:
                 coefs_bi = np.zeros(shapes[a])
             comm.sum(coefs_bi, rank_a[a])
             if rank_a[a] == comm.rank:
                 assert coefs_bi is not None
-                c_abi[a] = coefs_bi
+                if self.pasdw_ovlp_fit:
+                    c_abi[a] = coefs_bi.dot(global_slices[a].sinv_pf)
+                else:
+                    c_abi[a] = coefs_bi
 
         self.timer.stop()
         return c_abi
@@ -349,7 +358,7 @@ class CiderGGAPASDW(_FastPASDW_MPRoutines, CiderGGA):
 
     def set_positions(self, spos_ac):
         self.spos_ac = spos_ac
-        self.atom_slices = None
+        self.atom_slices_s = None
 
     def initialize(self, density, hamiltonian, wfs):
         self.dens = density
@@ -362,7 +371,7 @@ class CiderGGAPASDW(_FastPASDW_MPRoutines, CiderGGA):
         self.rbuf_ag = None
 
     def calc_cider(self, *args, **kwargs):
-        if (self.setups is None) or (self.atom_slices is None):
+        if (self.setups is None) or (self.atom_slices_s is None):
             self._setup_plan()
             self.fft_obj.initialize_backend()
             self.initialize_more_things()
@@ -430,7 +439,7 @@ class CiderMGGAPASDW(_FastPASDW_MPRoutines, CiderMGGA):
     def set_positions(self, spos_ac):
         MGGA.set_positions(self, spos_ac)
         self.spos_ac = spos_ac
-        self.atom_slices = None
+        self.atom_slices_s = None
 
     def initialize(self, density, hamiltonian, wfs):
         MGGA.initialize(self, density, hamiltonian, wfs)
@@ -439,7 +448,7 @@ class CiderMGGAPASDW(_FastPASDW_MPRoutines, CiderMGGA):
         self.timer = wfs.timer
         self.world = wfs.world
         self.setups = None
-        self.atom_slices = None
+        self.atom_slices_s = None
         self.gdfft = None
         self.pwfft = None
         self.rbuf_ag = None
@@ -508,7 +517,7 @@ class CiderMGGAPASDW(_FastPASDW_MPRoutines, CiderMGGA):
         self.timer.stop()
 
     def calc_cider(self, *args, **kwargs):
-        if (self.setups is None) or (self.atom_slices is None):
+        if (self.setups is None) or (self.atom_slices_s is None):
             self._setup_plan()
             self.fft_obj.initialize_backend()
             self.initialize_more_things()
