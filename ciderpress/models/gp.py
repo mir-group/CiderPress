@@ -19,12 +19,31 @@
 #
 
 import numpy as np
+from pyscf.dft.libxc import eval_xc
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, ConstantKernel, WhiteKernel
 
-from ciderpress.models.kernels import *
+from ciderpress.dft.settings import LDA_FACTOR
+from ciderpress.models.kernels import (
+    DensityNoise,
+    ExponentialDensityNoise,
+    FittedDensityNoise,
+    PartialARBF,
+    PartialRBF,
+    SingleDot,
+    SingleRBF,
+)
 
 SCALE_FAC = (6 * np.pi**2) ** (2.0 / 3) / (16 * np.pi)
+
+
+def ldax(n):
+    """
+    LDA exchange energy density
+    Args:
+        n: Density
+    """
+    return LDA_FACTOR * n ** (4.0 / 3)
 
 
 def get_ldax_dens(n):

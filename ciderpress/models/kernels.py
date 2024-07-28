@@ -147,7 +147,7 @@ class DiffTransform(DiffKernelMixin, Kernel):
         return self.kernel.bounds
 
     def __eq__(self, b):
-        if type(self) != type(b):
+        if type(self) is not type(b):
             return False
         return self.kernel == b.kernel and self.exponent == b.exponent
 
@@ -606,40 +606,6 @@ class PartialRBF(DiffRBF):
             if Y is not None:
                 Y = Y[:, self.active_dims]
         return super(PartialRBF, self).k_and_deriv(X, Y)
-
-
-class SpinSymRBF(RBF):
-    """
-    TODO this is a draft.
-    RBF child class with spin symmetry.
-    """
-
-    def __init__(
-        self,
-        up_active_dims,
-        down_active_dims,
-        length_scale=1.0,
-        length_scale_bounds=(1e-5, 1e5),
-    ):
-        super(SpinSymRBF, self).__init__(length_scale, length_scale_bounds)
-        self.up_active_dims = up_active_dims
-        self.down_active_dims = down_active_dims
-
-    def __call__(self, X, Y=None, eval_gradient=False):
-        Xup = X[:, self.up_active_dims]
-        Xdown = X[:, self.down_active_dims]
-        if Y is not None:
-            Yup = Y[:, self.up_active_dims]
-            Ydown = Y[:, self.down_active_dims]
-        else:
-            Yup = None
-            Ydown = None
-        uppart = super(SpinSymRBF).__call__(Xup, Yup, eval_gradient)
-        downpart = super(SpinSymRBF).__call__(Xdown, Ydown, eval_gradient)
-        if eval_gradient:
-            return uppart[0] + downpart[0], uppart[1] + downpart[1]
-        else:
-            return uppart + downpart
 
 
 class DiffARBF(DiffRBF):

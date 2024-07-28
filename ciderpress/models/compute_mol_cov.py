@@ -103,7 +103,7 @@ def compute_tr_covs(model, dir1, formulas=None, unit=None):
         vala = val[cut[i] : cut[i + 1]]
         if unit is not None:
             assert unit == "eV"
-            ### vala *= 0.0367493
+            # vala *= 0.0367493
             sprefac = 2 * (3 * np.pi * np.pi) ** (1.0 / 3)
             print("MODEL DESC VERSION", model.desc_version)
             if "b" in model.desc_version:
@@ -250,7 +250,6 @@ def compute_covs(model, dir1, dir2=None):
     cut = np.load(join(dir1, "cut.npy"))
     desc = np.load(join(dir1, "desc.npy"))
     rho = np.load(join(dir1, "rho.npy"))
-    #'settings.yaml'
     val = np.load(join(dir1, "val.npy"))
     wt = np.load(join(dir1, "wt.npy"))
     N1 = cut.size
@@ -327,7 +326,7 @@ def compute_new_alpha(
     else:
         Kmn = np.hstack((Kmm[:, ::skip_freq], vwrtt_mat))
 
-    if rho == False:
+    if rho is False:
         rho = None
     else:
         rho = model.X[:, 0]

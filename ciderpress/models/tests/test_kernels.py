@@ -457,7 +457,7 @@ class TestDiffPolyKernel3(ParentTest):
     }
 
 
-class TestDiffPolyKernel1(ParentTest):
+class TestDiffPolyKernel4(ParentTest):
     Kernel = kernels.DiffPolyKernel
     args = []
     kwargs = {
