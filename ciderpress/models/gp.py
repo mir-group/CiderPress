@@ -22,10 +22,47 @@ import numpy as np
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, ConstantKernel, WhiteKernel
 
-from ciderpress.density import get_ldax, get_ldax_dens, get_xed_from_y, get_y_from_xed
 from ciderpress.models.kernels import *
 
 SCALE_FAC = (6 * np.pi**2) ** (2.0 / 3) / (16 * np.pi)
+
+
+def get_ldax_dens(n):
+    """
+    LDA exchange energy density
+    Args:
+        n: Density
+    """
+    return LDA_FACTOR * n ** (4.0 / 3)
+
+
+def get_ldax(n):
+    """
+    LDA Exchange energy per particle
+    Args:
+        n: Density
+    """
+    return LDA_FACTOR * n ** (1.0 / 3)
+
+
+def get_xed_from_y(y, rho):
+    """
+    Get the exchange energy density (n * epsilon_x)
+    from the exchange enhancement factor y
+    and density rho.
+    """
+    return rho * get_x(y, rho)
+
+
+def get_x(y, rho):
+    return (y + 1) * get_ldax(rho)
+
+
+def get_y_from_xed(xed, rho):
+    """
+    Get the exchange enhancement factor minus one.
+    """
+    return xed / (get_ldax_dens(rho) - 1e-12) - 1
 
 
 def xed_to_y_scan(xed, rho_data):

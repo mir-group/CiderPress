@@ -27,7 +27,7 @@ from pyscf.lib import prange
 from pyscf.lib.scipy_helper import pivoted_cholesky
 from scipy.linalg import cho_solve, cholesky, qr, solve_triangular
 
-from ciderpress.density import get_ldax, get_ldax_dens
+from ciderpress.models.gp import get_ldax, get_ldax_dens
 
 """
 This module contains utilities that are required for computing exchange

@@ -24,9 +24,8 @@ import numpy as np
 from pyscf.lib import chkfile, prange
 from scipy.linalg import cho_solve, cholesky
 
-from ciderpress.dft.xc_evaluator import MappedFunctional, XCEvalSerializable
-from ciderpress.new_dft.settings import FeatureSettings
-from ciderpress.new_dft.xc_evaluator import MappedXC
+from ciderpress.dft.settings import FeatureSettings
+from ciderpress.dft.xc_evaluator import MappedFunctional, MappedXC, XCEvalSerializable
 
 
 def strk_to_tuplek(d, ref=False):
