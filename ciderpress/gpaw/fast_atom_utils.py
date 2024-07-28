@@ -1786,3 +1786,64 @@ class PSmoothSetup(PASDWData):
         psetup.initialize_a2g()
 
         return psetup
+
+
+class PSmoothSetup2(PSmoothSetup):
+    def get_c_and_df(self, y_sgLb, realspace=True):
+        nspin, ng, Lmax, nb = y_sgLb.shape
+        rgd = self.sbt_rgd
+        Nalpha_sm = self.alphas.size
+        NP = self.delta_lpg.shape[1]
+        c_sib = np.zeros((nspin, self.ni, Nalpha_sm))
+        nao = ...
+        df_sub = np.zeros((nspin, nao, nb))
+        lloc_bas = ...
+        lloc_ao = ...
+        for s in range(nspin):
+            for l in range(self.lmax + 1):
+                Lmin = l * l
+                dL = 2 * l + 1
+                for L in range(Lmin, Lmin + dL):
+                    b1 = self.get_b1_pb(y_sgLb[s, :, L, :], l, rgd)
+                    b2 = self.get_b2_ja(y_sgLb[s, :, L, :], l, rgd)
+                    b = self.cat_b_vecs(b1, b2)
+                    x = cho_solve(self.p_cl_l_ii[l], b)
+                    N1 = b1.size
+                    df_sLpb[s, L] += x[:N1].reshape(NP, nb)
+                    ilist = self.lmlist_i == L
+                    c_sib[s, ilist, :] += x[N1:].reshape(-1, Nalpha_sm)
+        return c_sib, df_sLpb
+
+    def get_v_from_c_and_df(self, vc_sib, vdf_sLpb, realspace=True):
+        nspin, Lmax, NP, nb = vdf_sLpb.shape
+        rgd = self.sbt_rgd
+        Nalpha_sm = self.alphas.size
+        ng = rgd.r_g.size
+        vy_sbLg = np.zeros((nspin, nb, Lmax, ng))
+        for s in range(nspin):
+            for l in range(self.lmax + 1):
+                Lmin = l * l
+                dL = 2 * l + 1
+                for L in range(Lmin, Lmin + dL):
+                    ilist = self.lmlist_i == L
+                    x1 = vdf_sLpb[s, L].flatten()
+                    x2 = vc_sib[s, ilist, :].flatten()
+                    x = self.cat_b_vecs(x1, x2)
+                    # b = self.pinv_l_ii[l].dot(x)
+                    b = cho_solve(self.p_cl_l_ii[l], x)
+                    N1 = x1.size
+                    if realspace:
+                        vy_sbLg[s, :, L, :] += self.get_vb1_pb(
+                            b[:N1].reshape(NP, nb), l
+                        )
+                        vy_sbLg[s, :, L, :] += self.get_vb2_ja(
+                            b[N1:].reshape(-1, Nalpha_sm), l
+                        )
+                    else:
+                        vy_sbLg[s, :, L, :] += self.get_vb1_pb_recip(
+                            b[:N1].reshape(NP, nb), l
+                        )
+                        vy_sbLg[s, :, L, :] += self.get_vb2_ja_recip(
+                            b[N1:].reshape(-1, Nalpha_sm), l
+                        )
+        return vy_sbLg
