@@ -186,7 +186,7 @@ class PAWCiderContribs:
 
     @property
     def is_mgga(self):
-        return self.plan.nldf_settings.sl_level
+        return self.plan.nldf_settings.sl_level == "MGGA"
 
     @property
     def nspin(self):
