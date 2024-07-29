@@ -25,7 +25,7 @@ def run_calc(xc, spinpol, setups="paw"):
     )
 
     atoms.calc = CiderGPAW(
-        h=0.17,  # use a reasonably small grid spacing
+        h=0.18,  # use a reasonably small grid spacing
         xc=xc,  # assign the CIDER functional to xc
         mode=PW(520),  # plane-wave mode with 520 eV cutoff.
         txt="-",  # output file, '-' for stdout

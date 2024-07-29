@@ -367,6 +367,7 @@ class CiderGGAPASDW(_FastPASDW_MPRoutines, CiderGGA):
         self.gdfft = None
         self.pwfft = None
         self.rbuf_ag = None
+        self._check_parallelization(wfs)
 
     def calc_cider(self, *args, **kwargs):
         if (self.setups is None) or (self.atom_slices_s is None):
@@ -452,6 +453,7 @@ class CiderMGGAPASDW(_FastPASDW_MPRoutines, CiderMGGA):
         self.rbuf_ag = None
         self.kbuf_ak = None
         self.theta_ak = None
+        self._check_parallelization(wfs)
 
     def calculate_impl(self, gd, n_sg, v_sg, e_g):
         # TODO don't calculate sigma/dedsigma here

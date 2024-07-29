@@ -374,11 +374,33 @@ void ciderpw_compute_kernels_helper(double k2, double *kernel_ab,
     }
 }
 
+void ciderpw_compute_kernels_sym_helper(double k2, double *kernel_ab,
+                                        double *norms_ab, double *expnts_ab,
+                                        int nalpha) {
+    int ab, a, b;
+    double kval;
+    for (b = 0; b < nalpha; b++) {
+        ab = b * nalpha + b;
+        kernel_ab[ab] = norms_ab[ab] * exp(expnts_ab[ab] * k2);
+        for (a = b + 1; a < nalpha; a++) {
+            ab = b * nalpha + a;
+            kernel_ab[ab] = norms_ab[ab] * exp(expnts_ab[ab] * k2);
+            kernel_ab[a * nalpha + b] = kernel_ab[ab];
+        }
+    }
+}
+
 void ciderpw_compute_kernels(struct ciderpw_kernel *kernel, double k2,
                              double *kernel_ba) {
     ciderpw_compute_kernels_helper(k2, kernel_ba, kernel->norms_ba,
                                    kernel->expnts_ba,
                                    kernel->nbeta * kernel->nalpha);
+}
+
+void ciderpw_compute_kernels_sym(struct ciderpw_kernel *kernel, double k2,
+                                 double *kernel_ba) {
+    ciderpw_compute_kernels_sym_helper(k2, kernel_ba, kernel->norms_ba,
+                                       kernel->expnts_ba, kernel->nalpha);
 }
 
 void ciderpw_compute_kernels_t(struct ciderpw_kernel *kernel, double k2,
@@ -418,7 +440,10 @@ void ciderpw_convolution_fwd(ciderpw_data data) {
     double complex *work_a;
     for (kindex = 0; kindex < data->nk; kindex++) {
         work_a = work_ska + kindex * data->kernel.work_size;
-        ciderpw_compute_kernels(&data->kernel, data->k2_G[kindex], kernel_ba);
+        // ciderpw_compute_kernels(&data->kernel, data->k2_G[kindex],
+        //                         kernel_ba);
+        ciderpw_compute_kernels_sym(&data->kernel, data->k2_G[kindex],
+                                    kernel_ba);
         ikernel_ba = kernel_ba;
         for (b = 0; b < data->kernel.nbeta; b++) {
             F = 0.0;
@@ -447,7 +472,10 @@ void ciderpw_convolution_bwd(ciderpw_data data) {
     ciderpw_multiply_l1(data);
     for (kindex = 0; kindex < data->nk; kindex++) {
         work_a = work_ska + kindex * data->kernel.work_size;
-        ciderpw_compute_kernels_t(&data->kernel, data->k2_G[kindex], kernel_ab);
+        // ciderpw_compute_kernels_t(&data->kernel, data->k2_G[kindex],
+        // kernel_ab);
+        ciderpw_compute_kernels_sym(&data->kernel, data->k2_G[kindex],
+                                    kernel_ab);
         ikernel_ab = kernel_ab;
         for (a = 0; a < data->kernel.nalpha; a++) {
             F = 0.0;

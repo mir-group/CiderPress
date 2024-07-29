@@ -98,6 +98,16 @@ class _FastCiderBase:
             "xc_params": xc_params,
         }
 
+    def _check_parallelization(self, wfs):
+        if wfs.world.size > self.gd.comm.size:
+            raise ValueError(
+                "You are using Cider with only "
+                "%d out of %d available cores.  This is not "
+                "supported currently and can lead to incorrect "
+                "results due to paralleization issues.  Please use "
+                "parallel={'augment_grids': True}." % (gd.comm.size, wfs.world.size)
+            )
+
     def initialize(self, density, hamiltonian, wfs):
         if self.type == "GGA":
             GGA.initialize(self, density, hamiltonian, wfs)
@@ -111,6 +121,7 @@ class _FastCiderBase:
         self.rbuf_ag = None
         self.kbuf_ak = None
         self.theta_ak = None
+        self._check_parallelization(wfs)
 
     def _setup_plan(self):
         nldf_settings = self.cider_kernel.mlfunc.settings.nldf_settings
@@ -310,6 +321,7 @@ class _FastCiderBase:
         # TODO version i features
         feat_sig[:] *= plan.nspin
 
+        self.timer.start("eval xc")
         if e_g.size > 0:
             if tau_sg is None:  # GGA
                 vfeat_sig = self.cider_kernel.calculate(
@@ -321,6 +333,7 @@ class _FastCiderBase:
                 )
         else:
             vfeat_sig = np.zeros_like(feat_sig)
+        self.timer.stop()
 
         vfeat_sig[:] *= plan.nspin
         dedarg_sg, dedfun_sg = self.call_bwd(
@@ -335,6 +348,7 @@ class _FastCiderBase:
             p_gq=p_gq,
             dp_gq=dp_gq,
         )
+        self.timer.start("add potential")
         for i, term in enumerate(darg_sg):
             term[:] *= dedarg_sg
             term[:] += dedfun_sg * dfun_sg[i]
@@ -350,6 +364,7 @@ class _FastCiderBase:
             dedrho_sxg[:, 1:4] += rho_sxg[::-1, 1:4] * dedsigma_xg[1:2, None, ...]
         if tau_sg is not None:
             dedrho_sxg[:, 4] += dedtau_sg
+        self.timer.stop()
 
     def _distribute_to_cider_grid(self, n_xg):
         shape = (len(n_xg),)
