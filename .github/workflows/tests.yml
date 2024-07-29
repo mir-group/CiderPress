@@ -49,5 +49,6 @@ jobs:
       run: |
         # See https://github.com/pytest-dev/pytest/issues/1075
         source .github/workflows/load_conda.sh
+        micromamba install pytorch pytorch-cuda=11.8 -c pytorch -c nvidia
         sh .github/workflows/run_tests.sh
         # PYTHONHASHSEED=0 OMP_NUM_THREADS=2 python -m unittest discover ciderpress/dft/tests/

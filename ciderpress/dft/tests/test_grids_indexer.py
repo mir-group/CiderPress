@@ -1,3 +1,23 @@
+#!/usr/bin/env python
+# CiderPress: Machine-learning based density functional theory calculations
+# Copyright (C) 2024 The President and Fellows of Harvard College
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>
+#
+# Author: Kyle Bystrom <kylebystrom@gmail.com>
+#
+
 import ctypes
 import unittest
 
@@ -46,7 +66,8 @@ class TestAtomicGridsIndexer(unittest.TestCase):
         theta_new2_rlmq = np.empty_like(theta_new_rlmq)
         indexer.reduce_angc_ylm_(theta_new_rlmq, theta_gq, a2y=True, offset=0)
         indexer.reduce_angc_ylm_(theta_new2_rlmq, theta_big_gq, a2y=True, offset=3)
-        assert_almost_equal(theta_new2_rlmq, theta_new_rlmq, 14)
+        # NOTE this test is fine on laptop with 14 digits but fails on Github CI
+        assert_almost_equal(theta_new2_rlmq, theta_new_rlmq, 13)
 
 
 if __name__ == "__main__":

@@ -18,7 +18,6 @@
 # Author: Kyle Bystrom <kylebystrom@gmail.com>
 #
 
-
 import gpaw.fftw as fftw
 import gpaw.mpi as mpi
 import joblib
