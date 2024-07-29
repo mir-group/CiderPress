@@ -77,7 +77,7 @@ CIDER calculations can be run in PySCF (for non-periodic, all-electron calculati
 
 ## How can I train a CIDER functional?
 
-We are currently keeping the various scripts and workflow tools to train CIDER functionals in a separate, private code base. We plan to release this eventually, but it requires significantly more development before public release. CiderPress currently only contains the ML model classes themselves, but not the various training tools. If you are interested in training your own CIDER model, we suggest reaching out to us to discuss (email kylebystrom@gmail.com).
+We are currently keeping the various scripts and workflow tools to train CIDER functionals in a separate, private code base. We plan to release this eventually, but it requires significantly more development before public release. CiderPress currently only contains the ML model classes themselves (in the `models` module), but not the various training tools. If you are interested in training your own CIDER model, we suggest reaching out to us to discuss (email kylebystrom@gmail.com).
 
 ## Known Issues
 
