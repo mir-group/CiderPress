@@ -1,3 +1,23 @@
+#!/usr/bin/env python
+# CiderPress: Machine-learning based density functional theory calculations
+# Copyright (C) 2024 The President and Fellows of Harvard College
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>
+#
+# Author: Kyle Bystrom <kylebystrom@gmail.com>
+#
+
 import unittest
 
 from numpy.testing import assert_almost_equal
@@ -44,44 +64,30 @@ def run_functional(xcname):
     assert_almost_equal(etot, XCVALS[xcname], 5)
 
 
-class _BaseTest:
+class TestFunctionals(unittest.TestCase):
+    def test_semilocal_gga(self):
+        run_functional("CIDER23X_SL_GGA")
 
-    xcname = None
+    def test_nonlocal_gga(self):
+        run_functional("CIDER23X_NL_GGA")
 
-    def test_functional(self):
-        run_functional(self.xcname)
+    def test_semilocal_mgga(self):
+        run_functional("CIDER23X_SL_MGGA")
 
+    def test_nonlocal_mgga(self):
+        run_functional("CIDER23X_NL_MGGA")
 
-class TestSLGGA(unittest.TestCase, _BaseTest):
-    xcname = "CIDER23X_SL_GGA"
+    def test_nonlocal_mgga_pbe(self):
+        run_functional("CIDER23X_NL_MGGA_PBE")
 
+    def test_nonlocal_mgga_dtr(self):
+        run_functional("CIDER23X_NL_MGGA_DTR")
 
-class TestNLGGA(unittest.TestCase, _BaseTest):
-    xcname = "CIDER23X_NL_GGA"
+    def test_cider24ne(self):
+        run_functional("CIDER24Xne")
 
-
-class TestSLMGGA(unittest.TestCase, _BaseTest):
-    xcname = "CIDER23X_SL_MGGA"
-
-
-class TestNLMGGA(unittest.TestCase, _BaseTest):
-    xcname = "CIDER23X_NL_MGGA"
-
-
-class TestNLMGGAPBE(unittest.TestCase, _BaseTest):
-    xcname = "CIDER23X_NL_MGGA_PBE"
-
-
-class TestNLMGGADTR(unittest.TestCase, _BaseTest):
-    xcname = "CIDER23X_NL_MGGA_DTR"
-
-
-class Test24ne(unittest.TestCase, _BaseTest):
-    xcname = "CIDER24Xne"
-
-
-class Test24e(unittest.TestCase, _BaseTest):
-    xcname = "CIDER24Xe"
+    def test_cider24e(self):
+        run_functional("CIDER24Xe")
 
 
 if __name__ == "__main__":

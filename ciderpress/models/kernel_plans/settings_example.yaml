@@ -1,0 +1,25 @@
+# init_file: Path to Python file containing two functions,
+#            `get_kernel` and (optionally) `mapping_plan`,
+#            as documented in plan_template.py
+# feature_list: Serialized feature list or path to yaml file
+#               containing serialized feature list.
+# mode: See DFTKernel documentation. Corresponds to how spin-
+#       polarization is handled by the kernel.
+# multiplicative_baseline: str name (or serialized function)
+#                          for multiplicative baseline used by kernel.
+# additive_baseline: Same as above, but for additive baseline
+# ctrl_tol: See DFTKernel docs
+# ctrl_nmax: See DFTKernel docs
+- plan_file: path/to/plan_file1.py
+  feature_list: path/to/feature_list1.yaml
+  mode: SEP
+  multiplicative_baseline: LDA_X
+  additive_baseline: GGA_X_PBE
+  ctrl_tol: 1e-5 # optional
+  ctrl_nmax: null # optional
+- plan_file: path/to/plan_file2.py
+  feature_list: <serialized_feature_list2>
+  mode: OSPOL
+  multiplicative_baseline: RHO
+  additive_baseline: null
+  ctrl_nmax: 100
