@@ -64,44 +64,30 @@ def run_functional(xcname):
     assert_almost_equal(etot, XCVALS[xcname], 5)
 
 
-class _BaseTest:
+class TestFunctionals(unittest.TestCase):
+    def test_semilocal_gga(self):
+        run_functional("CIDER23X_SL_GGA")
 
-    xcname = None
+    def test_nonlocal_gga(self):
+        run_functional("CIDER23X_NL_GGA")
 
-    def test_functional(self):
-        run_functional(self.xcname)
+    def test_semilocal_mgga(self):
+        run_functional("CIDER23X_SL_MGGA")
 
+    def test_nonlocal_mgga(self):
+        run_functional("CIDER23X_NL_MGGA")
 
-class TestSLGGA(unittest.TestCase, _BaseTest):
-    xcname = "CIDER23X_SL_GGA"
+    def test_nonlocal_mgga_pbe(self):
+        run_functional("CIDER23X_NL_MGGA_PBE")
 
+    def test_nonlocal_mgga_dtr(self):
+        run_functional("CIDER23X_NL_MGGA_DTR")
 
-class TestNLGGA(unittest.TestCase, _BaseTest):
-    xcname = "CIDER23X_NL_GGA"
+    def test_cider24ne(self):
+        run_functional("CIDER24Xne")
 
-
-class TestSLMGGA(unittest.TestCase, _BaseTest):
-    xcname = "CIDER23X_SL_MGGA"
-
-
-class TestNLMGGA(unittest.TestCase, _BaseTest):
-    xcname = "CIDER23X_NL_MGGA"
-
-
-class TestNLMGGAPBE(unittest.TestCase, _BaseTest):
-    xcname = "CIDER23X_NL_MGGA_PBE"
-
-
-class TestNLMGGADTR(unittest.TestCase, _BaseTest):
-    xcname = "CIDER23X_NL_MGGA_DTR"
-
-
-class Test24ne(unittest.TestCase, _BaseTest):
-    xcname = "CIDER24Xne"
-
-
-class Test24e(unittest.TestCase, _BaseTest):
-    xcname = "CIDER24Xe"
+    def test_cider24e(self):
+        run_functional("CIDER24Xe")
 
 
 if __name__ == "__main__":
