@@ -1,3 +1,23 @@
+#!/usr/bin/env python
+# CiderPress: Machine-learning based density functional theory calculations
+# Copyright (C) 2024 The President and Fellows of Harvard College
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>
+#
+# Author: Kyle Bystrom <kylebystrom@gmail.com>
+#
+
 import unittest
 
 import numpy as np
@@ -37,7 +57,10 @@ class TestC(unittest.TestCase):
 
     def test_initialize_ccl(self):
         mol = gto.M(atom="H 0 0 0; F 0 0 0.9", basis="def2-tzvpd")
-        basis = aug_etb_for_cider(mol)[0]
+        # NOTE slightly larger beta for numerical stability
+        # TODO Can we do something to get the better stability for beta=1.6
+        # NOTE this unit test works with beta=1.6 on laptop but not Github CI.
+        basis = aug_etb_for_cider(mol, beta=1.7)[0]
         mol = gto.M(atom="H 0 0 0; F 0 0 0.9", basis=basis)
         dat = get_gamma_lists_from_mol(mol)
         atco_inp = ATCBasis(*dat)

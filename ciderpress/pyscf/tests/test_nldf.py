@@ -1,3 +1,23 @@
+#!/usr/bin/env python
+# CiderPress: Machine-learning based density functional theory calculations
+# Copyright (C) 2024 The President and Fellows of Harvard College
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>
+#
+# Author: Kyle Bystrom <kylebystrom@gmail.com>
+#
+
 import unittest
 
 import numpy as np
@@ -159,16 +179,15 @@ class _TestNLDFBase:
             else:
                 l1k = _ifeat[:, n0 + 3 * k : n0 + 3 * k + 3]
             ifeat[:, n0 + i] = np.einsum("sxg,sxg->sg", l1j, l1k)
-        ijfeat = np.append(jfeat, ifeat, axis=1)
-
-        ifeat_pred = get_descriptors(
-            analyzer,
-            self.vi_settings,
-            plan_type=plan_type,
-            aux_lambd=lambd,
-            aug_beta=beta,
-        )
         # TODO uncomment after fixing vi stability
+        # ijfeat = np.append(jfeat, ifeat, axis=1)
+        # ifeat_pred = get_descriptors(
+        #     analyzer,
+        #     self.vi_settings,
+        #     plan_type=plan_type,
+        #     aux_lambd=lambd,
+        #     aug_beta=beta,
+        # )
         # import traceback as tb
         # errs = {}
         # for i in range(ifeat_pred.shape[1]):
