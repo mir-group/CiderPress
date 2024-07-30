@@ -370,6 +370,42 @@ def get_delta_lpg(betas, rcut, rgd, thr=6, lmax=4):
     return delta_lpg
 
 
+def get_delta_lpg_v2(betas_lb, rcut, rgd, thr):
+    R = rcut
+    r_g = rgd.r_g
+    dv_g = get_dv(rgd)
+    lp1 = len(betas_lb)
+    delta_lpg = []
+    for l in range(lp1):
+        betas = betas_lb[l][betas_lb[l] * R * R > thr]
+        fcut = (0.5 * np.pi / betas) ** 0.75 * gauss_and_derivs(betas, R)
+        funcs = (0.5 * np.pi / betas[:, None]) ** 0.75 * np.exp(
+            -betas[:, None] * r_g * r_g
+        )
+        rd_g = rgd.r_g - rcut
+        poly = (
+            fcut[0, :, None]
+            + rd_g * fcut[1, :, None]
+            + rd_g**2 * fcut[2, :, None] / 2
+            + rd_g**3 * fcut[3, :, None] / 6
+        )
+        dpoly = fcut[1] - rcut * fcut[2] + rcut**2 * fcut[3] / 2
+        poly += dpoly[:, None] / (4 * rcut**3) * rd_g**4
+        funcs = funcs - poly
+        funcs[:, rgd.r_g > rcut] = 0
+        funcs_tmp = funcs * r_g**l * np.sqrt(dv_g)
+        ovlp = np.einsum("ig,jg->ij", funcs_tmp, funcs_tmp)
+        L = cholesky(ovlp, lower=True)
+        basis = np.linalg.solve(L, funcs)
+        delta_lpg.append(basis * r_g**l)
+        print(
+            "DELTA NORM",
+            l,
+            np.einsum("pg,qg,g->pq", delta_lpg[-1], delta_lpg[-1], dv_g),
+        )
+    return delta_lpg
+
+
 def get_delta_lpk(delta_lpg, rgd):
     delta_lpk = np.zeros_like(delta_lpg)
     for l in range(delta_lpg.shape[0]):
