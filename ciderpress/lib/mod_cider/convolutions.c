@@ -63,6 +63,11 @@ double gauss_ai0(int l, double alpha, double expi, double expj) {
 double gauss_dida(int l, double alpha, double expi, double expj) {
     double expi_conv = expi * alpha / (expi + alpha);
     double coefi = (-l / alpha + (1.5 + l) / (alpha + expi));
+    // TODO I think (1.5 + l) / (expi_conv + expj) can be removed
+    // if l is changed to l + 1 in gauss_integral argument. This will
+    // make "on-the-fly" integral generation for vi,j,k quite easy,
+    // which could in turn save a lot of memory for small computational
+    // overhead. (Might even speed things up due to memory accesses?)
     coefi += (1.5 + l) / (expi_conv + expj) * expi * expi /
              ((alpha + expi) * (alpha + expi));
     return coefi * gauss_integral(l, expi_conv + expj);
@@ -782,6 +787,36 @@ void solve_atc_coefs_arr(atc_basis_set *atco, double *p_uq, int nalpha) {
     }
 }
 
+void convert_atomic_radial_basis(double *p_uq, double *p_vq, double *ovlps_l,
+                                 int *iloc_l, int *jloc_l, int nalpha, int lmax,
+                                 int fwd) {
+    int ni, nj, m;
+    char transa = 'N';
+    char transb;
+    int ldb;
+    double one = 1.0;
+    double zero = 0.0;
+    int *kloc_l;
+    if (fwd) {
+        transb = 'T';
+        kloc_l = jloc_l;
+    } else {
+        transb = 'N';
+        kloc_l = iloc_l;
+    }
+    for (int l = 0; l <= lmax; l++) {
+        ni = iloc_l[l + 1] - iloc_l[l];
+        nj = jloc_l[l + 1] - jloc_l[l];
+        ldb = kloc_l[l + 1] - kloc_l[l];
+        m = nalpha * (2 * l + 1);
+        dgemm_(&transa, &transb, &m, &nj, &ni, &one, p_uq, &m, ovlps_l, &ldb,
+               &zero, p_vq, &m);
+        p_uq += m * ni;
+        p_vq += m * nj;
+        ovlps_l += ni * nj;
+    }
+}
+
 void solve_atc_coefs_arr_ccl(convolution_collection *ccl, double *p_uq,
                              int nalpha, int inp) {
     atc_basis_set *atco;
@@ -1109,6 +1144,37 @@ void contract_orb_to_rad(double *theta_rlmq, double *p_uq, int *ar_loc,
                         theta_mq[mq] += val * p_q[q];
                     }
                     p_q += stride;
+                }
+            }
+        }
+    }
+}
+
+void contract_orb_to_rad_num(double *theta_rlmq, double *p_uq, double *funcs_jg,
+                             int *jloc_l, int *uloc_l, int nrad, int nlm,
+                             int nalpha) {
+#pragma omp parallel
+    {
+        int j0, j1, u0, j, g, nm, l, q, m;
+        double f;
+        double *p_q, *theta_q;
+        int lmax = sqrt(nlm + 1e-8) - 1;
+#pragma omp for schedule(dynamic, 4)
+        for (l = 0; l <= lmax; l++) {
+            nm = 2 * l + 1;
+            j0 = jloc_l[l];
+            j1 = jloc_l[l + 1];
+            u0 = uloc_l[l];
+            for (j = j0; j < j1; j++) {
+                for (g = 0; g < nrad; g++) {
+                    f = funcs_jg[j * nrad + g];
+                    for (m = 0; m < nm; m++) {
+                        p_q = p_uq + (u0 + (j - j0) * nm + m) * nalpha;
+                        theta_q = theta_rlmq + nalpha * (l * l + m + nlm * g);
+                        for (q = 0; q < nalpha; q++) {
+                            theta_q[q] += p_q[q] * f;
+                        }
+                    }
                 }
             }
         }

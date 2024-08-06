@@ -30,19 +30,20 @@ xc = get_cider_functional(
     # pasdw_ovlp_fit=True (default) uses overlap fitting to improve precision
     # of PAW correction terms of features.
     pasdw_ovlp_fit=True,
+    fast=True,
 )
 
 # Using CiderGPAW instead of the default GPAW calculator allows calculations
 # to be restarted. GPAW calculations will run with CIDER functionals but
 # cannot be saved and loaded properly.
 atoms.calc = CiderGPAW(
-    h=0.13,  # use a reasonably small grid spacing
+    h=0.18,  # use a reasonably small grid spacing
     xc=xc,  # assign the CIDER functional to xc
     mode=PW(520),  # plane-wave mode with 520 eV cutoff.
     txt="-",  # output file, '-' for stdout
     occupations={"name": "fermi-dirac", "width": 0.01},
     # ^ Fermi smearing with 0.01 eV width
-    kpts={"size": (12, 12, 12), "gamma": False},  # kpt mesh parameters
+    kpts={"size": (4, 4, 4), "gamma": False},  # kpt mesh parameters
     convergence={"energy": 1e-5},  # convergence energy in eV/electron
     # Set augments_grids=True for CIDER functionals to parallelize
     # XC energy and potential evaluation more effectively

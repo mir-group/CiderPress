@@ -12,6 +12,9 @@ from ciderpress.data import get_hgbs_max_exps
 from ciderpress.dft.density_util import get_sigma
 from ciderpress.dft.grids_indexer import AtomicGridsIndexer
 from ciderpress.dft.lcao_convolutions import (
+    ANG_OF,
+    PTR_COEFF,
+    PTR_EXP,
     ATCBasis,
     ConvolutionCollection,
     get_etb_from_expnt_range,
@@ -21,13 +24,17 @@ from ciderpress.dft.plans import NLDFAuxiliaryPlan, get_ccl_settings, libcider
 from ciderpress.gpaw.atom_utils import AtomPASDWSlice, SBTGridContainer
 from ciderpress.gpaw.fit_paw_gauss_pot import (
     construct_full_p_matrices,
+    construct_full_p_matrices_v2,
     get_delta_lpg,
+    get_delta_lpg_v2,
     get_delta_lpk,
     get_dv,
     get_dvk,
     get_ffunc3,
     get_p11_matrix,
+    get_p11_matrix_v2,
     get_p12_p21_matrix,
+    get_p12_p21_matrix_v2,
     get_p22_matrix,
     get_pfunc2_norm,
     get_pfuncs_k,
@@ -40,6 +47,7 @@ from ciderpress.gpaw.interp_paw import (
 )
 
 USE_GAUSSIAN_PAW_CONV = False
+USE_SMOOTH_SETUP_V2 = True
 
 
 def _interpc(func, ref_rgd, r_g):
@@ -145,11 +153,28 @@ class _PAWCiderContribs:
     grids_indexer: AtomicGridsIndexer
     plan: NLDFAuxiliaryPlan
 
-    def __init__(self, plan, cider_kernel, ccl, xcc):
+    def __init__(self, plan, cider_kernel, ccl, xcc, gplan):
         self.plan = plan
         self.cider_kernel = cider_kernel
+        # TODO currently assuming ccl.atco_inp == ccl.atco_out,
+        # but this is not checked anywhere
+        # TODO ccl only needed for orbital-based convolution
+        # TODO k-space convolution should be default in production
+        # version for now, since ccl is high-memory (needs on-the-fly
+        # integral generation) and since reciprocal-space convolutions
+        # generate the fitting procedure in the PSmoothSetup
         self.ccl = ccl
         self.ccl.compute_integrals_()
+        if USE_SMOOTH_SETUP_V2:
+            self.ccl2 = ConvolutionCollection(
+                self.ccl.atco_inp,
+                self.ccl.atco_out,
+                gplan.alphas,
+                gplan.alpha_norms,
+                ccl._has_vj,
+                ccl._ifeat_ids,
+            )
+            self.ccl2.compute_integrals_()
         self.ccl.solve_projection_coefficients()
         self.w_g = (xcc.rgd.dv_g[:, None] * weight_n).ravel()
         self.r_g = xcc.rgd.r_g
@@ -165,7 +190,7 @@ class _PAWCiderContribs:
         self.timer = Timer()
 
     @classmethod
-    def from_plan(cls, plan, cider_kernel, Z, xcc, beta=2.2):
+    def from_plan(cls, plan, gplan, cider_kernel, Z, xcc, beta=2.2):
         lmax = int(np.sqrt(xcc.Lmax + 1e-8)) - 1
         rmax = np.max(xcc.rgd.r_g)
         # TODO tune this and adjust size
@@ -182,7 +207,7 @@ class _PAWCiderContribs:
             atco, atco, plan.alphas, plan.alpha_norms, has_vj, ifeat_ids
         )
         # TODO need to define w_g
-        return cls(plan, cider_kernel, ccl, xcc)
+        return cls(plan, cider_kernel, ccl, xcc, gplan)
 
     @property
     def is_mgga(self):
@@ -238,6 +263,10 @@ class _PAWCiderContribs:
             rho_sxg[:, 4] = self.get_kinetic_energy(ae)
         vrho_sxg = np.zeros_like(rho_sxg)
         return e_g, rho_sxg, vrho_sxg
+
+    @property
+    def atco_inp(self):
+        return self.ccl.atco_inp
 
     @property
     def atco_feat(self):
@@ -364,7 +393,6 @@ class _PAWCiderContribs:
             self.grids_indexer.reduce_angc_ylm_(vx_srLq[s], vx_gq, a2y=False, offset=0)
             rho_tuple = self.plan.get_rho_tuple(rho_sxg[s])
             arg_g, darg_g = self.plan.get_interpolation_arguments(rho_tuple, i=-1)
-            # TODO need to account for dfunc
             fun_g, dfun_g = self.plan.get_function_to_convolve(rho_tuple)
             p_gq, dp_gq = self.plan.get_interpolation_coefficients(arg_g, i=-1)
             dedarg_g = np.einsum("gq,gq->g", dp_gq, vx_gq) * fun_g
@@ -380,6 +408,63 @@ class _PAWCiderContribs:
 
     def get_paw_conv_potential_terms(self, vyt_sgLq, vdy_skLq, rgd):
         raise NotImplementedError
+
+    def grid2aux(self, f_sgLq):
+        raise NotImplementedError
+
+    def aux2grid(self, f_sxq):
+        raise NotImplementedError
+
+    def x2u(self, f_sxq):
+        raise NotImplementedError
+
+    def calculate_y_terms_v1(self, xt_sgLq, dx_sgLq, psetup):
+        na = psetup.alphas.size
+        self.sbt_rgd = psetup.sbt_rgd
+        dx_sxq = self.grid2aux(dx_sgLq)
+        dy_sxq = self.perform_convolution_fwd(dx_sxq)
+        # print("dy", (dy_sxq * get_dv(self.sbt_rgd)[:, None, None]).sum())
+        # print("dy", self.x2u(dy_sxq).sum())
+        dy1_sxq = dy_sxq[..., :na] * psetup.w_b
+        dy2_sxq = dy_sxq[..., na:]
+        yy_sxq = self.perform_fitting_convolution_bwd(dy1_sxq)
+        dy1_suq = self.x2u(dy1_sxq)
+        dy2_suq = self.x2u(dy2_sxq)
+        yy_suq = self.x2u(yy_sxq)
+
+        df_sgLq = np.zeros_like(dx_sgLq)
+        c_siq, df_sgLq[..., :na] = psetup.get_c_and_df(
+            np.ascontiguousarray(dy1_suq),
+            np.ascontiguousarray(dy_sxq[..., :na]),
+            # np.ascontiguousarray(yy_suq),
+        )
+        print(c_siq.sum())
+        df_sgLq[..., na:] = psetup.get_df_only(np.ascontiguousarray(dy2_suq))
+        print("df", df_sgLq[..., na:].sum(axis=(0, 1, 2)))
+        # xt_sgLq[..., :na] += psetup.coef_to_real(c_siq) * get_dv(psetup.slrgd)[:, None, None]
+        xt_sxq = self.grid2aux(xt_sgLq)
+        fr_sxq = self.perform_convolution_fwd(xt_sxq)
+        fr_sgLq = self.aux2grid(fr_sxq)
+        fr_sgLq[..., :na] += psetup.get_f_realspace_contribs(c_siq, sl=True).transpose(
+            0, 3, 2, 1
+        )
+        return fr_sgLq, df_sgLq, c_siq
+
+    def calculate_y_terms_v2(self, xt_sgLq, dx_sgLq):
+        c_siq = self.psetup.get_c_from_x(xt_sgLq)
+        dxt = self.psetup.get_x_from_c(c_siq)
+        xt_sgLq += dxt
+        dx_sgLq -= dxt
+        xt_sxq = self.grid2aux(xt_sgLq)
+        yt_sxq = self.perform_convolution(xt_sxq)
+        fr_sgLq = self.aux2grid(yt_sxq)
+
+        dx_sxq = self.grid2aux(dx_sgLq)
+        dy_sxq = self.perform_convolution(dx_sxq)
+        dy_sgLq = self.aux2grid(dy_sxq)
+        df_sgLq = self.psetup.get_df(dy_sgLq)
+
+        return fr_sgLq, df_sgLq, c_siq
 
 
 class PAWCiderContribsRecip(_PAWCiderContribs):
@@ -430,25 +515,76 @@ class PAWCiderContribsRecip(_PAWCiderContribs):
             )
         return out_sxLq
 
-    def calc_conv_skLq(self, in_skLq, rgd):
+    def grid2aux(self, f_sgLq):
+        return self.r2k(f_sgLq, self.sbt_rgd, fwd=True)
+
+    def aux2grid(self, f_sxq):
+        f_sxq = f_sxq * get_dvk(self.sbt_rgd)[:, None, None]
+        return self.r2k(f_sxq, self.sbt_rgd, fwd=False)
+
+    def x2u(self, f_skLq):
+        nspin = f_skLq.shape[0]
+        f_skLq = f_skLq * get_dv(self.sbt_rgd)[:, None, None]
+        atco_inp = self._atco_recip
+        rgd = self.sbt_rgd
+        k_g = rgd.k_g
+        nspin, nk, nlm, nq = f_skLq.shape
+        y = Y_nL[:, :nlm]
+        out_suq = np.zeros((nspin, atco_inp.nao, nq))
+        indexer = AtomicGridsIndexer.make_single_atom_indexer(y, k_g)
+        for s in range(nspin):
+            atco_inp.convert_rad2orb_(
+                f_skLq[s],
+                out_suq[s],
+                indexer,
+                indexer.rad_arr,
+                rad2orb=True,
+                offset=0,
+            )
+            libcider.solve_atc_coefs_arr_ccl(
+                self.ccl2._ccl,
+                out_suq[s].ctypes.data_as(ctypes.c_void_p),
+                ctypes.c_int(out_suq.shape[-1]),
+                ctypes.c_int(0),
+            )
+        return out_suq / 6.0525518889834675
+
+    def calc_conv_skLq(self, in_skLq, rgd, alphas=None, alpha_norms=None):
         in_skLq = np.ascontiguousarray(in_skLq)
         out_skLq = np.empty_like(in_skLq)
         k_g = np.ascontiguousarray(rgd.k_g)
         nspin, nk, nlm, nq = in_skLq.shape
+        if alphas is None:
+            alphas = self.plan.alphas
+            alpha_norms = self.plan.alpha_norms
         assert nk == k_g.size
-        assert nq == self.plan.alphas.size
+        assert nq == alphas.size
         libcider.atc_reciprocal_convolution(
             in_skLq.ctypes.data_as(ctypes.c_void_p),
             out_skLq.ctypes.data_as(ctypes.c_void_p),
             k_g.ctypes.data_as(ctypes.c_void_p),
-            self.plan.alphas.ctypes.data_as(ctypes.c_void_p),
-            self.plan.alpha_norms.ctypes.data_as(ctypes.c_void_p),
+            alphas.ctypes.data_as(ctypes.c_void_p),
+            alpha_norms.ctypes.data_as(ctypes.c_void_p),
             ctypes.c_int(nspin),
             ctypes.c_int(nk),
             ctypes.c_int(nlm),
             ctypes.c_int(nq),
         )
         return out_skLq
+
+    def perform_convolution_fwd(self, f_skLq):
+        return self.calc_conv_skLq(f_skLq, self.sbt_rgd)
+
+    def perform_convolution_bwd(self, f_skLq):
+        return self.calc_conv_skLq(f_skLq, self.sbt_rgd)
+
+    def perform_fitting_convolution_bwd(self, f_skLq):
+        return self.calc_conv_skLq(
+            f_skLq,
+            self.sbt_rgd,
+            alphas=self.ccl2._alphas,
+            alpha_norms=self.ccl2._alpha_norms,
+        )
 
     def get_paw_conv_feature_terms(self, xt_sgLq, dx_sgLq, rgd):
         xt_skLq = self.r2k(xt_sgLq, rgd, fwd=True)
@@ -524,6 +660,10 @@ class PAWCiderContribsOrb(_PAWCiderContribs):
                 nspin, theta_sgLq, theta_suq, rad2orb=True, inp=fwd, indexer=indexer_in
             )
         for s in range(nspin):
+            # TODO need to be careful about this get_transformed_interpolation_terms
+            # call. It is currently no-op due to the use of cubic splines rather than
+            # Gaussian interpolation, but it could be a problem with the fitting
+            # procedure later on.
             if (fwd) or (is_not_vi):
                 self.plan.get_transformed_interpolation_terms(
                     theta_suq[s, :, : self.plan.nalpha], i=i_inp, fwd=fwd, inplace=True
@@ -544,6 +684,57 @@ class PAWCiderContribsOrb(_PAWCiderContribs):
         )
         return out_sgLq
 
+    def x2u(self, f_sxq):
+        return f_sxq
+
+    def grid2aux(self, f_sgLq):
+        nspin = f_sgLq.shape[0]
+        nalpha = f_sgLq.shape[-1]
+        f_svq = np.zeros((nspin, self.ccl.atco_inp.nao, nalpha))
+        self.convert_rad2orb_(
+            nspin, f_sgLq, f_svq, rad2orb=True, inp=True, indexer=self.grids_indexer
+        )
+        return f_svq
+
+    def aux2grid(self, f_svq):
+        nspin = f_svq.shape[0]
+        nalpha = f_svq.shape[-1]
+        f_sgLq = self.grids_indexer.empty_rlmq(nalpha=nalpha, nspin=nspin)
+        f_sgLq[:] = 0.0
+        self.convert_rad2orb_(
+            nspin, f_sgLq, f_svq, rad2orb=False, inp=True, indexer=self.grids_indexer
+        )
+        return f_sgLq
+
+    def perform_convolution_fwd(self, f_sxq):
+        return self.perform_convolution(
+            f_sxq,
+            fwd=True,
+            return_orbs=True,
+            take_orbs=True,
+        )
+
+    def perform_convolution_bwd(self, f_sxq):
+        return self.perform_convolution(
+            f_sxq,
+            fwd=False,
+            return_orbs=True,
+            take_orbs=True,
+        )
+
+    def perform_fitting_convolution_bwd(self, f_sxq):
+        nspin = f_sxq.shape[0]
+        conv_sxq = np.zeros_like(f_sxq)
+        for s in range(nspin):
+            self.ccl2.multiply_atc_integrals(f_sxq[s], output=conv_sxq[s], fwd=False)
+            libcider.solve_atc_coefs_arr_ccl(
+                self.ccl._ccl,
+                conv_sxq[s].ctypes.data_as(ctypes.c_void_p),
+                ctypes.c_int(conv_sxq.shape[-1]),
+                ctypes.c_int(0),
+            )
+        return conv_sxq
+
     def get_paw_conv_feature_terms(self, xt_sgLq, dx_sgLq, rgd):
         nspin = xt_sgLq.shape[0]
         Lmax = xt_sgLq.shape[2]
@@ -553,6 +744,7 @@ class PAWCiderContribsOrb(_PAWCiderContribs):
             fwd=True,
             return_orbs=True,
         )
+        print(dy_svq.sum())
         shape = list(yt_sgLq.shape)
         shape[1] = rgd.r_g.size
         dy_skLq = np.zeros(shape)
@@ -789,6 +981,10 @@ class FastPASDWCiderKernel:
 
             self.timer = Timer()
         self.gd = gd
+        # TODO refactor this, "bas_exp_fit" not used anywhere else.
+        # Also "alphas" as indices aren't used anywhere in the new
+        # version, so there's no confusion just calling it alphas
+        # anymore
         self.bas_exp_fit = plan.alphas
         self.cider_kernel = cider_kernel
         self.Nalpha_small = plan.nalpha
@@ -848,19 +1044,33 @@ class FastPASDWCiderKernel:
                     )
                 atom_plan = self.plan.new(nalpha=Nalpha)
                 setup.cider_contribs = PAWCiderContribs.from_plan(
-                    atom_plan, self.cider_kernel, setup.Z, setup.xc_correction, beta=1.8
+                    atom_plan,
+                    self.plan,
+                    self.cider_kernel,
+                    setup.Z,
+                    setup.xc_correction,
+                    beta=1.8,
                 )
                 if setup.cider_contribs.plan is not None:
                     assert (
                         abs(np.max(setup.cider_contribs.plan.alphas) - encut0) < 1e-10
                     )
-                setup.ps_setup = PSmoothSetup.from_setup(
-                    setup,
-                    self.bas_exp_fit,
-                    self.bas_exp_fit,
-                    alpha_norms=self.plan.alpha_norms,
-                    pmax=encut0,
-                )
+                if USE_SMOOTH_SETUP_V2:
+                    setup.ps_setup = PSmoothSetup2.from_setup_and_atco(
+                        setup,
+                        setup.cider_contribs.atco_inp,
+                        self.bas_exp_fit,
+                        self.plan.alpha_norms,
+                        encut0,
+                    )
+                else:
+                    setup.ps_setup = PSmoothSetup.from_setup(
+                        setup,
+                        self.bas_exp_fit,
+                        self.bas_exp_fit,
+                        alpha_norms=self.plan.alpha_norms,
+                        pmax=encut0,
+                    )
                 setup.pa_setup = PAugSetup.from_setup(setup)
 
     def calculate_paw_cider_features(self, setups, D_asp):
@@ -887,7 +1097,7 @@ class FastPASDWCiderKernel:
         for a, D_sp in D_asp.items():
             setup = setups[a]
             psetup = setup.ps_setup
-            Nalpha_sm = psetup.phi_jabg.shape[1]
+            Nalpha_sm = psetup.alphas.size
             rgd = setup.nlxc_correction.big_rgd
             slgd = setup.xc_correction.rgd
             RCUT = np.max(setup.rcut_j)
@@ -909,31 +1119,43 @@ class FastPASDWCiderKernel:
             xt_sgLq *= fcut[:, None, None]
 
             self.timer.start("transform and convolve")
-            yt_sgLq, dy_skLq = setup.cider_contribs.get_paw_conv_feature_terms(
-                xt_sgLq, dx_sgLq, rgd
-            )
-            self.timer.stop()
-            self.timer.start("separate long and short-range")
-            # TODO between here and the block comment should be replaced
-            # with the code in the block comment after everything else works.
-            dy_sqLk = dy_skLq.transpose(0, 3, 2, 1)
+            if USE_SMOOTH_SETUP_V2:
+                fr_sgLq, df_sgLq, c_siq = setup.cider_contribs.calculate_y_terms_v1(
+                    xt_sgLq, dx_sgLq, psetup
+                )
+                self.df_asgLq[a] = df_sgLq
+                self.fr_asgLq[a] = fr_sgLq
+            else:
+                yt_sgLq, dy_skLq = setup.cider_contribs.get_paw_conv_feature_terms(
+                    xt_sgLq, dx_sgLq, rgd
+                )
+                print("dy", dy_skLq.sum())
+                self.timer.stop()
+                self.timer.start("separate long and short-range")
+                # TODO between here and the block comment should be replaced
+                # with the code in the block comment after everything else works.
+                dy_sqLk = dy_skLq.transpose(0, 3, 2, 1)
 
-            c_siq, df_sLpq = psetup.get_c_and_df(
-                dy_sqLk[:, :Nalpha_sm], realspace=False
-            )
-            dfr_sgLq = psetup.get_f_realspace_contribs(c_siq, sl=True).transpose(
-                0, 3, 2, 1
-            )
-            df_sLpq = np.append(
-                df_sLpq,
-                psetup.get_df_only(
-                    dy_sqLk[:, Nalpha_sm:], rgd, sl=False, realspace=False
-                ),
-                axis=-1,
-            )
-            df_sgLq = psetup.get_df_realspace_contribs(df_sLpq, sl=True).transpose(
-                0, 3, 2, 1
-            )
+                c_siq, df_sLpq = psetup.get_c_and_df(
+                    dy_sqLk[:, :Nalpha_sm], realspace=False
+                )
+                dfr_sgLq = psetup.get_f_realspace_contribs(c_siq, sl=True).transpose(
+                    0, 3, 2, 1
+                )
+                df_sLpq = np.append(
+                    df_sLpq,
+                    psetup.get_df_only(
+                        dy_sqLk[:, Nalpha_sm:], rgd, sl=False, realspace=False
+                    ),
+                    axis=-1,
+                )
+                df_sgLq = psetup.get_df_realspace_contribs(df_sLpq, sl=True).transpose(
+                    0, 3, 2, 1
+                )
+                print("df", df_sgLq[..., Nalpha_sm:].sum(axis=(0, 1, 2)))
+                self.df_asgLq[a] = df_sgLq
+                self.fr_asgLq[a] = yt_sgLq
+                self.fr_asgLq[a][..., :Nalpha_sm] += dfr_sgLq
             """
             c_siq, df_suq = psetup.get_c_and_df(
                 dy_sgLq[..., :Nalpha_sm], realspace=True
@@ -948,11 +1170,11 @@ class FastPASDWCiderKernel:
             )
             df_sgLq = psetup.get_df_realspace_contribs(df_suq, sl=True)
             """
-            self.df_asgLq[a] = df_sgLq
-            self.fr_asgLq[a] = yt_sgLq
-            self.fr_asgLq[a][..., :Nalpha_sm] += dfr_sgLq
             self.timer.stop()
             self.c_asiq[a] = c_siq
+            print(self.df_asgLq[a].sum())
+            print(self.fr_asgLq[a].sum())
+            print(c_siq.sum())
         return self.c_asiq, self.df_asgLq
 
     def calculate_paw_cider_energy(self, setups, D_asp, D_asiq):
@@ -1034,6 +1256,8 @@ class FastPASDWCiderKernel:
                 ) * dv_g[:, None]
             self.vfr_asgLq[a] = vfr_sgLq
             self.vdf_asgLq[a] = vf_sgLq
+        print(dvD_asiq[0].sum(), deltaE, deltaV[0].sum())
+        exit()
         return dvD_asiq, deltaE, deltaV
 
     def calculate_paw_cider_potential(self, setups, D_asp, vc_asiq):
@@ -1490,6 +1714,17 @@ class PSmoothSetup(PASDWData):
                     # x = self.pinv_l_ii[l].dot(b)
                     x = cho_solve(self.p_cl_l_ii[l], b)
                     N1 = b1.size
+                    if L == 0:
+                        np.save("b1_old.npy", b1)
+                        np.save("b2_old.npy", b2)
+                        np.save("p_old.npy", self.p_cl_l_ii[l][0])
+                        print(
+                            b1.sum(),
+                            b2.sum(),
+                            b.sum(),
+                            x.sum(),
+                            self.p_cl_l_ii[l][0].sum(),
+                        )
                     df_sLpb[s, L] += x[:N1].reshape(NP, nb)
                     ilist = self.lmlist_i == L
                     c_sib[s, ilist, :] += x[N1:].reshape(-1, Nalpha_sm)
@@ -1800,14 +2035,241 @@ class PSmoothSetup(PASDWData):
         return psetup
 
 
+class RadialFunctionCollection:
+    def __init__(self, iloc_l, funcs_ig, r_g, dv_g):
+        self.iloc_l = iloc_l
+        self.funcs_ig = np.ascontiguousarray(funcs_ig)
+        self.ovlps_l = None
+        self.jloc_l = None
+        self.nu = None
+        self.nv = None
+        self.lmax = len(iloc_l) - 2
+        self.r_g = r_g
+        self.dv_g = dv_g
+
+    def ovlp_with_atco(self, atco: ATCBasis):
+        bas, env = atco.bas, atco.env
+        r_g = self.r_g
+        dv_g = self.dv_g
+        ovlps_l = []
+        jcount_l = []
+        ijcount_l = []
+        self.nu = 0
+        uloc_l = [0]
+        vloc_l = [0]
+        self.nv = 0
+        for l in range(self.iloc_l.size - 1):
+            cond = bas[:, ANG_OF] == l
+            exps_j = env[bas[cond, PTR_EXP]]
+            coefs_j = env[bas[cond, PTR_COEFF]]
+            basis_jg = coefs_j[:, None] * np.exp(-exps_j[:, None] * r_g * r_g)
+            basis_jg[:] *= r_g**l * dv_g
+            funcs_jg = self.funcs_ig[self.iloc_l[l] : self.iloc_l[l + 1]]
+            ovlp1 = np.einsum("ig,jg,g->ij", funcs_jg, funcs_jg, dv_g)
+            ovlp2 = np.einsum("ig,jg->ij", funcs_jg, basis_jg)
+            c_and_l = cho_factor(ovlp1)
+            ovlp = cho_solve(c_and_l, ovlp2, overwrite_b=True)
+            # ovlps_l.append(ovlp)
+            ovlps_l.append(ovlp2)
+            ni = self.iloc_l[l + 1] - self.iloc_l[l]
+            nj = exps_j.size
+            self.nu += (2 * l + 1) * ni
+            self.nv += (2 * l + 1) * nj
+            uloc_l.append(self.nu)
+            vloc_l.append(self.nv)
+            jcount_l.append(nj)
+            ijcount_l.append(nj * ni)
+        self.ovlps_l = ovlps_l
+        self._ovlps_l = np.ascontiguousarray(
+            np.concatenate([ovlp.ravel() for ovlp in self.ovlps_l])
+        )
+        self.jloc_l = np.append([0], np.cumsum(jcount_l))
+        self.uloc_l = np.asarray(uloc_l, order="C", dtype=np.int32)
+        self.vloc_l = np.asarray(vloc_l, order="C", dtype=np.int32)
+
+    def convert(self, p_uq, fwd=True):
+        assert p_uq.ndim == 2
+        assert p_uq.flags.c_contiguous
+        nalpha = p_uq.shape[1]
+        if fwd:
+            iloc_l = np.asarray(self.iloc_l, dtype=np.int32, order="C")
+            jloc_l = np.asarray(self.jloc_l, dtype=np.int32, order="C")
+            p_vq = np.empty((self.nv, nalpha), order="C")
+            assert p_uq.shape[0] == self.nu
+        else:
+            iloc_l = np.asarray(self.jloc_l, dtype=np.int32, order="C")
+            jloc_l = np.asarray(self.iloc_l, dtype=np.int32, order="C")
+            p_vq = np.empty((self.nu, nalpha), order="C")
+            assert p_uq.shape[0] == self.nv
+        libcider.convert_atomic_radial_basis(
+            p_uq.ctypes.data_as(ctypes.c_void_p),  # input
+            p_vq.ctypes.data_as(ctypes.c_void_p),  # output
+            self._ovlps_l.ctypes.data_as(ctypes.c_void_p),  # matrices
+            iloc_l.ctypes.data_as(ctypes.c_void_p),  # locs for p_uq
+            jloc_l.ctypes.data_as(ctypes.c_void_p),  # locs for p_vq
+            ctypes.c_int(nalpha),  # last axis of p_uq
+            ctypes.c_int(self.lmax),  # maximum l value of basis
+            ctypes.c_int(1 if fwd else 0),  # fwd
+        )
+        return p_vq
+
+    def basis2grid(self, p_uq, p_rlmq=None):
+        assert p_uq.flags.c_contiguous
+        assert p_uq.ndim == 2
+        nalpha = p_uq.shape[1]
+        assert p_uq.shape[0] == self.nu
+        # TODO don't hard code lmax
+        ngrid = self.funcs_ig.shape[1]
+        if p_rlmq is None:
+            p_rlmq = np.zeros((ngrid, 25, nalpha))
+        else:
+            assert p_rlmq.shape == (ngrid, 25, nalpha)
+            assert p_rlmq.flags.c_contiguous
+        iloc_l = np.asarray(self.iloc_l, dtype=np.int32, order="C")
+        uloc_l = np.asarray(self.uloc_l, dtype=np.int32, order="C")
+        libcider.contract_orb_to_rad_num(
+            p_rlmq.ctypes.data_as(ctypes.c_void_p),
+            p_uq.ctypes.data_as(ctypes.c_void_p),
+            self.funcs_ig.ctypes.data_as(ctypes.c_void_p),
+            iloc_l.ctypes.data_as(ctypes.c_void_p),
+            uloc_l.ctypes.data_as(ctypes.c_void_p),
+            ctypes.c_int(ngrid),
+            ctypes.c_int(25),
+            ctypes.c_int(nalpha),
+        )
+        return p_rlmq
+
+    def basis2grid_spin(self, p_suq, p_srlmq=None):
+        assert p_suq.flags.c_contiguous
+        assert p_suq.ndim == 3
+        nspin = p_suq.shape[0]
+        nalpha = p_suq.shape[2]
+        assert p_suq.shape[1] == self.nu
+        # TODO don't hard code lmax
+        ngrid = self.funcs_ig.shape[1]
+        p_srlmq = np.zeros((nspin, ngrid, 25, nalpha))
+        for s in range(nspin):
+            self.basis2grid(p_suq[s], p_srlmq[s])
+        return p_srlmq
+
+
 class PSmoothSetup2(PSmoothSetup):
-    def initialize_a2g(self):
+    def _initialize_ffunc(self):
+        rgd = self.slrgd
+        nj = self.nj
+        ng = self.ng
+        nlist_j = self.nlist_j
+        pfuncs_ng = self.pfuncs_ng
+
+        dv_g = get_dv(rgd)
+        ffuncs_jg = np.zeros((nj, ng))
+        self.exact_ovlp_pf = np.zeros((self.ni, self.ni))
+        self.ffuncs_jtp = np.zeros((nj, self.interp_rgd.r_g.size, 4))
+        ilist = np.arange(self.ni)
+        for j in range(self.nj):
+            n = nlist_j[j]
+            l = self.llist_j[j]
+            ffuncs_jg[j] = pfuncs_ng[n]
+            self.ffuncs_jtp[j] = self.pfuncs_ntp[n]
+            i0s = ilist[self.jlist_i == j]
+            for j1 in range(self.nj):
+                if self.llist_j[j1] == l:
+                    i1s = ilist[self.jlist_i == j1]
+                    n1 = nlist_j[j1]
+                    ovlp = np.dot(pfuncs_ng[n] * pfuncs_ng[n1], dv_g)
+                    for i0, i1 in zip(i0s.tolist(), i1s.tolist()):
+                        self.exact_ovlp_pf[i0, i1] = ovlp
+        self.jcol = RadialFunctionCollection(self.nbas_loc, ffuncs_jg, rgd.r_g, dv_g)
+        self.ffuncs_jg = ffuncs_jg
+
+    def initialize_a2g(self, atco: ATCBasis):
         self.w_b = np.ones(self.alphas_ae.size) / self.alpha_norms**2
-        self.delta_lpg = get_delta_lpg_v2(betas_lv, self.rcut_feat, self.slrgd, pmin)
-        nalpha = self.alphas.size
+        ls = atco.bas[:, ANG_OF]
+        coefs = atco.env[atco.bas[:, PTR_EXP]]
+        betas_lv = []
+        for l in range(np.max(ls) + 1):
+            betas_lv.append(coefs[ls == l])
+        pmin = 2 / self.rcut_feat**2
+        if self.pmax is None:
+            raise ValueError
+            pmax = 4 * np.max(self.alphas_ae)
+        else:
+            pmax = 2 * self.pmax
+
+        pmin = 2 / self.rcut_feat**2
+        lambd = 1.8
+        N = int(np.ceil(np.log(pmax / pmin) / np.log(lambd))) + 1
+        dd = np.log(pmax / pmin) / (N - 1)
+        alphas_bas = pmax * np.exp(-dd * np.arange(N))
+        betas_lv = [alphas_bas for l in range(self.lmax + 1)]
+
+        delta_l_pg = get_delta_lpg_v2(
+            betas_lv, self.rcut_feat, self.slrgd, pmin, pmax + 1e-8
+        )
+        delta_l_pg2 = get_delta_lpg_v2(
+            betas_lv, self.rcut_feat, self.sbt_rgd, pmin, pmax + 1e-8
+        )
+        jloc_l = [0] + [delta_pg.shape[0] for delta_pg in delta_l_pg]
+        jloc_l = np.cumsum(jloc_l)
+        delta_pg = np.concatenate(delta_l_pg, axis=0)
+        self.pcol = RadialFunctionCollection(
+            jloc_l, delta_pg, self.slrgd.r_g, get_dv(self.slrgd)
+        )
+        self.pcol.ovlp_with_atco(atco)
+        self.jcol.ovlp_with_atco(atco)
+        self.delta_l_pg = delta_l_pg
         rgd = self.sbt_rgd
         pfuncs_jg = np.stack([self.pfuncs_ng2[n] for n in self.nlist_j])
-        pfuncs_k = get_pfuncs_k(pfuncs_jg, self.llist_j, rgd, ns=self.nlist_j)
+        pfuncs_jk = get_pfuncs_k(pfuncs_jg, self.llist_j, rgd, ns=self.nlist_j)
+        phi_jabk = get_phi_iabk(pfuncs_jk, rgd.k_g, self.alphas, betas=self.alphas_ae)
+        phi_jabk[:] *= self.alpha_norms[:, None, None]
+        phi_jabk[:] *= self.alpha_norms[:, None]
+        REG11 = 1e-6
+        REG22 = 1e-5
+        FAC22 = 1e-2
+        self.phi_jabk = phi_jabk
+        phi_jabg = get_phi_iabg(phi_jabk, self.llist_j, rgd)
+        self.phi_sr_jabg = _interpc(phi_jabg, rgd, self.slrgd.r_g)
+        p11_l_vv = get_p11_matrix_v2(delta_l_pg, self.slrgd, reg=REG11)
+        p12_l_vbja, p21_l_javb = get_p12_p21_matrix_v2(
+            delta_l_pg2, phi_jabg, rgd, self.w_b, self.nbas_loc
+        )
+        p22_l_jaja = []
+        for l in range(self.lmax + 1):
+            p22_l_jaja.append(
+                get_p22_matrix(
+                    phi_jabg,
+                    rgd,
+                    self.rcut_feat,
+                    l,
+                    self.w_b,
+                    self.nbas_loc,
+                    reg=REG22,
+                )
+            )
+            p22_l_jaja[-1] += FAC22 * get_p22_matrix(
+                phi_jabg,
+                rgd,
+                self.rcut_feat,
+                l,
+                self.w_b,
+                self.nbas_loc,
+                cut_func=True,
+            )
+        p_l_ii = construct_full_p_matrices_v2(
+            p11_l_vv,
+            p12_l_vbja,
+            p21_l_javb,
+            p22_l_jaja,
+            self.w_b,
+        )
+        self.p_l_ii = p_l_ii
+        self.p_cl_l_ii = []
+        for l in range(self.lmax + 1):
+            c_and_l = cho_factor(p_l_ii[l])
+            self.p_cl_l_ii.append(c_and_l)
+        """
+        nalpha = self.alphas.size
         p21_l_javb = []
         p22_l_jaja = []
         for l in range(lp1):
@@ -1831,83 +2293,121 @@ class PSmoothSetup2(PSmoothSetup):
                 tmp_ag = self.conv_bwd(phisr_abx[a], l)
                 tmp_ja = ...
                 p22_l_jaja[j][j - self.nbas_loc[j], a] += FAC22 * tmp_ja
-        phi_jabk = get_phi_iabk(pfuncs_k, rgd.k_g, self.alphas, betas=self.alphas_ae)
-        phi_jabk[:] *= self.alpha_norms[:, None, None]
-        phi_jabk[:] *= self.alpha_norms[:, None]
-        REG11 = 1e-6
-        REG22 = 1e-5
-        FAC22 = 1e-2
-        phi_jabg = get_phi_iabg(phi_jabk, self.llist_j, rgd)
-        p11_lpp = get_p11_matrix(self.delta_lpg, rgd, reg=REG11)
-        p12_pbja, p21_japb = get_p12_p21_matrix(
-            self.delta_lpg, phi_jabg, rgd, self.llist_j, self.w_b
-        )
-        p22_ljaja = []
-        for l in range(self.lmax + 1):
-            p22_ljaja.append(
-                get_p22_matrix(
-                    phi_jabg,
-                    rgd,
-                    self.rcut_feat,
-                    l,
-                    self.w_b,
-                    self.nbas_loc,
-                    reg=REG22,
-                )
-            )
-            p22_ljaja[-1] += FAC22 * get_p22_matrix(
-                phi_jabg,
-                rgd,
-                self.rcut_feat,
-                l,
-                self.w_b,
-                self.nbas_loc,
-                cut_func=True,
-            )
-        p_l_ii = construct_full_p_matrices(
-            p11_lpp,
-            p12_pbja,
-            p21_japb,
-            p22_ljaja,
-            self.w_b,
-            self.nbas_loc,
-        )
-        self.phi_jabk = phi_jabk
-        self.phi_jabg = phi_jabg
-        self.p_l_ii = p_l_ii
-        self.pinv_l_ii = []
-        self.p_cl_l_ii = []
-        for l in range(self.lmax + 1):
-            c_and_l = cho_factor(p_l_ii[l])
-            idn = np.identity(p_l_ii[l].shape[0])
-            self.p_cl_l_ii.append(c_and_l)
-            self.pinv_l_ii.append(cho_solve(c_and_l, idn))
-        self.phi_sr_jabg = _interpc(self.phi_jabg, rgd, self.slrgd.r_g)
+        """
 
-    def get_c_and_df(self, y_sgLb, realspace=True):
-        nspin, ng, Lmax, nb = y_sgLb.shape
-        rgd = self.sbt_rgd
-        Nalpha_sm = self.alphas.size
-        NP = self.delta_lpg.shape[1]
-        c_sib = np.zeros((nspin, self.ni, Nalpha_sm))
-        nao = ...
-        df_sub = np.zeros((nspin, nao, nb))
-        lloc_bas = ...
-        lloc_ao = ...
+    def get_c_and_df(self, y_svq, yy_svq):
+        nspin, nv, nb = y_svq.shape
+        print(y_svq.shape, nv, self.pcol.nv)
+        assert nv == self.pcol.nv
+        assert yy_svq.shape == y_svq.shape
+        na = self.alphas.size
+        c_sia = np.zeros((nspin, self.ni, na))
+        df_sub = np.zeros((nspin, self.pcol.nu, nb))
         for s in range(nspin):
+            all_b1_ub = self.pcol.convert(y_svq[s], fwd=False)
+            all_b2_ia = self.jcol.convert(yy_svq[s], fwd=False)
             for l in range(self.lmax + 1):
-                Lmin = l * l
-                dL = 2 * l + 1
-                for L in range(Lmin, Lmin + dL):
-                    b1 = self.get_b1_pb(y_sgLb[s, :, L, :], l, rgd)
-                    b2 = self.get_b2_ja(y_sgLb[s, :, L, :], l, rgd)
+                nm = 2 * l + 1
+                for m in range(nm):
+                    uloc_l = self.pcol.uloc_l
+                    slice1 = slice(uloc_l[l] + m, uloc_l[l + 1] + m, nm)
+                    b1 = all_b1_ub[slice1]
+                    uloc_l = self.jcol.uloc_l
+                    slice2 = slice(uloc_l[l] + m, uloc_l[l + 1] + m, nm)
+                    b2 = all_b2_ia[slice2]
                     b = self.cat_b_vecs(b1, b2)
                     x = cho_solve(self.p_cl_l_ii[l], b)
-                    N1 = b1.size
-                    df_sLpb[s, L] += x[:N1].reshape(NP, nb)
-                    ilist = self.lmlist_i == L
-                    c_sib[s, ilist, :] += x[N1:].reshape(-1, Nalpha_sm)
-        return c_sib, df_sLpb
+                    if l == m == 0:
+                        np.save("b1_new.npy", b1)
+                        np.save("b2_new.npy", b2)
+                        np.save("p_new.npy", self.p_cl_l_ii[l][0])
+                        print(
+                            b1.sum(),
+                            b2.sum(),
+                            b.sum(),
+                            x.sum(),
+                            self.p_cl_l_ii[l][0].sum(),
+                        )
+                    n1 = b1.size
+                    df_sub[s, slice1] += x[:n1].reshape(-1, nb)
+                    c_sia[s, slice2] += x[n1:].reshape(-1, na)
+        return c_sia, self.pcol.basis2grid_spin(df_sub)
+
+    def get_c_and_df(self, y_svq, y_skLq):
+        nspin, nv, nb = y_svq.shape
+        print(y_svq.shape, nv, self.pcol.nv)
+        assert nv == self.pcol.nv
+        # assert yy_svq.shape == y_svq.shape
+        na = self.alphas.size
+        c_sia = np.zeros((nspin, self.ni, na))
+        df_sub = np.zeros((nspin, self.pcol.nu, nb))
+        for s in range(nspin):
+            all_b1_ub = self.pcol.convert(y_svq[s], fwd=False)
+            # all_b2_ia = self.jcol.convert(yy_svq[s], fwd=False)
+            for l in range(self.lmax + 1):
+                nm = 2 * l + 1
+                for m in range(nm):
+                    uloc_l = self.pcol.uloc_l
+                    slice1 = slice(uloc_l[l] + m, uloc_l[l + 1] + m, nm)
+                    b1 = all_b1_ub[slice1]
+                    uloc_l = self.jcol.uloc_l
+                    slice2 = slice(uloc_l[l] + m, uloc_l[l + 1] + m, nm)
+                    # b2 = all_b2_ia[slice2]
+                    b2 = self.get_b2_ja_recip(
+                        y_skLq[s, :, l * l + m, :].T, l, self.sbt_rgd
+                    )
+                    b = self.cat_b_vecs(b1, b2)
+                    x = cho_solve(self.p_cl_l_ii[l], b)
+                    if l == m == 0:
+                        np.save("b1_new.npy", b1)
+                        np.save("b2_new.npy", b2)
+                        np.save("p_new.npy", self.p_cl_l_ii[l][0])
+                        print(
+                            b1.sum(),
+                            b2.sum(),
+                            b.sum(),
+                            x.sum(),
+                            self.p_cl_l_ii[l][0].sum(),
+                        )
+                    n1 = b1.size
+                    df_sub[s, slice1] += x[:n1].reshape(-1, nb)
+                    c_sia[s, slice2] += x[n1:].reshape(-1, na)
+        return c_sia, self.pcol.basis2grid_spin(df_sub)
+
+    def get_b2_ja_recip(self, FL_bg, l, rgd):
+        dv_g = get_dvk(rgd)
+        return np.einsum(
+            "bg,jabg,b,g->ja",
+            FL_bg,
+            self.phi_jabk[self.nbas_loc[l] : self.nbas_loc[l + 1]],
+            self.w_b,
+            dv_g,
+        )
+
+    def get_df_only(self, y_svq):
+        nspin, nv, nq = y_svq.shape
+        df_suq = np.zeros((nspin, self.pcol.nu, nq))
+        for s in range(nspin):
+            df_suq[s] = self.pcol.convert(y_svq[s], fwd=False)
+        return self.pcol.basis2grid_spin(df_suq)
+
+    def coef_to_real(self, c_siq, out=None):
+        nq = self.alphas.size
+        ng = self.slrgd.r_g.size
+        # TODO don't hard-code this
+        nlm = 25  # np.max(self.lmlist_i) + 1
+        nspin = c_siq.shape[0]
+        if out is None:
+            xt_sgLq = np.zeros((nspin, ng, nlm, nq))
+        else:
+            xt_sgLq = out
+            assert xt_sgLq.shape == (nspin, ng, nlm, nq)
+        for s in range(nspin):
+            for i in range(self.ni):
+                L = self.lmlist_i[i]
+                n = self.nlist_i[i]
+                xt_sgLq[s, :, L, :] += c_siq[s, i, :] * self.pfuncs_ng[n, :, None]
+        return xt_sgLq
 
     def get_v_from_c_and_df(self, vc_sib, vdf_sLpb, realspace=True):
         nspin, Lmax, NP, nb = vdf_sLpb.shape
@@ -1924,7 +2424,6 @@ class PSmoothSetup2(PSmoothSetup):
                     x1 = vdf_sLpb[s, L].flatten()
                     x2 = vc_sib[s, ilist, :].flatten()
                     x = self.cat_b_vecs(x1, x2)
-                    # b = self.pinv_l_ii[l].dot(x)
                     b = cho_solve(self.p_cl_l_ii[l], x)
                     N1 = x1.size
                     if realspace:
@@ -1943,16 +2442,91 @@ class PSmoothSetup2(PSmoothSetup):
                         )
         return vy_sbLg
 
-    def get_b1_pb_recip(self, FL_bg, l, rgd):
-        dv_g = get_dvk(rgd)
-        return np.einsum("bg,pg,g->pb", FL_bg, self.delta_lpk[l], dv_g) * self.w_b
+    @classmethod
+    def from_setup_and_atco(cls, setup, atco, alphas, alpha_norms, pmax):
 
-    def get_b2_ja_recip(self, FL_bg, l, rgd):
-        dv_g = get_dvk(rgd)
-        return np.einsum(
-            "bg,jabg,b,g->ja",
-            FL_bg,
-            self.phi_jabk[self.nbas_loc[l] : self.nbas_loc[l + 1]],
-            self.w_b,
-            dv_g,
+        rgd = setup.xc_correction.rgd
+        rcut_feat = np.max(setup.rcut_j)
+        rcut_func = rcut_feat * 1.00
+
+        if setup.Z > 100:
+            nlist_j = [0, 2, 4, 6, 1, 3, 5, 2, 4, 6, 3, 5, 4, 6]
+            llist_j = [0, 0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 4, 4]
+            nbas_lst = [4, 3, 3, 2, 2]
+            nbas_loc = np.append([0], np.cumsum(nbas_lst)).astype(np.int32)
+            lmlist_i = []
+            jlist_i = []
+        elif setup.Z > 0:
+            nlist_j = [0, 2, 4, 1, 3, 2, 4, 3, 4]
+            llist_j = [0, 0, 0, 1, 1, 2, 2, 3, 4]
+            nbas_lst = [3, 2, 2, 1, 1]
+            nbas_loc = np.append([0], np.cumsum(nbas_lst)).astype(np.int32)
+            lmlist_i = []
+            jlist_i = []
+        else:
+            nlist_j = [0, 2, 1, 2]
+            llist_j = [0, 0, 1, 2]
+            nbas_lst = [2, 1, 1]
+            nbas_loc = np.append([0], np.cumsum(nbas_lst)).astype(np.int32)
+            lmlist_i = []
+            jlist_i = []
+
+        nt = 100
+        interp_rgd = EquidistantRadialGridDescriptor(h=rcut_func / (nt - 1), N=nt)
+        interp_r_g = interp_rgd.r_g
+        ng = rgd.r_g.size
+        sbt_rgd = setup.nlxc_correction.big_rgd
+        ng2 = sbt_rgd.r_g.size
+        nn = np.max(nlist_j) + 1
+
+        # TODO not as much initialization needed here after sbt_rgd removed
+        pfuncs_ng = np.zeros((nn, ng), dtype=np.float64, order="C")
+        pfuncs_ng2 = np.zeros((nn, ng2), dtype=np.float64, order="C")
+        pfuncs_ntp = np.zeros((nn, nt, 4), dtype=np.float64, order="C")
+        pfuncs_nt = np.zeros((nn, nt), dtype=np.float64, order="C")
+        for n in range(nn):
+            pfuncs_nt[n, :] = get_pfunc2_norm(n, interp_r_g, rcut_func)
+            pfuncs_ng[n, :] = get_pfunc2_norm(n, rgd.r_g, rcut_func)
+            pfuncs_ng2[n, :] = get_pfunc2_norm(n, sbt_rgd.r_g, rcut_func)
+
+        for n in range(nn):
+            pfuncs_ntp[n, :, :] = spline(
+                np.arange(interp_r_g.size).astype(np.float64), pfuncs_nt[n]
+            )
+
+        i = 0
+        for j, n in enumerate(nlist_j):
+            l = llist_j[j]
+            for m in range(2 * l + 1):
+                lm = l * l + m
+                lmlist_i.append(lm)
+                jlist_i.append(j)
+                i += 1
+        lmlist_i = np.array(lmlist_i, dtype=np.int32)
+        jlist_i = np.array(jlist_i, dtype=np.int32)
+
+        psetup = cls(
+            pfuncs_ng,
+            pfuncs_ntp,
+            interp_rgd,
+            rgd,
+            nlist_j,
+            llist_j,
+            lmlist_i,
+            jlist_i,
+            setup.nlxc_correction.big_rgd,
+            alphas,
+            nbas_loc,
+            rcut_func,
+            rcut_feat,
+            Z=setup.Z,
+            alphas_ae=alphas,
+            alpha_norms=alpha_norms,
+            pmax=pmax,
         )
+
+        psetup.pfuncs_ng2 = pfuncs_ng2
+        psetup._initialize_ffunc()
+        psetup.initialize_a2g(atco)
+
+        return psetup
