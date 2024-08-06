@@ -1150,6 +1150,68 @@ void contract_orb_to_rad(double *theta_rlmq, double *p_uq, int *ar_loc,
     }
 }
 
+void expand_to_grid(double *in_i, double *out_g, int l, int ia, double *r_g,
+                    int ng, atc_basis_set *atco) {
+    int *bas = atco->bas;
+    double *env = atco->env;
+    atc_atom *atcc = atco->atc_convs + ia;
+    int ish0 = atcc->global_l_loc[l];
+    int ish1 = atcc->global_l_loc[l + 1];
+    int dish = ish1 - ish0;
+    int ish;
+    double *p_i = (double *)malloc((ish1 - ish0) * sizeof(double));
+    for (ish = 0; ish < dish; ish++) {
+        p_i[ish] = in_i[ish];
+    }
+    int info;
+    double *chomat = atcc->gtrans_0 + atcc->l_loc2[l];
+    int one = 1;
+    dpotrs_(&(atco->UPLO), &dish, &one, chomat, &dish, p_i, &dish, &info);
+    int *ibas;
+    double coef, beta;
+    for (int g = 0; g < ng; g++) {
+        out_g[g] = 0;
+        for (ish = ish0; ish < ish1; ish++) {
+            ibas = bas + ish * BAS_SLOTS;
+            l = ibas[ANG_OF];
+            coef = env[ibas[PTR_COEFF]];
+            beta = env[ibas[PTR_EXP]];
+            out_g[g] += p_i[ish - ish0] * coef * pow(r_g[g], l) *
+                        exp(-beta * r_g[g] * r_g[g]);
+        }
+    }
+}
+
+void contract_from_grid(double *in_g, double *out_i, int l, int ia, double *r_g,
+                        double *dv_g, int ng, atc_basis_set *atco) {
+    int *bas = atco->bas;
+    double *env = atco->env;
+    atc_atom *atcc = atco->atc_convs + ia;
+    int ish0 = atcc->global_l_loc[l];
+    int ish1 = atcc->global_l_loc[l + 1];
+    int dish = ish1 - ish0;
+    int ish;
+    int *ibas;
+    double coef, beta;
+    for (ish = 0; ish < dish; ish++) {
+        out_i[ish] = 0;
+    }
+    for (int g = 0; g < ng; g++) {
+        for (ish = ish0; ish < ish1; ish++) {
+            ibas = bas + ish * BAS_SLOTS;
+            l = ibas[ANG_OF];
+            coef = env[ibas[PTR_COEFF]];
+            beta = env[ibas[PTR_EXP]];
+            out_i[ish - ish0] += in_g[g] * coef * pow(r_g[g], l) *
+                                 exp(-beta * r_g[g] * r_g[g]) * dv_g[g];
+        }
+    }
+    // int info;
+    // double *chomat = atcc->gtrans_0 + atcc->l_loc2[l];
+    // int one = 1;
+    // dpotrs_(&(atco->UPLO), &dish, &one, chomat, &dish, out_i, &dish, &info);
+}
+
 void contract_orb_to_rad_num(double *theta_rlmq, double *p_uq, double *funcs_jg,
                              int *jloc_l, int *uloc_l, int nrad, int nlm,
                              int nalpha) {

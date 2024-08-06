@@ -382,7 +382,6 @@ def construct_full_p_matrices_v2(p11_l_vv, p12_l_vbja, p21_l_javb, p22_l_jaja, w
         N2 = p22_jaja.shape[0] * p22_jaja.shape[1]
         N = N1 + N2
         pl_ii = np.zeros((N, N))
-        print(p12_vbja.shape, p21_javb.shape, N1, N2)
         pl_ii[:N1, :N1] = p11_ii
         pl_ii[:N1, N1:] = p12_vbja.reshape(N1, N2)
         pl_ii[N1:, :N1] = p21_javb.reshape(N2, N1)
@@ -396,7 +395,6 @@ def get_delta_lpg(betas, rcut, rgd, thr=6, lmax=4):
     r_g = rgd.r_g
     dv_g = get_dv(rgd)
     betas = betas[betas * R * R > thr]
-    print("BETAS", betas)
     fcut = (0.5 * np.pi / betas) ** 0.75 * gauss_and_derivs(betas, R)
     funcs = (0.5 * np.pi / betas[:, None]) ** 0.75 * np.exp(-betas[:, None] * r_g * r_g)
     rd_g = rgd.r_g - rcut
@@ -431,7 +429,6 @@ def get_delta_lpg_v2(betas_lb, rcut, rgd, pmin, pmax):
             betas_lb[l] < pmax,
         )
         betas = betas_lb[l][cond]
-        print("BETAS", betas)
         fcut = (0.5 * np.pi / betas) ** 0.75 * gauss_and_derivs(betas, rcut)
         funcs = (0.5 * np.pi / betas[:, None]) ** 0.75 * np.exp(
             -betas[:, None] * r_g * r_g
