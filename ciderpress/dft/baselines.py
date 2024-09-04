@@ -18,9 +18,14 @@
 # Author: Kyle Bystrom <kylebystrom@gmail.com>
 #
 
+import ctypes
+
 import numpy as np
 
 from ciderpress.dft.settings import LDA_FACTOR
+from ciderpress.lib import load_library
+
+xc_helper = load_library("libxc_utils")
 
 
 def nsp_rho_basline(X0T, e=None, dedx=None):
@@ -127,6 +132,92 @@ def gga_x_pbe(X0T):
     return _sl_x_helper(X0T, _pbe_x_helper)
 
 
+# PBE C: 130
+# R2SCAN C: 498
+def get_libxc_gga_baseline(xcid, rho, sigma):
+    nspin, size = rho.shape
+    assert sigma.shape == (2 * nspin - 1, size)
+    rho = np.asfortranarray(rho)
+    # rho = np.ascontiguousarray(rho)
+    sigma = np.asfortranarray(sigma)
+    # sigma = np.ascontiguousarray(sigma)
+    exc = np.zeros(size)
+    vrho = np.zeros_like(rho, order="F")
+    vsigma = np.zeros_like(sigma, order="F")
+    xc_helper.get_gga_baseline(
+        ctypes.c_int(xcid),
+        ctypes.c_int(nspin),
+        ctypes.c_int(size),
+        rho.ctypes.data_as(ctypes.c_void_p),
+        sigma.ctypes.data_as(ctypes.c_void_p),
+        exc.ctypes.data_as(ctypes.c_void_p),
+        vrho.ctypes.data_as(ctypes.c_void_p),
+        vsigma.ctypes.data_as(ctypes.c_void_p),
+        ctypes.c_double(1e-12),
+    )
+    return exc, vrho, vsigma
+
+
+def get_sigma(X0T):
+    const = 4 * (3 * np.pi**2) ** (2.0 / 3)
+    rho = X0T[:, 0]
+    p = X0T[:, 1]
+    sigma_s = const * p * rho ** (8.0 / 3)
+    nspin = X0T.shape[0]
+    if nspin == 1:
+        return rho, sigma_s
+    else:
+        assert nspin == 2
+        sigma = np.zeros((3, X0T.shape[-1]), order="F")
+        zeta = (rho[0] - rho[1]) / (rho[0] + rho[1])
+        zfac = 0.5 * (1 - zeta * zeta) / (1 + zeta * zeta)
+        sigma[0] = sigma_s[0]
+        sigma[2] = sigma_s[1]
+        sigma[1] = (sigma_s[0] + sigma_s[1]) * zfac
+        return 0.5 * rho, 0.25 * sigma
+
+
+def get_dsigma(X0T, vX0T, vrho, vsigma):
+    const = 4 * (3 * np.pi**2) ** (2.0 / 3)
+    rho = X0T[:, 0]
+    p = X0T[:, 1]
+    sigma_s = const * p * rho ** (8.0 / 3)
+    nspin = X0T.shape[0]
+    if nspin == 1:
+        vsigma_s = vsigma
+    else:
+        assert nspin == 2
+        vrho *= 0.5
+        vsigma *= 0.25
+        zeta = (rho[0] - rho[1]) / (rho[0] + rho[1])
+        zfac = 0.5 * (1 - zeta * zeta) / (1 + zeta * zeta)
+        dzfac = -2.0 * zeta / (1 + zeta * zeta) ** 2
+        vsigma_s = vsigma[::2] + vsigma[1] * zfac
+        vzfac = vsigma[1] * (sigma_s[0] + sigma_s[1]) * dzfac
+        vX0T[0, 0] += vzfac * 2 * rho[1] / (rho[0] + rho[1]) ** 2
+        vX0T[1, 0] -= vzfac * 2 * rho[0] / (rho[0] + rho[1]) ** 2
+    vX0T[:, 0] += vrho + vsigma_s * const * p * (8.0 / 3) * rho ** (5.0 / 3)
+    vX0T[:, 1] += vsigma_s * const * rho ** (8.0 / 3)
+
+
+def get_gga_c(xcid, X0T):
+    nspin, nfeat, nsamp = X0T.shape
+    dedx = np.zeros_like(X0T)
+    rho, sigma = get_sigma(X0T)
+    X0T.shape[0]
+    e, vrho, vsigma = get_libxc_gga_baseline(130, rho, sigma)
+    get_dsigma(X0T, dedx, vrho, vsigma)
+    return e * rho.sum(0), dedx
+
+
+def gga_c_pbe(X0T):
+    return get_gga_c(130, X0T)
+
+
+def mgga_c_r2scan(X0T):
+    raise NotImplementedError
+
+
 BASELINE_CODES = {
     "RHO": nsp_rho_basline,
     "ZERO": zero_xc,
@@ -135,4 +226,5 @@ BASELINE_CODES = {
     "NLDA_X_DAMP": nlda_x_damp,
     "GGA_X_PBE": gga_x_pbe,
     "GGA_X_CHACHIYO": gga_x_chachiyo,
+    "GGA_C_PBE": gga_c_pbe,
 }

@@ -83,10 +83,13 @@ include(ExternalProject)
 option(ENABLE_FFTW "Using fftw3" ON)
 option(BUILD_FFTW "Building fftw3" ON)
 
+string(REPLACE ":" ";" _lib_path "$ENV{LD_LIBRARY_PATH}")
+find_library(LIBXC_LIBRARIES NAMES xc PATHS ${_lib_path})
 add_subdirectory(mod_cider)
 add_subdirectory(numint_cider)
 add_subdirectory(pwutil)
 add_subdirectory(sbt)
+add_subdirectory(xc_utils)
 
 if(ENABLE_FFTW AND BUILD_FFTW)
 #  if(NOT EXISTS "${PROJECT_SOURCE_DIR}/deps/include/fftw3.h")
