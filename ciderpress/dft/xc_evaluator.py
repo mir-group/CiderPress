@@ -158,6 +158,11 @@ class KernelEvalBase:
                 ms.append(m / nspin)
                 dms.append(dm / nspin)
             return np.stack(ms), np.concatenate(dms, axis=0)
+        elif self.mode == "NPOL":
+            ms = []
+            dms = []
+            m, dm = base_func(X0T)
+            return m, dm
         else:
             raise NotImplementedError
 
@@ -216,7 +221,12 @@ class KernelEvalBase:
         if add_base:
             res += a
         if dfdX0T is not None:
-            dres = dfdX0T * m[:, np.newaxis] + f[:, np.newaxis] * dm
+            if self.mode == "SEP":
+                dres = dfdX0T * m[:, np.newaxis] + f[:, np.newaxis] * dm
+            elif self.mode == "NPOL":
+                dres = dfdX0T * m + f * dm
+            else:
+                raise NotImplementedError
             if add_base:
                 dres += da
             return res, dres

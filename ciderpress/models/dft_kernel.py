@@ -145,6 +145,8 @@ class DFTKernel(KernelEvalBase):
         k = self.kernel(X1, self.X1ctrl)
         if self.mode == "SEP":
             k = k.T.reshape(self.Nctrl, nspin, Nsamp)
+        else:
+            k = k.T
         return k
 
     def get_k_and_deriv(self, X0T):

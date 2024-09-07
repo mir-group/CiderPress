@@ -207,6 +207,7 @@ class MOLGP:
             Knmimn += Kmn.T.dot(Kimn)
             Kimn_list.append(Kimn)
         noise_nn = np.array(self.rxn_noise_list)
+        noise_nn = noise_nn**2  # get noise covariance from noise std deviation
         if x is not None:
             Knmimn[:] *= x[0] ** 2
             Kimn_list = [x[0] ** 2 * k for k in Kimn_list]
@@ -408,12 +409,15 @@ class MOLGP:
                             dkdX0T[:, s][:, :, cond[s]] = 0.0
                 else:
                     cond = X0T[:, 0].sum(0) < 1e-6
+                    # print(X0T.shape, cond.shape, m.shape, dm.shape, a.shape, da.shape, k.shape)
+                    # (1, 6, 10000) (10000,) (10000,) (1, 6, 10000) (10000,) (1, 6, 10000) (10000, 180)
                     m[..., cond] = 0.0
                     dm[..., cond] = 0.0
                     a[..., cond] = 0.0
                     da[..., cond] = 0.0
                     k[..., cond] = 0.0
                     if deriv:
+                        print(dkdX0T.shape)
                         dkdX0T[..., cond] = 0.0
                 if kernel.mode == "SEP":
                     km = (k * m).sum(1)
@@ -548,15 +552,20 @@ class MOLGP:
                         rxn_ref -= count * kernel.base_dict[sysid]
                 kernel.rxn_cov_list.append(rxn_cov)
             if mode == 2:
+                if rxn.get("unit") is None:
+                    rxn["unit"] = 0.00159360109742136  # kcal/mol per Ha
                 rxn_ref += rxn["energy"] * rxn["unit"]
+                for sysid, count in zip(rxn["structs"], rxn["counts"]):
+                    rxn_ref -= count * self.ks_baseline_dict[sysid]
                 for kernel in self.ckernels:
                     rxn_cov = 0
                     for sysid, count in zip(rxn["structs"], rxn["counts"]):
                         if isinstance(sysid, tuple):
                             rxn_cov += count * kernel.dcov_dict[sysid[0]][sysid[1]]
+                            rxn_ref -= count * kernel.dbase_dict[sysid[0]][sysid[1]]
                         else:
                             rxn_cov += count * kernel.cov_dict[sysid]
-                        rxn_ref -= count * self.ks_baseline_dict[sysid]
+                            rxn_ref -= count * kernel.base_dict[sysid]
                     kernel.rxn_cov_list.append(rxn_cov)
             else:
                 for kernel in self.ckernels:

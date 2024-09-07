@@ -40,6 +40,7 @@ class TestBaselines(unittest.TestCase):
         dp = ds2(rho1[0], sigma1)
         vrho_test = dedx[:, 0] + dedx[:, 1] * dp[0]
         vsigma_test = dedx[:, 1] * dp[1]
+        _e = e_test
         assert_allclose(e_test / rho1[0], e_ref)
         assert_allclose(vrho_test[0], vxc[0])
         assert_allclose(vsigma_test[0], vxc[1])
@@ -54,6 +55,7 @@ class TestBaselines(unittest.TestCase):
         dp = ds2(rho1[0], sigma1)
         vrho_test = dedx[:, 0] + dedx[:, 1] * dp[0]
         vsigma_test = dedx[:, 1] * dp[1]
+        assert_allclose(e_test, _e)
         assert_allclose(e_test / rho1[0], e_ref)
         assert_allclose(2 * vrho_test, vxc[0].T)
         # Normally would be a factor of 4, but since we have no
