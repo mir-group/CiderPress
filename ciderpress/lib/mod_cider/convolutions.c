@@ -1243,6 +1243,37 @@ void contract_orb_to_rad_num(double *theta_rlmq, double *p_uq, double *funcs_jg,
     }
 }
 
+void contract_rad_to_orb_num(double *theta_rlmq, double *p_uq, double *funcs_jg,
+                             int *jloc_l, int *uloc_l, int nrad, int nlm,
+                             int nalpha) {
+#pragma omp parallel
+    {
+        int j0, j1, u0, j, g, nm, l, q, m;
+        double f;
+        double *p_q, *theta_q;
+        int lmax = sqrt(nlm + 1e-8) - 1;
+#pragma omp for schedule(dynamic, 4)
+        for (l = 0; l <= lmax; l++) {
+            nm = 2 * l + 1;
+            j0 = jloc_l[l];
+            j1 = jloc_l[l + 1];
+            u0 = uloc_l[l];
+            for (j = j0; j < j1; j++) {
+                for (g = 0; g < nrad; g++) {
+                    f = funcs_jg[j * nrad + g];
+                    for (m = 0; m < nm; m++) {
+                        p_q = p_uq + (u0 + (j - j0) * nm + m) * nalpha;
+                        theta_q = theta_rlmq + nalpha * (l * l + m + nlm * g);
+                        for (q = 0; q < nalpha; q++) {
+                            p_q[q] += theta_q[q] * f;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 // TODO implementing these functions could be helpful for PAW implementation
 /**
  * Given a radial distribution of functions for each spherical harmonic

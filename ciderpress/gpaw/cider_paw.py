@@ -153,12 +153,14 @@ class _CiderPASDW_MPRoutines:
             else self.debug_kernel
         )
 
+        print("BEFORE", [("pa_setup" in dir(s)) for s in self.setups])
         self.initialize_paw_kernel(cider_kernel_inp, Nalpha_atom, encut_atom)
         self._setup_kgrid()
         self._setup_cd_xd_ranks()
         self._setup_6d_integral_buffer()
         self._setup_extra_buffers()
 
+        print("AFTER", [("pa_setup" in dir(s)) for s in self.setups])
         self.par_cider.setup_atom_comm_data(self.atom_partition.rank_a, self.setups)
 
         if not (

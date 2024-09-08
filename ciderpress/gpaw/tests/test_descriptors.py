@@ -215,7 +215,7 @@ def run_nscf_eigval_test(xc0, xc1, spinpol=False, use_pp=False, safe=True):
         setups="sg15" if use_pp else "paw",
         txt="si.txt",
     )
-    delta = 1e-5
+    delta = 1e-4
     si.get_potential_energy()
     gap, p_vbm, p_cbm = bandgap(si.calc)
     run_constant_occ_calculation_(si.calc)
