@@ -5,16 +5,16 @@ from gpaw.xc.mgga import MGGA
 
 from ciderpress.gpaw.cider_paw import _CiderPASDW_MPRoutines
 from ciderpress.gpaw.fast_atom_utils import FastAtomPASDWSlice, FastPASDWCiderKernel
-from ciderpress.gpaw.fast_fft import (
-    CiderGGA,
-    CiderMGGA,
-    add_gradient_correction,
-    get_rho_sxg,
-)
+from ciderpress.gpaw.fast_fft import CiderGGA, CiderMGGA, add_gradient_correction
 from ciderpress.gpaw.nldf_interface import pwutil as libpwutil
 
 
-class _FastPASDW_MPRoutines(_CiderPASDW_MPRoutines):
+class _FastPASDW_MPRoutines:  # (_CiderPASDW_MPRoutines):
+    has_paw = True
+
+    def get_D_asp(self):
+        return self.atomdist.to_work(self.dens.D_asp)
+
     def initialize_paw_kernel(self, cider_kernel_inp, Nalpha_atom, encut_atom):
         self.paw_kernel = FastPASDWCiderKernel(
             cider_kernel_inp,
@@ -169,7 +169,6 @@ class _FastPASDW_MPRoutines(_CiderPASDW_MPRoutines):
             global_slices = self.global_slices_a
 
         shapes = [
-            # (self._plan.nalpha, atom_slices[a].num_funcs)
             (atom_slices[a].num_funcs, self._plan.nalpha)
             for a in range(len(self.setups))
         ]
@@ -193,7 +192,6 @@ class _FastPASDW_MPRoutines(_CiderPASDW_MPRoutines):
             if rank_a[a] == comm.rank:
                 assert coefs_iq is not None
                 if self.pasdw_ovlp_fit:
-                    # c_abi[a] = coefs_bi.dot(global_slices[a].sinv_pf)
                     self.c_asiq[a][s] = global_slices[a].sinv_pf.T.dot(coefs_iq)
                 else:
                     self.c_asiq[a][s] = coefs_iq
@@ -201,11 +199,9 @@ class _FastPASDW_MPRoutines(_CiderPASDW_MPRoutines):
         self.timer.stop()
 
     def set_fft_work(self, s, pot=False):
-        # self.write_augfeat_to_rbuf(self.c_sabi[s], pot=pot)
         self.write_augfeat_to_rbuf(s, pot=pot)
 
     def get_fft_work(self, s, pot=False):
-        # self.c_sabi[s] = self.interpolate_rbuf_onto_atoms(pot=pot)
         self.interpolate_rbuf_onto_atoms(s, pot=pot)
 
     def _set_paw_terms(self):
@@ -216,52 +212,20 @@ class _FastPASDW_MPRoutines(_CiderPASDW_MPRoutines):
         self.c_asiq, self.df_asgLq = self.paw_kernel.calculate_paw_feat_corrections(
             self.setups, D_asp
         )
-        # if len(self.c_asiq.keys()) == 0:
-        #     self.c_sabi = {s: {} for s in range(self.nspin)}
-        # else:
-        #     self.c_sabi = {
-        #         s: {a: self.c_asiq[a][s].T for a in self.c_asiq}
-        #         for s in range(self.nspin)
-        #     }
         self.D_asp = D_asp
         self.timer.stop()
 
     def _calculate_paw_energy_and_potential(self):
         self.timer.start("PAW ENERGY")
-        # if len(self.c_sabi.keys()) == 0:
-        #     self.c_asiq = {}
-        # else:
-        #     if not hasattr(self, "c_asiq"):
-        #         self.c_asiq = {}
-        #     for a in self.c_sabi[0]:
-        #         self.c_asiq[a] = np.stack(
-        #             [self.c_sabi[s][a].T for s in range(self.nspin)]
-        #         )
         self.c_asiq, deltaE, deltaV = self.paw_kernel.calculate_paw_feat_corrections(
             self.setups, self.D_asp, D_asiq=self.c_asiq, df_asgLq=self.df_asgLq
         )
         self.E_a_tmp = deltaE
         self.deltaV = deltaV
-        # if len(self.c_sabi.keys()) == 0:
-        #     self.c_sabi = {s: {} for s in range(self._plan.nspin)}
-        # else:
-        #     self.c_sabi = {
-        #         s: {a: self.c_asiq[a][s].T for a in self.c_asiq}
-        #         for s in range(self.nspin)
-        #     }
         self.timer.stop()
 
     def _get_dH_asp(self):
         self.timer.start("PAW POTENTIAL")
-        # if len(self.c_sabi.keys()) == 0:
-        #     self.c_asiq = {}
-        # else:
-        #     if not hasattr(self, "c_asiq"):
-        #         self.c_asiq = {}
-        #     for a in self.c_sabi[0]:
-        #         self.c_asiq[a] = np.stack(
-        #             [self.c_sabi[s][a].T for s in range(self.nspin)]
-        #         )
         dH_asp = self.paw_kernel.calculate_paw_feat_corrections(
             self.setups, self.D_asp, vc_asiq=self.c_asiq
         )
@@ -291,6 +255,18 @@ class _FastPASDW_MPRoutines(_CiderPASDW_MPRoutines):
             Nalpha_atom += 1
 
         self.initialize_paw_kernel(self.cider_kernel, Nalpha_atom, encut_atom)
+
+    @property
+    def is_initialized(self):
+        if (
+            (self._plan is None)
+            or (self._plan.nspin != self.nspin)
+            or (self.setups is None)
+            or (self.atom_slices_s is None)
+        ):
+            return False
+        else:
+            return True
 
 
 class CiderGGAPASDW(_FastPASDW_MPRoutines, CiderGGA):
@@ -365,13 +341,6 @@ class CiderGGAPASDW(_FastPASDW_MPRoutines, CiderGGA):
         self.pwfft = None
         self.rbuf_ag = None
         self._check_parallelization(wfs)
-
-    def calc_cider(self, *args, **kwargs):
-        if (self.setups is None) or (self.atom_slices_s is None):
-            self._setup_plan()
-            self.fft_obj.initialize_backend()
-            self.initialize_more_things()
-        CiderGGA.calc_cider(self, *args, **kwargs)
 
 
 class CiderMGGAPASDW(_FastPASDW_MPRoutines, CiderMGGA):
@@ -452,11 +421,7 @@ class CiderMGGAPASDW(_FastPASDW_MPRoutines, CiderMGGA):
         self.theta_ak = None
         self._check_parallelization(wfs)
 
-    def calculate_impl(self, gd, n_sg, v_sg, e_g):
-        # TODO don't calculate sigma/dedsigma here
-        # instead just compute the gradient and dedgrad
-        # for sake of generality
-        # TODO clearn approach?
+    def _get_taut(self, n_sg):
         self.timer.start("KED SETUP")
         if self.type == "MGGA":
             if self.fixed_ke:
@@ -481,20 +446,23 @@ class CiderMGGAPASDW(_FastPASDW_MPRoutines, CiderMGGA):
         else:
             taut_sg = None
             dedtaut_sg = None
+            taut_sG = None
         self.timer.stop()
+        return taut_sg, dedtaut_sg, taut_sG
+
+    def calculate_impl(self, gd, n_sg, v_sg, e_g):
+        # TODO don't calculate sigma/dedsigma here
+        # instead just compute the gradient and dedgrad
+        # for sake of generality
+        # TODO cleaner approach?
+        taut_sg, dedtaut_sg, taut_sG = self._get_taut(n_sg)
         self.timer.start("Reorganize density")
-        rho_sxg = get_rho_sxg(n_sg, self.grad_v, taut_sg)
-        self.nspin = len(rho_sxg)
-        tmp_dedrho_sxg = np.zeros_like(rho_sxg)
-        shape = rho_sxg.shape[:2]
-        rho_sxg.shape = (rho_sxg.shape[0] * rho_sxg.shape[1],) + rho_sxg.shape[-3:]
-        rho_sxg = self._distribute_to_cider_grid(rho_sxg)
-        rho_sxg.shape = shape + rho_sxg.shape[-3:]
-        dedrho_sxg = np.zeros_like(rho_sxg)
+        _e, rho_sxg, dedrho_sxg = self._get_cider_inputs(n_sg, taut_sg)
+        tmp_dedrho_sxg = np.zeros((len(n_sg), rho_sxg.shape[1]) + e_g.shape)
         _e = self._distribute_to_cider_grid(np.zeros_like(e_g)[None, :])[0]
         e_g[:] = 0.0
         self.timer.stop()
-        self.process_cider(_e, rho_sxg, dedrho_sxg)
+        self.calc_cider(_e, rho_sxg, dedrho_sxg)
         self.timer.start("Reorganize potential")
         self._add_from_cider_grid(e_g[None, :], _e[None, :])
         for s in range(len(n_sg)):
@@ -512,10 +480,3 @@ class CiderMGGAPASDW(_FastPASDW_MPRoutines, CiderMGGA):
                     self.dedtaut_sG[s] * (taut_sG[s] - self.tauct_G / self.wfs.nspins)
                 )
         self.timer.stop()
-
-    def calc_cider(self, *args, **kwargs):
-        if (self.setups is None) or (self.atom_slices_s is None):
-            self._setup_plan()
-            self.fft_obj.initialize_backend()
-            self.initialize_more_things()
-        CiderMGGA.calc_cider(self, *args, **kwargs)

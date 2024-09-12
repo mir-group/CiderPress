@@ -175,10 +175,7 @@ def calculate_paw_cider_features_p1(self, setups, D_asp, DD_aop, p_o):
         rcalc = CiderRadialThetaDerivCalculator(setup.cider_contribs)
         expansion = CiderRadialDerivExpansion(rcalc, p_o)
         dx_obgL, dxt_obgL = calculate_cider_paw_correction_deriv(
-            expansion,
-            setup,
-            D_sp,
-            DD_op=DD_aop[a],
+            expansion, setup, D_sp, DD_op=DD_aop[a]
         )
         dx_obgL -= dxt_obgL
 

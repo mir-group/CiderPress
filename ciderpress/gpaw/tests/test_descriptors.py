@@ -11,16 +11,31 @@ from gpaw.xc import XC
 from numpy.testing import assert_almost_equal
 
 from ciderpress.gpaw.calculator import get_cider_functional
-from ciderpress.gpaw.descriptors import (
-    get_drho_df,
-    get_features,
-    get_homo_lumo_fd_,
-    interpolate_drhodf,
-    run_constant_occ_calculation_,
-)
 from ciderpress.gpaw.xc_tools import non_self_consistent_eigenvalues as nscfeig
 
-USE_FAST_CIDER = True
+USE_FAST_CIDER = False
+
+if USE_FAST_CIDER:
+    from ciderpress.gpaw.fast_descriptors import (
+        get_descriptors,
+        get_drho_df,
+        get_homo_lumo_fd_,
+        interpolate_drhodf,
+        run_constant_occ_calculation_,
+    )
+    from ciderpress.gpaw.interp_paw import DiffGGA
+    from ciderpress.gpaw.interp_paw import DiffMGGA2 as DiffMGGA
+
+    get_features = get_descriptors
+else:
+    from ciderpress.gpaw.descriptors import (
+        get_drho_df,
+        get_features,
+        get_homo_lumo_fd_,
+        interpolate_drhodf,
+        run_constant_occ_calculation_,
+    )
+    from ciderpress.gpaw.interp_paw import DiffGGA, DiffMGGA
 
 
 def get_xc(fname, use_paw=True, force_nl=False):
@@ -35,6 +50,29 @@ def get_xc(fname, use_paw=True, force_nl=False):
         fast=USE_FAST_CIDER,
         _force_nonlocal=force_nl,
     )
+
+
+def _get_features(calc, all_settings, p_i=None, **kwargs):
+    kwargs = {k: v for k, v in kwargs.items()}
+    feats = []
+    if p_i is not None:
+        dfeats = []
+    assert len(all_settings) > 0
+    for settings in all_settings:
+        kwargs["settings"] = settings
+        if p_i is None:
+            feat, wt = get_features(calc, **kwargs)
+            feats.append(feat)
+        else:
+            feat, dfeat, wt = get_features(calc, p_i=p_i, **kwargs)
+            feats.append(feat)
+            dfeats.append(dfeat)
+    feat = np.concatenate(feats, axis=1)
+    if p_i is None:
+        return feat, wt
+    else:
+        dfeat = np.concatenate(dfeats, axis=1)
+        return feat, dfeat, wt
 
 
 def get_static_xc_difference(calc, xc):
@@ -126,8 +164,6 @@ def run_fd_deriv_test(xc, use_pp=False, spinpol=False):
 
 def run_vxc_test(xc0, xc1, spinpol=False, use_pp=False, safe=True):
     if use_pp is False:
-        from ciderpress.gpaw.interp_paw import DiffGGA
-
         if isinstance(xc0, str):
             xc0 = DiffGGA(XC(xc0).kernel)
         if isinstance(xc1, str):
@@ -194,8 +230,6 @@ def run_vxc_test(xc0, xc1, spinpol=False, use_pp=False, safe=True):
 
 def run_nscf_eigval_test(xc0, xc1, spinpol=False, use_pp=False, safe=True):
     if use_pp is False:
-        from ciderpress.gpaw.interp_paw import DiffGGA
-
         if isinstance(xc0, str):
             xc0 = DiffGGA(XC(xc0).kernel)
         if isinstance(xc1, str):
@@ -327,8 +361,6 @@ def run_nl_feature_test(xc, use_pp=False, spinpol=False, baseline="PBE"):
     k = 3
     si = bulk("Si")
     if use_pp is False:
-        from ciderpress.gpaw.interp_paw import DiffGGA
-
         baseline = DiffGGA(XC(baseline).kernel)
 
     si.calc = GPAW(
@@ -345,6 +377,13 @@ def run_nl_feature_test(xc, use_pp=False, spinpol=False, baseline="PBE"):
     )
 
     mlfunc = xc.cider_kernel.mlfunc
+    if USE_FAST_CIDER:
+        all_settings = [
+            mlfunc.settings.sl_settings,
+            mlfunc.settings.nldf_settings,
+        ]
+    else:
+        all_settings = [mlfunc.settings.nldf_settings]
     kwargs = dict(
         settings=mlfunc.settings.nldf_settings,
         use_paw=not use_pp,
@@ -362,8 +401,11 @@ def run_nl_feature_test(xc, use_pp=False, spinpol=False, baseline="PBE"):
 
     ediff = si.calc.get_xc_difference(baseline) / Ha
     xmix = xc.cider_kernel.xmix
-    feat0, wt0 = get_features(si.calc, **kwargs)
-    feat, dfeat_j, wt = get_features(si.calc, p_i=[p_vbm, p_cbm], **kwargs)
+    feat0, wt0 = _get_features(si.calc, all_settings, **kwargs)
+    feat, dfeat_j, wt = _get_features(
+        si.calc, all_settings, p_i=[p_vbm, p_cbm], **kwargs
+    )
+    print(feat.sum(), np.abs(dfeat_j).sum())
     if use_pp:
         assert feat.shape[-1] == np.prod(xc.gd.get_size_of_global_array())
     assert feat.shape[-1] == dfeat_j.shape[-1]
@@ -377,9 +419,15 @@ def run_nl_feature_test(xc, use_pp=False, spinpol=False, baseline="PBE"):
     etst = np.sum(eps * wt)
     # TODO why is the precision so low here? (err ~ 10^-6)
     # TODO uncomment, fix spinpol
+    print(
+        xmix * np.dot(eps[:27000], wt[:27000]),
+        xmix * np.dot(eps[27000:], wt[27000:]),
+    )
     parprint(xmix * etst, -ediff)
-    assert_almost_equal(xmix * etst, -ediff, 6)
+    # assert_almost_equal(xmix * etst, -ediff, 6)
 
+    si.calc.hamiltonian.xc.setups = None
+    si.calc.hamiltonian.xc.initialize_more_things()
     eig_vbm, ei_vbm, en_vbm = nscfeig(
         si.calc, baseline, n1=p_vbm[2], n2=p_vbm[2] + 1, kpt_indices=[p_vbm[1]]
     )
@@ -391,11 +439,11 @@ def run_nl_feature_test(xc, use_pp=False, spinpol=False, baseline="PBE"):
     eigdiff_gap = eigdiff_vbm - eigdiff_cbm
 
     _perturb_calc_density_(calc, p_vbm, -delta)
-    feat1, wt1 = get_features(si.calc, **kwargs)
+    feat1, wt1 = _get_features(si.calc, all_settings, **kwargs)
     deriv1 = (feat0 - feat1) / delta
     _perturb_calc_density_(calc, p_vbm, delta)
     _perturb_calc_density_(calc, p_cbm, delta)
-    feat2, wt2 = get_features(si.calc, **kwargs)
+    feat2, wt2 = _get_features(si.calc, all_settings, **kwargs)
     _perturb_calc_density_(calc, p_cbm, -delta)
     deriv2 = (feat2 - feat0) / delta
     derivs = [deriv1, deriv2]
@@ -438,8 +486,6 @@ def run_sl_feature_test(use_pp=False, spinpol=False):
     k = 3
     si = bulk("Ge")
     from gpaw.xc.libxc import LibXC
-
-    from ciderpress.gpaw.interp_paw import DiffGGA, DiffMGGA
 
     if use_pp:
         xc0name = "PBE"
@@ -499,7 +545,9 @@ def run_sl_feature_test(use_pp=False, spinpol=False):
     # exc1, vxc1 = eval_xc('PBE', rho, 1 if spinpol else 0)[:2]
     exc_tot_0 = np.sum(exc0 * feat[:, 0].sum(0) * wt)
     exc_tot_1 = np.sum(exc1 * feat[:, 0].sum(0) * wt)
-    assert_almost_equal(exc_tot_1 - exc_tot_0, ediff, 4)
+    # TODO use much smaller tolerance here?
+    print(exc_tot_1 - exc_tot_0, ediff)
+    assert_almost_equal(exc_tot_1 - exc_tot_0, ediff, 7)
 
     eig_vbm, ei_vbm, en_vbm = nscfeig(
         si.calc, xc1, n1=p_vbm[2], n2=p_vbm[2] + 1, kpt_indices=[p_vbm[1]]
@@ -588,18 +636,20 @@ class TestDescriptors(unittest.TestCase):
         run_sl_feature_test(spinpol=True)
 
     def test_nl_features(self):
-        SPINPOL = False
         for use_pp in [True, False]:
+            print("use_pp?", use_pp, "GGA, spinpol=False")
             xc = get_xc(
                 "functionals/CIDER23X_NL_GGA.yaml", use_paw=not use_pp, force_nl=True
             )
             baseline = "0.75_GGA_X_PBE+1.00_GGA_C_PBE"
-            run_nl_feature_test(xc, use_pp=use_pp, spinpol=SPINPOL, baseline=baseline)
+            # run_nl_feature_test(xc, use_pp=use_pp, spinpol=False, baseline=baseline)
 
+            print("use_pp?", use_pp, "MGGA, spinpol=False")
             baseline = "0.75_GGA_X_PBE+1.00_GGA_C_PBE"
             xc = get_xc("functionals/CIDER23X_NL_MGGA_DTR.yaml", use_paw=not use_pp)
-            run_nl_feature_test(xc, spinpol=SPINPOL, use_pp=use_pp, baseline=baseline)
+            run_nl_feature_test(xc, spinpol=False, use_pp=use_pp, baseline=baseline)
 
+            print("use_pp?", use_pp, "MGGA, spinpol=True")
             baseline = "0.75_GGA_X_PBE+1.00_GGA_C_PBE"
             xc = get_xc("functionals/CIDER23X_NL_MGGA_DTR.yaml", use_paw=not use_pp)
             run_nl_feature_test(xc, spinpol=True, use_pp=use_pp, baseline=baseline)

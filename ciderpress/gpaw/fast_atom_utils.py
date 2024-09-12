@@ -181,8 +181,9 @@ class _PAWCiderContribs:
     def nspin(self):
         return self.plan.nspin
 
-    def get_kinetic_energy(self, ae):
-        nspins = self._D_sp.shape[0]
+    def get_kinetic_energy(self, ae, D_sp=None):
+        D_sp = self._D_sp if D_sp is None else D_sp
+        nspins = D_sp.shape[0]
         xcc = self.xcc
         if ae:
             tau_pg = xcc.tau_pg
@@ -191,7 +192,7 @@ class _PAWCiderContribs:
             tau_pg = xcc.taut_pg
             tauc_g = xcc.tauct_g / (np.sqrt(4 * np.pi) * nspins)
         nn = tau_pg.shape[-1] // tauc_g.shape[0]
-        tau_sg = np.dot(self._D_sp, tau_pg)
+        tau_sg = np.dot(D_sp, tau_pg)
         tau_sg.shape = (tau_sg.shape[0], -1, nn)
         tau_sg[:] += tauc_g[:, None]
         tau_sg.shape = (tau_sg.shape[0], -1)
@@ -832,9 +833,21 @@ class CiderRadialExpansion:
         if self.rcalc.mode == "feature":
             # We call it wx_srLq because it is multiplied
             # by the grid weights already
-            wx_srLq = self.rcalc(
-                rgd, n_sLg, Y_nL[:, :Lmax], dndr_sLg, rnablaY_nLv[:, :Lmax], ae=ae
-            )
+            if self.ft_srLq is None:
+                wx_srLq = self.rcalc(
+                    rgd, n_sLg, Y_nL[:, :Lmax], dndr_sLg, rnablaY_nLv[:, :Lmax], ae
+                )
+            else:
+                f_srLq = self.ft_srLq + self.df_srLq if ae else self.ft_srLq
+                wx_srLq = self.rcalc(
+                    rgd,
+                    n_sLg,
+                    Y_nL[:, :Lmax],
+                    dndr_sLg,
+                    rnablaY_nLv[:, :Lmax],
+                    f_srLq,
+                    ae,
+                )
             return wx_srLq
         elif self.rcalc.mode == "energy":
             dEdD_sqL = np.zeros((nspins, nq, Lmax))
@@ -899,7 +912,6 @@ class CiderRadialExpansion:
 
 
 class FastPASDWCiderKernel:
-    is_cider_functional = True
     """
     This class is a bit confusing because there are a lot of intermediate
     terms and contributions for the pseudo and all-electron parts of the
@@ -935,6 +947,9 @@ class FastPASDWCiderKernel:
         g : Radial grid index
         s : Spin index
     """
+
+    is_cider_functional = True
+    PAWCiderContribs = PAWCiderContribs
 
     fr_asgLq: dict
     df_asgLq: dict
@@ -1016,7 +1031,7 @@ class FastPASDWCiderKernel:
                         encut0, encut, self.lambd, encut0 / self.lambd
                     )
                 atom_plan = self.plan.new(nalpha=Nalpha)
-                setup.cider_contribs = PAWCiderContribs.from_plan(
+                setup.cider_contribs = self.PAWCiderContribs.from_plan(
                     atom_plan,
                     self.plan,
                     self.cider_kernel,
@@ -1169,6 +1184,7 @@ class FastPASDWCiderKernel:
                 ) * dv_g[:, None]
             self.vfr_asgLq[a] = vfr_sgLq
             self.vdf_asgLq[a] = vf_sgLq
+        print(deltaE)
         return dvD_asiq, deltaE, deltaV
 
     def calculate_paw_cider_potential(self, setups, D_asp, vc_asiq):

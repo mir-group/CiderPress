@@ -385,12 +385,13 @@ def calculate_cider_paw_correction(
     addcoredensity=True,
     a=None,
     separate_ae_ps=False,
+    has_cider_contribs=True,
 ):
     xcc = setup.xc_correction
     rgd = xcc.rgd
     nspins = len(D_sp)
 
-    if expansion.rcalc.mode != "semilocal":
+    if has_cider_contribs and expansion.rcalc.mode != "semilocal":
         setup.cider_contribs.set_D_sp(D_sp, setup.xc_correction)
 
     if addcoredensity:
@@ -547,7 +548,8 @@ class CiderRadialExpansion:
             shape = shape + (Y_nL.shape[0], -1)
             feat_xng = feat_xg.reshape(*shape)
             return feat_xng
-
+        elif self.rcalc.mode == "feat_grid":
+            pass
         elif self.rcalc.mode == "semilocal":
             E = 0.0
             for n, Y_L in enumerate(Y_nL[:, :Lmax]):
@@ -945,6 +947,18 @@ class DiffMGGA(MGGA):
                 self.mgga.mgga_radial(e_g, n_sg, v_sg, sigma_xg, dedsigma_xg)
 
         return DiffSLRadialCalculator(MockKernel(self))
+
+
+class DiffMGGA2(DiffMGGA):
+    def initialize(self, density, hamiltonian, wfs):
+        super(DiffMGGA, self).initialize(density, hamiltonian, wfs)
+        for setup in density.setups:
+            if setup.xc_correction is None:
+                raise NotImplementedError("SL MGGA not supported with NCPP")
+            if not isinstance(setup.xc_correction, DiffPAWXCCorrection):
+                setup.xc_correction = DiffPAWXCCorrection.from_setup(
+                    setup, build_kinetic=True, ke_order_ng=False
+                )
 
 
 class PyscfGGAKernel(XCKernel):
