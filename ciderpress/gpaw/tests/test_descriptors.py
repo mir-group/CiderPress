@@ -416,6 +416,7 @@ def run_nl_feature_test(xc, use_pp=False, spinpol=False, baseline="PBE"):
     X0TN = mlfunc.settings.normalizers.get_normalized_feature_vector(desc)
     eps, deps = mlfunc(X0TN)
     etst = np.sum(eps * wt)
+    parprint(xmix * etst, -ediff)
     assert_almost_equal(xmix * etst, -ediff, 8)
 
     si.calc.hamiltonian.xc.setups = None
@@ -626,19 +627,22 @@ class TestDescriptors(unittest.TestCase):
 
     def test_nl_features(self):
         for use_pp in [True, False]:
-            parprint("use_pp?", use_pp, "GGA, spinpol=False")
-            xc = get_xc(
-                "functionals/CIDER23X_NL_GGA.yaml", use_paw=not use_pp, force_nl=True
-            )
+            parprint("use_pp?", use_pp, "  GGA, spinpol=False")
+            xc = get_xc("functionals/CIDER23X_NL_GGA.yaml", use_paw=not use_pp)
             baseline = "0.75_GGA_X_PBE+1.00_GGA_C_PBE"
             run_nl_feature_test(xc, use_pp=use_pp, spinpol=False, baseline=baseline)
 
-            parprint("use_pp?", use_pp, "MGGA, spinpol=False")
+            parprint("use_pp?", use_pp, "  GGA, spinpol=True")
+            xc = get_xc("functionals/CIDER23X_NL_GGA.yaml", use_paw=not use_pp)
+            baseline = "0.75_GGA_X_PBE+1.00_GGA_C_PBE"
+            run_nl_feature_test(xc, use_pp=use_pp, spinpol=True, baseline=baseline)
+
+            parprint("use_pp?", use_pp, "  MGGA, spinpol=False")
             baseline = "0.75_GGA_X_PBE+1.00_GGA_C_PBE"
             xc = get_xc("functionals/CIDER23X_NL_MGGA_DTR.yaml", use_paw=not use_pp)
             run_nl_feature_test(xc, spinpol=False, use_pp=use_pp, baseline=baseline)
 
-            parprint("use_pp?", use_pp, "MGGA, spinpol=True")
+            parprint("use_pp?", use_pp, "  MGGA, spinpol=True")
             baseline = "0.75_GGA_X_PBE+1.00_GGA_C_PBE"
             xc = get_xc("functionals/CIDER23X_NL_MGGA_DTR.yaml", use_paw=not use_pp)
             run_nl_feature_test(xc, spinpol=True, use_pp=use_pp, baseline=baseline)
