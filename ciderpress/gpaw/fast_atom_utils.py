@@ -1184,7 +1184,6 @@ class FastPASDWCiderKernel:
                 ) * dv_g[:, None]
             self.vfr_asgLq[a] = vfr_sgLq
             self.vdf_asgLq[a] = vf_sgLq
-        print(deltaE)
         return dvD_asiq, deltaE, deltaV
 
     def calculate_paw_cider_potential(self, setups, D_asp, vc_asiq):

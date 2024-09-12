@@ -44,7 +44,7 @@ def get_xc(fname, use_paw=True, force_nl=False):
         qmax=300,
         lambd=1.8,
         xmix=0.25,
-        pasdw_ovlp_fit=not USE_FAST_CIDER,
+        pasdw_ovlp_fit=True,
         pasdw_store_funcs=False,
         use_paw=use_paw,
         fast=USE_FAST_CIDER,
@@ -405,7 +405,6 @@ def run_nl_feature_test(xc, use_pp=False, spinpol=False, baseline="PBE"):
     feat, dfeat_j, wt = _get_features(
         si.calc, all_settings, p_i=[p_vbm, p_cbm], **kwargs
     )
-    print(feat.sum(), np.abs(dfeat_j).sum())
     if use_pp:
         assert feat.shape[-1] == np.prod(xc.gd.get_size_of_global_array())
     assert feat.shape[-1] == dfeat_j.shape[-1]
@@ -417,14 +416,7 @@ def run_nl_feature_test(xc, use_pp=False, spinpol=False, baseline="PBE"):
     X0TN = mlfunc.settings.normalizers.get_normalized_feature_vector(desc)
     eps, deps = mlfunc(X0TN)
     etst = np.sum(eps * wt)
-    # TODO why is the precision so low here? (err ~ 10^-6)
-    # TODO uncomment, fix spinpol
-    print(
-        xmix * np.dot(eps[:27000], wt[:27000]),
-        xmix * np.dot(eps[27000:], wt[27000:]),
-    )
-    parprint(xmix * etst, -ediff)
-    # assert_almost_equal(xmix * etst, -ediff, 6)
+    assert_almost_equal(xmix * etst, -ediff, 8)
 
     si.calc.hamiltonian.xc.setups = None
     si.calc.hamiltonian.xc.initialize_more_things()
@@ -541,12 +533,9 @@ def run_sl_feature_test(use_pp=False, spinpol=False):
     else:
         exc0, vxc0 = ni.eval_xc_eff(xc0name, rho, xctype="MGGA")[:2]
         exc1, vxc1 = ni.eval_xc_eff(xc1name, rho[..., :4, :], xctype="GGA")[:2]
-    # exc0, vxc0 = eval_xc('PBE', rho, 1 if spinpol else 0)[:2]
-    # exc1, vxc1 = eval_xc('PBE', rho, 1 if spinpol else 0)[:2]
     exc_tot_0 = np.sum(exc0 * feat[:, 0].sum(0) * wt)
     exc_tot_1 = np.sum(exc1 * feat[:, 0].sum(0) * wt)
-    # TODO use much smaller tolerance here?
-    print(exc_tot_1 - exc_tot_0, ediff)
+    parprint(exc_tot_1 - exc_tot_0, ediff)
     assert_almost_equal(exc_tot_1 - exc_tot_0, ediff, 7)
 
     eig_vbm, ei_vbm, en_vbm = nscfeig(
@@ -637,19 +626,19 @@ class TestDescriptors(unittest.TestCase):
 
     def test_nl_features(self):
         for use_pp in [True, False]:
-            print("use_pp?", use_pp, "GGA, spinpol=False")
+            parprint("use_pp?", use_pp, "GGA, spinpol=False")
             xc = get_xc(
                 "functionals/CIDER23X_NL_GGA.yaml", use_paw=not use_pp, force_nl=True
             )
             baseline = "0.75_GGA_X_PBE+1.00_GGA_C_PBE"
-            # run_nl_feature_test(xc, use_pp=use_pp, spinpol=False, baseline=baseline)
+            run_nl_feature_test(xc, use_pp=use_pp, spinpol=False, baseline=baseline)
 
-            print("use_pp?", use_pp, "MGGA, spinpol=False")
+            parprint("use_pp?", use_pp, "MGGA, spinpol=False")
             baseline = "0.75_GGA_X_PBE+1.00_GGA_C_PBE"
             xc = get_xc("functionals/CIDER23X_NL_MGGA_DTR.yaml", use_paw=not use_pp)
             run_nl_feature_test(xc, spinpol=False, use_pp=use_pp, baseline=baseline)
 
-            print("use_pp?", use_pp, "MGGA, spinpol=True")
+            parprint("use_pp?", use_pp, "MGGA, spinpol=True")
             baseline = "0.75_GGA_X_PBE+1.00_GGA_C_PBE"
             xc = get_xc("functionals/CIDER23X_NL_MGGA_DTR.yaml", use_paw=not use_pp)
             run_nl_feature_test(xc, spinpol=True, use_pp=use_pp, baseline=baseline)
