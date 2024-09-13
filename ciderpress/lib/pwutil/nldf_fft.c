@@ -551,24 +551,6 @@ void ciderpw_eval_feature_vj(ciderpw_data data, double *feat_g, double *p_gq) {
     }
 }
 
-void ciderpw_read_convs(ciderpw_data data, double *conv_gq) {
-    int N0, N1, N2;
-    double *work_ga = (double *)data->work_ska;
-    int ind, a;
-    for (N0 = 0; N0 < data->cell.Nlocal[0]; N0++) {
-        for (N1 = 0; N1 < data->cell.Nlocal[1]; N1++) {
-            for (N2 = 0; N2 < data->cell.Nlocal[2]; N2++) {
-                for (a = 0; a < data->kernel.nalpha; a++) {
-                    ind = N2 * data->kernel.nalpha + a;
-                    conv_gq[ind] = work_ga[ind];
-                }
-            }
-            work_ga += data->gLDA * data->kernel.work_size;
-            p_gq += data->cell.Nlocal[2] * data->kernel.nalpha;
-        }
-    }
-}
-
 void ciderpw_add_potential_vj(ciderpw_data data, double *vfeat_g,
                               double *p_gq) {
     int N0, N1, N2;
