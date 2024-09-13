@@ -17,7 +17,7 @@ for Z in range(1, ZMAX + 1):
     # basis = 'ANO-RCC'
     try:
         basis = load(basis, symb)
-    except:
+    except Exception:
         basis = "HGBSP2-5"
         basis = load(basis, symb)
     try:
