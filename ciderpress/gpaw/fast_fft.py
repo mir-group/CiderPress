@@ -365,7 +365,8 @@ class _FastCiderBase:
         self.timer.stop()
 
     def _distribute_to_cider_grid(self, n_xg):
-        shape = (len(n_xg),)
+        # shape = (len(n_xg),)
+        shape = n_xg.shape[:-3]
         ndist_xg = self.distribution.block_zeros(shape)
         self.distribution.gd2block(n_xg, ndist_xg)
         return ndist_xg

@@ -15,6 +15,24 @@ class _FastPASDW_MPRoutines:  # (_CiderPASDW_MPRoutines):
     def get_D_asp(self):
         return self.atomdist.to_work(self.dens.D_asp)
 
+    def _collect_paw_corrections(self):
+        """
+        For use in xc_tools, only after calculate_paw_correction
+        is called. Collects potential using from_work
+        """
+        dH_asp_tmp = self.dH_asp_tmp
+        E_a_tmp = self.E_a_tmp
+        dH_asp_new = self.dens.setups.empty_atomic_matrix(
+            self.nspin, self.atom_partition
+        )
+        E_a_new = self.atom_partition.arraydict([(1,)] * len(self.dens.setups), float)
+        for a, E in E_a_tmp.items():
+            E_a_new[a][:] = E
+            dH_asp_new[a][:] = dH_asp_tmp[a]
+        dist = self.atomdist
+        self.E_a_tmp = dist.from_work(E_a_new)
+        self.dH_asp_tmp = dist.from_work(dH_asp_new)
+
     def initialize_paw_kernel(self, cider_kernel_inp, Nalpha_atom, encut_atom):
         self.paw_kernel = FastPASDWCiderKernel(
             cider_kernel_inp,

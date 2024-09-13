@@ -152,7 +152,7 @@ def get_descriptors(
         pasdw_store_funcs=False,
         **kwargs,
     )
-    empty_xc.set_grid_descriptor(calc.density.finegd)
+    empty_xc.set_grid_descriptor(calc.hamiltonian.xc.gd)
     empty_xc.initialize(calc.density, calc.hamiltonian, calc.wfs)
     empty_xc.set_positions(calc.spos_ac)
     if calc.density.nt_sg is None:
@@ -575,6 +575,16 @@ class _FeatureMixin:
         self.paw_kernel.interpolate_dn1 = self.interpolate_dn1
         self.atom_slices_s = None
 
+    def _collect_feat(self, feat_xg):
+        # TODO this has some redundant communication
+        xshape = feat_xg.shape[:-3]
+        gshape_out = tuple(self.distribution.input_gd.n_c)
+        _feat_xg = np.zeros(xshape + gshape_out)
+        self._add_from_cider_grid(_feat_xg, feat_xg)
+        feat_xg = self.gd.collect(_feat_xg, broadcast=True)
+        feat_xg.shape = xshape + (-1,)
+        return feat_xg
+
     def _get_features_on_grid(self, rho_sxg):
         nspin = len(rho_sxg)
         self.nspin = nspin
@@ -588,19 +598,23 @@ class _FeatureMixin:
         feat_sig = self.call_fwd(rho_tuple)[0]
         # TODO version i features
         feat_sig[:] *= plan.nspin
-        feat_out = self.gd.empty(n=feat_sig.shape[:2], global_array=True)
-        for s in range(feat_out.shape[0]):
-            for i in range(feat_out.shape[1]):
-                feat_out[s, i] = self.gd.collect(feat_sig[s, i], broadcast=True)
-        return feat_out
+        return feat_sig
+
+    def _get_pseudo_density(self):
+        nt_sg = self.dens.nt_sg
+        redist = self._hamiltonian.xc_redistributor
+        if redist is not None:
+            nt_sg = redist.distribute(nt_sg)
+        return nt_sg
 
     def get_features_on_grid(self):
-        nt_sg = self.dens.nt_sg
+        nt_sg = self._get_pseudo_density()
         taut_sg = self._get_taut(nt_sg)[0]
         self.timer.start("Reorganize density")
         rho_sxg = self._get_cider_inputs(nt_sg, taut_sg)[1]
         self.timer.stop()
-        return self._get_features_on_grid(rho_sxg)
+        feat = self._get_features_on_grid(rho_sxg)
+        return self._collect_feat(feat)
 
     def _set_paw_terms(self):
         pass
@@ -608,17 +622,20 @@ class _FeatureMixin:
     def _get_features_on_grid_deriv(self, p_j, rho_sxg, drhodf_jxg, DD_aop=None):
         nspin = len(rho_sxg)
         self.nspin = nspin
-        self._DD_aop = DD_aop
         self._p_o = p_j
         if not self.is_initialized:
             self._setup_plan()
             self.fft_obj.initialize_backend()
             self.initialize_more_things()
+        if self.has_paw:
+            self._DD_aop = self.atomdist.to_work(DD_aop)
+        else:
+            self._DD_aop = None
         plan = self._plan
         rho_tuple = plan.get_rho_tuple(rho_sxg, with_spin=True)
-        drhodf_j_tuple = tuple(
-            [plan.get_rho_tuple(drhodf_xg) for drhodf_xg in drhodf_jxg]
-        )
+        drhodf_j_tuple = []
+        for j, drhodf_xg in enumerate(drhodf_jxg):
+            drhodf_j_tuple.append(plan.get_drhodf_tuple(rho_sxg[p_j[j][0]], drhodf_xg))
         feat_sig, dfeat_sig = self.call_fwd(rho_tuple)[:2]
         # TODO version i features
         feat_sig[:] *= plan.nspin
@@ -631,19 +648,7 @@ class _FeatureMixin:
         dfeatdf_jig = np.ascontiguousarray(dfeatdf_jig)
         dfeatdf_jig[:] *= plan.nspin
 
-        # feat = self.gd.collect(feat, broadcast=True)
-        feat_out = self.gd.empty(n=feat_sig.shape[:2], global_array=True)
-        for s in range(feat_out.shape[0]):
-            for i in range(feat_out.shape[1]):
-                feat_out[s, i] = self.gd.collect(feat_sig[s, i], broadcast=True)
-
-        # dfeatdf_jig = self.gd.collect(dfeatdf_jig, broadcast=True)
-        dfeat_out = self.gd.empty(n=dfeatdf_jig.shape[:2], global_array=True)
-        for j in range(dfeatdf_jig.shape[0]):
-            for i in range(dfeatdf_jig.shape[1]):
-                dfeat_out[j, i] = self.gd.collect(dfeatdf_jig[j, i], broadcast=True)
-
-        return feat_out, dfeat_out
+        return feat_sig, dfeatdf_jig
 
     def get_features_on_grid_deriv(self, p_j, drhodf_jxg, DD_aop=None):
         """
@@ -664,16 +669,17 @@ class _FeatureMixin:
         Returns:
             feat_sig, dfeatdf_jig
         """
-        nt_sg = self.dens.nt_sg
+        nt_sg = self._get_pseudo_density()
         taut_sg = self._get_taut(nt_sg)[0]
         self.timer.start("Reorganize density")
         rho_sxg = self._get_cider_inputs(nt_sg, taut_sg)[1]
+        drhodf_jxg = self._distribute_to_cider_grid(drhodf_jxg)
         self.timer.stop()
         nx = rho_sxg.shape[1]
-        res = self._get_features_on_grid_deriv(
+        feat, dfeat = self._get_features_on_grid_deriv(
             p_j, rho_sxg, drhodf_jxg[:, :nx], DD_aop=DD_aop
         )
-        return res
+        return self._collect_feat(feat), self._collect_feat(dfeat)
 
     def communicate_paw_features(self, ae_feat, ps_feat, ncomponents, nfeat):
         assert len(ae_feat) == len(ps_feat)
@@ -861,8 +867,15 @@ class _SLFeatMixin(_FeatureMixin):
         )
         return ae_feat, ps_feat, ae_dfeat, ps_dfeat
 
+    def _collect_feat(self, feat_xg):
+        xshape = feat_xg.shape[:-1]
+        feat_xg.shape = xshape + tuple(self.gd.n_c)
+        feat_xg = self.gd.collect(feat_xg, broadcast=True)
+        feat_xg.shape = xshape + (-1,)
+        return feat_xg
+
     def get_features_on_grid(self):
-        nt_sg = self.dens.nt_sg
+        nt_sg = self._get_pseudo_density()
         self.nspin = nt_sg.shape[0]
         _, gradn_svg = calculate_sigma(self.gd, self.grad_v, nt_sg)
         settings = self.cider_kernel.mlfunc.settings.sl_settings
@@ -888,11 +901,10 @@ class _SLFeatMixin(_FeatureMixin):
             feat_sig = plan.get_feat(rho_sxg)
         else:
             feat_sig = rho_sxg
-        feat_sig = self.gd.collect(feat_sig, broadcast=True)
-        return feat_sig
+        return self._collect_feat(feat_sig)
 
     def get_features_on_grid_deriv(self, p_j, drhodf_jxg, DD_aop=None):
-        nt_sg = self.dens.nt_sg
+        nt_sg = self._get_pseudo_density()
         self.nspin = nt_sg.shape[0]
         _, gradn_svg = calculate_sigma(self.gd, self.grad_v, nt_sg)
         settings = self.cider_kernel.mlfunc.settings.sl_settings
@@ -927,9 +939,7 @@ class _SLFeatMixin(_FeatureMixin):
         else:
             feat_sig = rho_sxg
             dfeat_jig = drhodf_jxg
-        feat_sig = self.gd.collect(feat_sig, broadcast=True)
-        dfeat_jig = self.gd.collect(dfeat_jig, broadcast=True)
-        return feat_sig, dfeat_jig
+        return self._collect_feat(feat_sig), self._collect_feat(dfeat_jig)
 
 
 def _initialize_gga_feat(self, density, hamiltonian, wfs):
@@ -943,6 +953,7 @@ def _initialize_gga_feat(self, density, hamiltonian, wfs):
     self.atomdist = hamiltonian.atomdist
     self.setups = hamiltonian.setups
     self.atom_partition = self.get_D_asp().partition
+    self._hamiltonian = hamiltonian
     if (not hasattr(hamiltonian, "xc_redistributor")) or (
         hamiltonian.xc_redistributor is None
     ):
@@ -974,7 +985,7 @@ class FeatGGA(_FeatureMixin, CiderGGA):
 
 
 class FeatMGGA(_FeatureMixin, CiderMGGA):
-    pass
+    initialize = _initialize_gga_feat
 
 
 class FeatGGAPAW(_PAWFeatureMixin, CiderGGAPASDW):
@@ -990,7 +1001,7 @@ class FeatSLGGA(_SLFeatMixin, CiderGGA):
 
 
 class FeatSLMGGA(_SLFeatMixin, CiderMGGA):
-    pass
+    initialize = _initialize_gga_feat
 
 
 class FeatSLGGAPAW(_SLFeatMixin, CiderGGAPASDW):

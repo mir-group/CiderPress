@@ -13,7 +13,7 @@ from numpy.testing import assert_almost_equal
 from ciderpress.gpaw.calculator import get_cider_functional
 from ciderpress.gpaw.xc_tools import non_self_consistent_eigenvalues as nscfeig
 
-USE_FAST_CIDER = False
+USE_FAST_CIDER = True
 
 if USE_FAST_CIDER:
     from ciderpress.gpaw.fast_descriptors import (
@@ -105,7 +105,7 @@ def _rotate_orbs_(calc, s, k, n1, n2, delta):
         assert kpt.s == s
         assert kpt.k == k
     else:
-        return
+        return None, None, None
     # TODO not sure if indexing is correct for band parallelization
     psi1 = kpt.psit_nG[n1].copy()
     psi2 = kpt.psit_nG[n2].copy()
@@ -147,7 +147,7 @@ def run_fd_deriv_test(xc, use_pp=False, spinpol=False):
         xc=xc,
         kpts=(k, k, k),
         convergence={"energy": 1e-8},
-        parallel={"domain": min(2, world.size)},
+        parallel={"domain": min(2, world.size), "augment_grids": True},
         occupations={"name": "fermi-dirac", "width": 0.0},
         spinpol=spinpol,
         setups="sg15" if use_pp else "paw",
@@ -177,7 +177,7 @@ def run_vxc_test(xc0, xc1, spinpol=False, use_pp=False, safe=True):
         xc=xc0,
         kpts=(k, k, k),
         convergence={"energy": 1e-8, "density": 1e-10},
-        parallel={"domain": min(2, world.size)},
+        parallel={"domain": min(2, world.size), "augment_grids": True},
         occupations={"name": "fermi-dirac", "width": 0.0},
         spinpol=spinpol,
         setups="sg15" if use_pp else "paw",
@@ -243,7 +243,7 @@ def run_nscf_eigval_test(xc0, xc1, spinpol=False, use_pp=False, safe=True):
         xc=xc0,
         kpts=(k, k, k),
         convergence={"energy": 1e-8, "density": 1e-10},
-        parallel={"domain": min(2, world.size)},
+        parallel={"domain": min(2, world.size), "augment_grids": True},
         occupations={"name": "fermi-dirac", "width": 0.0},
         spinpol=spinpol,
         setups="sg15" if use_pp else "paw",
@@ -320,11 +320,10 @@ def run_drho_test(spinpol=False, use_pp=False):
         xc="PBE",
         kpts=(k, k, k),
         convergence={"energy": 1e-8, "density": 1e-10},
-        parallel={"domain": min(2, world.size)},
+        parallel={"domain": min(2, world.size), "augment_grids": True},
         occupations={"name": "fermi-dirac", "width": 0.0},
         spinpol=spinpol,
         setups="sg15" if use_pp else "paw",
-        # symmetry='off',
         txt="si.txt",
     )
     delta = 1e-4
@@ -369,7 +368,7 @@ def run_nl_feature_test(xc, use_pp=False, spinpol=False, baseline="PBE"):
         xc=xc,
         kpts=(k, k, k),
         convergence={"energy": 1e-8, "density": 1e-10},
-        parallel={"domain": min(2, world.size)},
+        parallel={"domain": min(2, world.size), "augment_grids": True},
         occupations={"name": "fermi-dirac", "width": 0.0},
         spinpol=spinpol,
         setups="sg15" if use_pp else "paw",
@@ -497,7 +496,7 @@ def run_sl_feature_test(use_pp=False, spinpol=False):
         xc=xc0,
         kpts=(k, k, k),
         convergence={"energy": 1e-8, "density": 1e-10},
-        parallel={"domain": min(2, world.size)},
+        parallel={"domain": min(2, world.size), "augment_grids": True},
         occupations={"name": "fermi-dirac", "width": 0.0},
         spinpol=spinpol,
         setups="sg15" if use_pp else "paw",

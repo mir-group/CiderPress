@@ -1506,7 +1506,7 @@ class NLDFAuxiliaryPlan(ABC):
         else:
             drho = rho_data[1:4]
             ddrhodf = drhodf_data[1:4]
-            dsigmadf = np.einsum("x...,x...->...", drho, ddrhodf)
+            dsigmadf = 2 * np.einsum("x...,x...->...", drho, ddrhodf)
             if self.nldf_settings.sl_level == "MGGA":
                 return drhodf_data[0], dsigmadf, drhodf_data[4]
             else:

@@ -399,7 +399,10 @@ class PASDWCiderFeatureKernel(FastPASDWCiderKernel):
 
     def calculate_paw_cider_features_p2(self, setups, D_asp, D_aoiq, DD_aop, p_o):
         if len(D_asp.keys()) == 0:
-            return {}, {}, {}
+            if DD_aop is None or p_o is None:
+                return {}, {}
+            else:
+                return {}, {}, {}, {}
         a0 = list(D_asp.keys())[0]
         nspin = D_asp[a0].shape[0]
         if DD_aop is None or p_o is None:
