@@ -66,6 +66,7 @@ class CMakeBuildPy(build_py):
             self.announce(" ".join(cmd))
         else:
             self.spawn(cmd)
+        self.editable_mode = False
         super().run()
 
 
