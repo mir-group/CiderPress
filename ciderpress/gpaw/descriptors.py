@@ -107,7 +107,6 @@ def get_features(
         else:
             weights, features, [list of feature derivatives]
     """
-
     if isinstance(settings, str):
         if settings != "l":
             raise ValueError("Settings must be Settings object or letter l")
@@ -162,7 +161,7 @@ def get_features(
     if empty_xc.orbital_dependent:
         calc.converge_wave_functions()
     if p_i is None:
-        return get_features_and_weights(calc, empty_xc, screen_dens=screen_dens)
+        res = get_features_and_weights(calc, empty_xc, screen_dens=screen_dens)
     else:
         if use_paw:
             DD_aop = get_empty_atomic_matrix(calc.density, len(p_i))
@@ -175,7 +174,7 @@ def get_features(
         drhodf_ixg = interpolate_drhodf(
             empty_xc.gd, empty_xc.distribute_and_interpolate, drhodf_ixR
         )
-        return get_features_and_weights_deriv(
+        res = get_features_and_weights_deriv(
             calc,
             empty_xc,
             p_i,
@@ -183,6 +182,7 @@ def get_features(
             DD_aop=DD_aop,
             screen_dens=screen_dens,
         )
+    return res
 
 
 def calc_fixed(bd, fref_sqn, f_qn):

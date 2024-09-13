@@ -30,6 +30,7 @@ from gpaw.xc import XC
 from gpaw.xc.kernel import XCNull
 
 from ciderpress.gpaw.cider_paw import _CiderPASDW_MPRoutines
+from ciderpress.gpaw.fast_paw import _FastPASDW_MPRoutines
 
 
 def non_self_consistent_eigenvalues(
@@ -139,22 +140,33 @@ def vxc(gs, xc=None, coredensity=True, n1=0, n2=0):
     thisisatest = not True
 
     # if xc.orbital_dependent:
-    xc.set_grid_descriptor(gs._density.finegd)
+    # xc.set_grid_descriptor(gs._density.finegd)
+    gs_gd = gs._hamiltonian.xc.gd
+    xc.set_grid_descriptor(gs_gd)
     xc.initialize(gs._density, gs._hamiltonian, gs._wfs)
     xc.set_positions(gs.spos_ac)
-    gs._hamiltonian.get_xc_difference(xc, gs._density)
+    # gs._hamiltonian.get_xc_difference(xc, gs._density)
     # gs.get_xc_difference(xc)
 
     # Calculate XC-potential:
     vxct_sg = ham.finegd.zeros(gs.nspins)
-    xc.calculate(dens.finegd, dens.nt_sg, vxct_sg)
+    redist = gs._hamiltonian.xc_redistributor
+    if redist is not None:
+        nt_sg = redist.distribute(dens.nt_sg)
+        _vxc = redist.distribute(vxct_sg)
+    else:
+        nt_sg = dens.nt_sg
+        _vxc = vxct_sg
+    xc.calculate(gs_gd, nt_sg, _vxc)
+    if redist is not None:
+        redist.collect(_vxc, vxct_sg)
     vxct_sG = ham.restrict_and_collect(vxct_sg)
     if thisisatest:
         vxct_sG[:] = 1
 
     # ... and PAW corrections:
     dvxc_asii = {}
-    if isinstance(xc, _CiderPASDW_MPRoutines):
+    if isinstance(xc, (_CiderPASDW_MPRoutines, _FastPASDW_MPRoutines)):
         xc._collect_paw_corrections()
     for a, D_sp in dens.D_asp.items():
         dvxc_sp = np.zeros_like(D_sp)
@@ -238,7 +250,7 @@ def vxc_mat(gs, xc=None, coredensity=True, n1=0, n2=0):
 
     # ... and PAW corrections:
     dvxc_asii = {}
-    if isinstance(xc, _CiderPASDW_MPRoutines):
+    if isinstance(xc, (_CiderPASDW_MPRoutines, _FastPASDW_MPRoutines)):
         xc._collect_paw_corrections()
     for a, D_sp in dens.D_asp.items():
         dvxc_sp = np.zeros_like(D_sp)

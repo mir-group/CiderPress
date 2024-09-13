@@ -198,7 +198,7 @@ class AtomicGridsIndexer:
         """
         return self.idx_map
 
-    def empty_rlmq(self, nalpha=1):
+    def empty_rlmq(self, nalpha=1, nspin=None):
         """
         Get an empty array for storying theta_rlmq.
 
@@ -208,9 +208,13 @@ class AtomicGridsIndexer:
         Returns:
             np.ndarray with shape (nrad, nlm, nalpha)
         """
-        return np.empty((self.nrad, self.nlm, nalpha), order="C", dtype=np.float64)
+        if nspin is None:
+            shape = (self.nrad, self.nlm, nalpha)
+        else:
+            shape = (nspin, self.nrad, self.nlm, nalpha)
+        return np.empty(shape, order="C", dtype=np.float64)
 
-    def empty_gq(self, nalpha=1):
+    def empty_gq(self, nalpha=1, nspin=None):
         """
         Get an empty array for storing theta_gq.
 
@@ -220,7 +224,11 @@ class AtomicGridsIndexer:
         Returns:
             np.ndarray with shape (ngrids, nalpha)
         """
-        return np.empty((self.ngrids, nalpha), dtype=np.float64)
+        if nspin is None:
+            shape = (self.ngrids, nalpha)
+        else:
+            shape = (nspin, self.ngrids, nalpha)
+        return np.empty(shape, dtype=np.float64)
 
     def reduce_angc_ylm_(self, theta_rlmq, theta_gq, a2y=True, offset=None):
         """

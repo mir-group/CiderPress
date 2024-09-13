@@ -99,7 +99,7 @@ def get_cider_functional(
         * qmin (not currently a parameter, set automatically):
             Mininum value of q to use for kernel interpolation.
             Currently, qmin is set automatically based
-            on the minimum regularlized value of the kernel exponent.
+            on the minimum regularized value of the kernel exponent.
         lambd (float, 1.8):
             Density of interpolation points. q_alpha=q_0 * lambd**alpha.
             Smaller lambd is more expensive and more precise.

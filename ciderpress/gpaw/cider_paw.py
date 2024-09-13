@@ -158,7 +158,6 @@ class _CiderPASDW_MPRoutines:
         self._setup_cd_xd_ranks()
         self._setup_6d_integral_buffer()
         self._setup_extra_buffers()
-
         self.par_cider.setup_atom_comm_data(self.atom_partition.rank_a, self.setups)
 
         if not (

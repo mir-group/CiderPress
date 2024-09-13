@@ -104,8 +104,9 @@ class _FastCiderBase:
                 "You are using Cider with only "
                 "%d out of %d available cores.  This is not "
                 "supported currently and can lead to incorrect "
-                "results due to paralleization issues.  Please use "
-                "parallel={'augment_grids': True}." % (gd.comm.size, wfs.world.size)
+                "results due to parallelization issues.  Please use "
+                "parallel={'augment_grids': True}."
+                % (self.gd.comm.size, wfs.world.size)
             )
 
     def initialize(self, density, hamiltonian, wfs):
@@ -184,20 +185,10 @@ class _FastCiderBase:
         self._set_paw_terms()
         arg_sg, darg_sg = plan.get_interpolation_arguments(rho_tuple, i=-1)
         fun_sg, dfun_sg = plan.get_function_to_convolve(rho_tuple)
-        feat_sig = np.empty(
-            (
-                plan.nspin,
-                plan.nldf_settings.nfeat,
-            )
-            + arg_sg.shape[1:]
-        )
-        dfeat_sjg = np.empty(
-            (
-                plan.nspin,
-                plan.num_vj,
-            )
-            + arg_sg.shape[1:]
-        )
+        shape = (plan.nspin, plan.nldf_settings.nfeat) + arg_sg.shape[1:]
+        feat_sig = np.empty(shape)
+        shape = (plan.nspin, plan.num_vj) + arg_sg.shape[1:]
+        dfeat_sjg = np.empty(shape)
         for s in range(plan.nspin):
             _rho_tuple = tuple(x[s] for x in rho_tuple)
             p, dp = plan.get_interpolation_coefficients(
@@ -290,6 +281,13 @@ class _FastCiderBase:
     def initialize_more_things(self):
         pass
 
+    @property
+    def is_initialized(self):
+        if self._plan is None or self._plan.nspin != self.nspin:
+            return False
+        else:
+            return True
+
     def calc_cider(
         self,
         e_g,
@@ -299,7 +297,7 @@ class _FastCiderBase:
     ):
         nspin = len(rho_sxg)
         self.nspin = nspin
-        if self._plan is None or self._plan.nspin != nspin:
+        if not self.is_initialized:
             self._setup_plan()
             self.fft_obj.initialize_backend()
             self.initialize_more_things()
@@ -367,7 +365,8 @@ class _FastCiderBase:
         self.timer.stop()
 
     def _distribute_to_cider_grid(self, n_xg):
-        shape = (len(n_xg),)
+        # shape = (len(n_xg),)
+        shape = n_xg.shape[:-3]
         ndist_xg = self.distribution.block_zeros(shape)
         self.distribution.gd2block(n_xg, ndist_xg)
         return ndist_xg
@@ -375,7 +374,7 @@ class _FastCiderBase:
     def _add_from_cider_grid(self, d_xg, ddist_xg):
         self.distribution.block2gd_add(ddist_xg, d_xg)
 
-    def calculate_impl(self, gd, n_sg, v_sg, e_g):
+    def _get_taut(self, n_sg):
         # TODO don't calculate sigma/dedsigma here
         # instead just compute the gradient and dedgrad
         # for sake of generality
@@ -401,17 +400,26 @@ class _FastCiderBase:
         else:
             taut_sg = None
             dedtaut_sg = None
+            taut_sG = None
+        return taut_sg, dedtaut_sg, taut_sG
+
+    def _get_cider_inputs(self, n_sg, taut_sg):
         rho_sxg = get_rho_sxg(n_sg, self.grad_v, taut_sg)
-        tmp_dedrho_sxg = np.zeros_like(rho_sxg)
         shape = rho_sxg.shape[:2]
         rho_sxg.shape = (rho_sxg.shape[0] * rho_sxg.shape[1],) + rho_sxg.shape[-3:]
         rho_sxg = self._distribute_to_cider_grid(rho_sxg)
         rho_sxg.shape = shape + rho_sxg.shape[-3:]
         self.nspin = len(rho_sxg)
         dedrho_sxg = np.zeros_like(rho_sxg)
-        _e = self._distribute_to_cider_grid(np.zeros_like(e_g)[None, :])[0]
+        _e = self._distribute_to_cider_grid(np.zeros_like(n_sg[0])[None, :])[0]
+        return _e, rho_sxg, dedrho_sxg
+
+    def calculate_impl(self, gd, n_sg, v_sg, e_g):
+        taut_sg, dedtaut_sg, taut_sG = self._get_taut(n_sg)
+        _e, rho_sxg, dedrho_sxg = self._get_cider_inputs(n_sg, taut_sg)
+        tmp_dedrho_sxg = np.zeros((len(n_sg), rho_sxg.shape[1]) + e_g.shape)
         e_g[:] = 0.0
-        self.process_cider(_e, rho_sxg, dedrho_sxg)
+        self.calc_cider(_e, rho_sxg, dedrho_sxg)
         self._add_from_cider_grid(e_g[None, :], _e[None, :])
         for s in range(len(n_sg)):
             self._add_from_cider_grid(tmp_dedrho_sxg[s], dedrho_sxg[s])
@@ -426,13 +434,11 @@ class _FastCiderBase:
                 self.restrict_and_collect(dedtaut_sg[s], self.dedtaut_sG[s])
                 self.ekin -= self.wfs.gd.integrate(self.dedtaut_sG[s] * taut_sG[s])
 
-    def process_cider(*args, **kwargs):
-        raise NotImplementedError
-
 
 class CiderGGA(_FastCiderBase, GGA):
     def __init__(self, cider_kernel, **kwargs):
-        if cider_kernel.mlfunc.settings.sl_settings.level != "GGA":
+        sl_settings = cider_kernel.mlfunc.settings.sl_settings
+        if not sl_settings.is_empty and sl_settings.level != "GGA":
             raise ValueError("CiderGGA only supports GGA functionals!")
         _FastCiderBase.__init__(self, cider_kernel, **kwargs)
 
@@ -450,9 +456,6 @@ class CiderGGA(_FastCiderBase, GGA):
     def set_grid_descriptor(self, gd):
         GGA.set_grid_descriptor(self, gd)
         _FastCiderBase.set_grid_descriptor(self, gd)
-
-    def process_cider(self, e_g, rho_sxg, dedrho_sxg):
-        self.calc_cider(e_g, rho_sxg, dedrho_sxg)
 
     def set_positions(self, spos_ac):
         self.spos_ac = spos_ac
@@ -486,7 +489,8 @@ def add_gradient_correction(grad_v, dedrho_sxg, v_sg):
 
 class CiderMGGA(_FastCiderBase, MGGA):
     def __init__(self, cider_kernel, **kwargs):
-        if cider_kernel.mlfunc.settings.sl_settings.level != "MGGA":
+        sl_settings = cider_kernel.mlfunc.settings.sl_settings
+        if (not sl_settings.is_empty) and sl_settings.level != "MGGA":
             raise ValueError("CiderMGGA only supports MGGA functionals!")
         _FastCiderBase.__init__(self, cider_kernel, **kwargs)
 
@@ -510,6 +514,3 @@ class CiderMGGA(_FastCiderBase, MGGA):
         self, setup, D_sp, dEdD_sp=None, addcoredensity=True, a=None
     ):
         return 0
-
-    def process_cider(self, e_g, rho_sxg, dedrho_sxg):
-        self.calc_cider(e_g, rho_sxg, dedrho_sxg)
