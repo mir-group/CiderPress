@@ -18,6 +18,8 @@
 # Author: Kyle Bystrom <kylebystrom@gmail.com>
 #
 
+import ctypes
+
 import numpy as np
 import yaml
 from interpolation.splines.eval_cubic_numba import (
@@ -26,6 +28,10 @@ from interpolation.splines.eval_cubic_numba import (
     vec_eval_cubic_splines_G_3,
     vec_eval_cubic_splines_G_4,
 )
+
+from ciderpress.lib import load_library
+
+libcider = load_library("libmcider.so")
 
 
 def get_vec_eval(grid, coeffs, X, N):
@@ -92,7 +98,7 @@ class KernelEvalBase:
     def N1(self):
         raise NotImplementedError
 
-    def get_descriptors(self, X0T):
+    def get_descriptors(self, X0T, force_polarize=False):
         """
         Compute and return transformed descriptor matrix X1.
 
@@ -105,8 +111,11 @@ class KernelEvalBase:
             X1 (Nsamp, N1)
         """
         nspin, N0, Nsamp = X0T.shape
+        if force_polarize and self.mode == "POL" and nspin == 1:
+            X0T = np.stack([X0T, X0T])
+            nspin = 2
         N1 = self.N1
-        if self.mode == "SEP":
+        if self.mode == "SEP" or self.mode == "POL":
             X1 = np.zeros((nspin, Nsamp, N1))
             for s in range(nspin):
                 self.feature_list.fill_vals_(X1[s].T, X0T[s])
@@ -117,6 +126,8 @@ class KernelEvalBase:
             self.feature_list.fill_vals_(X1.T, X0T_sum)
         else:
             raise NotImplementedError
+        if force_polarize and self.mode == "POL":
+            return X1.reshape(nspin, N0, Nsamp)
         return X1
 
     def get_descriptors_with_mul(self, X0T, multiplier):
@@ -133,7 +144,7 @@ class KernelEvalBase:
         """
         nspin, N0, Nsamp = X0T.shape
         N1 = self.N1
-        if self.mode == "SEP":
+        if self.mode == "SEP" or self.mode == "POL":
             X1 = np.zeros((nspin, Nsamp, N1))
             for s in range(nspin):
                 self.feature_list.fill_vals_(X1[s].T, X0T[s])
@@ -158,7 +169,7 @@ class KernelEvalBase:
                 ms.append(m / nspin)
                 dms.append(dm / nspin)
             return np.stack(ms), np.concatenate(dms, axis=0)
-        elif self.mode == "NPOL":
+        elif self.mode == "NPOL" or self.mode == "POL":
             ms = []
             dms = []
             m, dm = base_func(X0T)
@@ -186,7 +197,7 @@ class KernelEvalBase:
         """
         nspin, N0, Nsamp = X0T.shape
         N1 = self.N1
-        if self.mode == "SEP":
+        if self.mode == "SEP" or self.mode == "POL":
             dfdX0T = np.zeros_like(X0T)
             dfdX1 = dfdX1.reshape(nspin, Nsamp, N1)
             for s in range(nspin):
@@ -223,7 +234,7 @@ class KernelEvalBase:
         if dfdX0T is not None:
             if self.mode == "SEP":
                 dres = dfdX0T * m[:, np.newaxis] + f[:, np.newaxis] * dm
-            elif self.mode == "NPOL":
+            elif self.mode == "NPOL" or self.mode == "POL":
                 dres = dfdX0T * m + f * dm
             else:
                 raise NotImplementedError
@@ -264,6 +275,81 @@ class KernelEvaluator(FuncEvaluator, XCEvalSerializable):
             res[i0:i1] += k.dot(self.alpha)
             dres[i0:i1] += np.einsum("gcn,c->gn", dk, self.alpha)
         return res, dres
+
+
+class RBFEvaluator(FuncEvaluator, XCEvalSerializable):
+    _fn = libcider.evaluate_se_kernel
+
+    def __init__(self, kernel, X1ctrl, alpha):
+        from ciderpress.models.kernels import (
+            DiffConstantKernel,
+            DiffProduct,
+            DiffRBF,
+            SubsetRBF,
+        )
+
+        if isinstance(kernel, DiffProduct):
+            assert isinstance(kernel.k1, DiffConstantKernel)
+            scale = kernel.k1.constant_value
+            kernel = kernel.k2
+        else:
+            assert isinstance(kernel, DiffRBF)
+            scale = 1.0
+        if isinstance(kernel, SubsetRBF):
+            if isinstance(kernel.indexes, slice):
+                i = kernel.indexes
+                start = i.start
+                step = i.step if i.step is not None else 1
+                stop = (
+                    i.stop
+                    if i.stop is not None
+                    else (len(kernel.length_scale) + i.start) // step
+                )
+                indexes = [i for i in range(start, stop, step)]
+            indexes = np.array(indexes, dtype=np.int32)
+        else:
+            indexes = np.arange(len(kernel.length_scale), dtype=np.int32)
+        self._X1ctrl = np.ascontiguousarray(X1ctrl)
+        self._alpha = np.ascontiguousarray(alpha * scale)
+        self._exps = np.ascontiguousarray(0.5 / kernel.length_scale**2)
+        self._nctrl, self._nfeat = self._X1ctrl.shape[-2:]
+        self._indexes = np.ascontiguousarray(indexes)
+
+    def __call__(self, X1, res=None, dres=None):
+        X1 = np.ascontiguousarray(X1[..., self._indexes])
+        if res is None:
+            res = np.zeros(X1.shape[0])
+        elif res.shape != X1.shape[:1]:
+            raise ValueError
+        if dres is None:
+            dres = np.zeros(X1.shape)
+        elif dres.shape != X1.shape:
+            raise ValueError
+        n = X1.shape[0]
+        self._fn(
+            res.ctypes.data_as(ctypes.c_void_p),
+            dres.ctypes.data_as(ctypes.c_void_p),
+            X1.ctypes.data_as(ctypes.c_void_p),
+            self._X1ctrl.ctypes.data_as(ctypes.c_void_p),
+            self._alpha.ctypes.data_as(ctypes.c_void_p),
+            self._exps.ctypes.data_as(ctypes.c_void_p),
+            ctypes.c_int(n),
+            ctypes.c_int(self._nctrl),
+            ctypes.c_int(self._nfeat),
+        )
+        return res, dres
+
+
+class SpinRBFEvaluator(RBFEvaluator):
+    _fn = libcider.evaluate_se_kernel_spin
+
+    def __init__(self, kernel, X1ctrl, alpha):
+        super(SpinRBFEvaluator, self).__init__(kernel, X1ctrl, alpha)
+        if self._nfeat % 2 != 0:
+            raise ValueError("Need even number of features for spin-rbf")
+        self._nfeat = self._nfeat // 2
+        self._indexes = np.append(self._indexes, self._indexes + self._nfeat)
+        self._indexes = np.ascontiguousarray(self._indexes.astype(np.int32))
 
 
 class SplineSetEvaluator(FuncEvaluator, XCEvalSerializable):

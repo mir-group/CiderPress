@@ -62,6 +62,9 @@ if functional.startswith("CIDER"):
     functional = "functionals/{}.yaml".format(functional)
     is_cider = True
     mlfunc = functional
+elif functional.endswith(".joblib"):
+    is_cider = True
+    mlfunc = functional
 else:
     is_cider = False
 formula = Counter(atoms.get_atomic_numbers())
