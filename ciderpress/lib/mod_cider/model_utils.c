@@ -67,7 +67,7 @@ void evaluate_se_kernel_spin(double *out, double *outd, double *xin,
             out[i] += aabb + abba;
             _add_deriv(outd_a + iloc, xin_a + iloc, xctrl_a + cloc, exps, aabb,
                        nfeat);
-            _add_deriv(outd_b + iloc, xin_b + iloc, xctrl_a + cloc, exps, aabb,
+            _add_deriv(outd_b + iloc, xin_b + iloc, xctrl_b + cloc, exps, aabb,
                        nfeat);
             _add_deriv(outd_a + iloc, xin_a + iloc, xctrl_b + cloc, exps, abba,
                        nfeat);

@@ -183,7 +183,7 @@ class KernelEvalBase:
     def additive_baseline(self, X0T):
         return self._baseline(X0T, self._add_basefunc)
 
-    def apply_descriptor_grad(self, X0T, dfdX1):
+    def apply_descriptor_grad(self, X0T, dfdX1, force_polarize=False):
         """
 
         Args:
@@ -197,6 +197,8 @@ class KernelEvalBase:
         """
         nspin, N0, Nsamp = X0T.shape
         N1 = self.N1
+        if force_polarize and dfdX1.shape[0] == 2 and nspin == 1:
+            dfdX1 = dfdX1[:1]
         if self.mode == "SEP" or self.mode == "POL":
             dfdX0T = np.zeros_like(X0T)
             dfdX1 = dfdX1.reshape(nspin, Nsamp, N1)
@@ -319,13 +321,15 @@ class RBFEvaluator(FuncEvaluator, XCEvalSerializable):
         X1 = np.ascontiguousarray(X1[..., self._indexes])
         if res is None:
             res = np.zeros(X1.shape[0])
-        elif res.shape != X1.shape[:1]:
+        elif res.shape != (X1.shape[-2],):
             raise ValueError
         if dres is None:
             dres = np.zeros(X1.shape)
         elif dres.shape != X1.shape:
             raise ValueError
-        n = X1.shape[0]
+        n = X1.shape[-2]
+        for arr in [res, dres, X1]:
+            assert arr.flags.c_contiguous
         self._fn(
             res.ctypes.data_as(ctypes.c_void_p),
             dres.ctypes.data_as(ctypes.c_void_p),
@@ -344,12 +348,15 @@ class SpinRBFEvaluator(RBFEvaluator):
     _fn = libcider.evaluate_se_kernel_spin
 
     def __init__(self, kernel, X1ctrl, alpha):
+        from ciderpress.models.kernels import DiffProduct
+
         super(SpinRBFEvaluator, self).__init__(kernel, X1ctrl, alpha)
-        if self._nfeat % 2 != 0:
-            raise ValueError("Need even number of features for spin-rbf")
-        self._nfeat = self._nfeat // 2
-        self._indexes = np.append(self._indexes, self._indexes + self._nfeat)
-        self._indexes = np.ascontiguousarray(self._indexes.astype(np.int32))
+        if isinstance(kernel, DiffProduct):
+            self._alpha *= kernel.k1.constant_value
+
+    def __call__(self, X1, res=None, dres=None):
+        assert X1.ndim == 3 and X1.shape[0] == 2
+        return super(SpinRBFEvaluator, self).__call__(X1, res, dres)
 
 
 class SplineSetEvaluator(FuncEvaluator, XCEvalSerializable):
@@ -510,15 +517,15 @@ class MappedDFTKernel(KernelEvalBase, XCEvalSerializable):
         return self.feature_list.nfeat
 
     def __call__(self, X0T, add_base=True, rhocut=0):
-        X1 = self.get_descriptors(X0T)
-        Nsamp_internal = X1.shape[0]
+        X1 = self.get_descriptors(X0T, force_polarize=True)
+        Nsamp_internal = X1.shape[-2]
         f = np.zeros(Nsamp_internal)
-        df = np.zeros((Nsamp_internal, self.N1))
+        df = np.zeros_like(X1)
         for feval in self.fevals:
             feval(X1, f, df)
         if self.mode == "SEP":
             f = f.reshape(X0T.shape[0], -1)
-        dfdX0T = self.apply_descriptor_grad(X0T, df)
+        dfdX0T = self.apply_descriptor_grad(X0T, df, force_polarize=True)
         res, dres = self.apply_baseline(X0T, f, dfdX0T)
         if rhocut > 0:
             if self.mode == "SEP":
