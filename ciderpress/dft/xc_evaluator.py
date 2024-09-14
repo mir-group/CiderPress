@@ -112,7 +112,7 @@ class KernelEvalBase:
         """
         nspin, N0, Nsamp = X0T.shape
         if force_polarize and self.mode == "POL" and nspin == 1:
-            X0T = np.stack([X0T, X0T])
+            X0T = np.concatenate([X0T, X0T], axis=0)
             nspin = 2
         N1 = self.N1
         if self.mode == "SEP" or self.mode == "POL":
@@ -127,7 +127,7 @@ class KernelEvalBase:
         else:
             raise NotImplementedError
         if force_polarize and self.mode == "POL":
-            return X1.reshape(nspin, N0, Nsamp)
+            return X1.reshape(nspin, Nsamp, N1)
         return X1
 
     def get_descriptors_with_mul(self, X0T, multiplier):

@@ -119,7 +119,10 @@ class DFTKernel(KernelEvalBase):
         if self.ctrl_nmax is not None and self.ctrl_nmax < r_c:
             r_c = self.ctrl_nmax
         idx = sortidx[piv[:r_c]]
-        return np.asfortranarray(X[idx])
+        if self.mode == "POL":
+            return np.asfortranarray(X[:, idx])
+        else:
+            return np.asfortranarray(X[idx])
 
     def X0Tlist_to_X1array(self, X0T_list):
         X1_list = []
@@ -147,7 +150,14 @@ class DFTKernel(KernelEvalBase):
         self.X1ctrl = X1
 
     def get_kctrl(self):
-        k = self.kernel(self.X1ctrl, self.X1ctrl)
+        if self.mode == "POL":
+            kaa = self.kernel(self.X1ctrl[0], self.X1ctrl[0])
+            kbb = self.kernel(self.X1ctrl[1], self.X1ctrl[1])
+            kab = self.kernel(self.X1ctrl[0], self.X1ctrl[1])
+            kba = self.kernel(self.X1ctrl[1], self.X1ctrl[0])
+            k = kaa * kbb + kab * kba
+        else:
+            k = self.kernel(self.X1ctrl, self.X1ctrl)
         self.Kmm = k
         return self.Kmm
 
@@ -156,10 +166,10 @@ class DFTKernel(KernelEvalBase):
         X1 = self.get_descriptors(X0T)
         if self.mode == "POL":
             if nspin == 1:
-                X1 = np.concatenate(X1, X1, axis=0)
+                X1 = np.concatenate([X1, X1], axis=0)
             elif nspin != 2:
                 raise ValueError
-            X1 = X1.reshape(nspin, N0, Nsamp)
+            X1 = X1.reshape(2, Nsamp, self.N1)
             kaa = self.kernel(X1[0], self.X1ctrl[0])
             kbb = self.kernel(X1[1], self.X1ctrl[1])
             kab = self.kernel(X1[0], self.X1ctrl[1])
@@ -189,10 +199,10 @@ class DFTKernel(KernelEvalBase):
         # dkdX1 is (nspin * Nsamp, Nctrl, N1)
         if self.mode == "POL":
             if nspin == 1:
-                X1 = np.concatenate(X1, X1, axis=0)
+                X1 = np.concatenate([X1, X1], axis=0)
             elif nspin != 2:
                 raise ValueError
-            X1 = X1.reshape(nspin, N0, Nsamp)
+            X1 = X1.reshape(2, Nsamp, self.N1)
             kaa, dkaa = self.kernel.k_and_deriv(X1[0], self.X1ctrl[0])
             kbb, dkbb = self.kernel.k_and_deriv(X1[1], self.X1ctrl[1])
             kab, dkab = self.kernel.k_and_deriv(X1[0], self.X1ctrl[1])
@@ -203,7 +213,7 @@ class DFTKernel(KernelEvalBase):
                 dkdX1 = dkdX1a
             else:
                 dkdX1b = dkbb * kaa + dkba * kab
-                dkdX1 = np.concatenate(dkdX1a, dkdX1b, axis=0)
+                dkdX1 = np.concatenate([dkdX1a, dkdX1b], axis=0)
         else:
             k, dkdX1 = self.kernel.k_and_deriv(X1, self.X1ctrl)
         if self.mode == "SEP":
