@@ -188,7 +188,7 @@ def vxc_tuple_to_array(rho_data, vtuple):
         if len(vtuple) == 3:
             varr[:, 4] = vtuple[2]
         if rho_data.shape[0] == 2:
-            varr[:, 1:4] = vtuple[1][1] * rho_data[::-1, 1:4]
+            varr[:, 1:4] += vtuple[1][1] * rho_data[::-1, 1:4]
     return varr
 
 
