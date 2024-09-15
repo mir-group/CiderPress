@@ -22,6 +22,7 @@ import numpy as np
 from pyscf.lib.scipy_helper import pivoted_cholesky
 
 from ciderpress.dft.xc_evaluator import KernelEvalBase, MappedDFTKernel
+from ciderpress.dft.xc_evaluator2 import KernelEvalBase2, MappedDFTKernel2
 
 
 class DFTKernel(KernelEvalBase):
@@ -231,6 +232,51 @@ class DFTKernel(KernelEvalBase):
     def map(self, mapping_plan):
         fevals = mapping_plan(self)
         return MappedDFTKernel(
+            fevals,
+            self.feature_list,
+            self.mode,
+            self._mul_basefunc,
+            self._add_basefunc,
+        )
+
+
+class DFTKernel2(KernelEvalBase2, DFTKernel):
+    def __init__(
+        self,
+        kernel,
+        feature_list,
+        mode,
+        multiplicative_baseline,
+        additive_baseline=None,
+        ctrl_tol=1e-5,
+        ctrl_nmax=None,
+        component=None,
+    ):
+        self.kernel = kernel
+        self.feature_list = feature_list
+        self.mode = mode
+        self._mul_basefunc = multiplicative_baseline
+        self._add_basefunc = additive_baseline
+        assert isinstance(multiplicative_baseline, str)
+        assert isinstance(additive_baseline, str)
+        self.ctrl_tol = ctrl_tol
+        self.ctrl_nmax = ctrl_nmax
+        if component is None:
+            component = "x"
+        assert component in ["x", "c", "xc"]
+        self.component = component
+
+        self.X1ctrl = None
+        self.alpha = None
+        self.base_dict = {}
+        self.cov_dict = {}
+        self.dbase_dict = {}
+        self.dcov_dict = {}
+        self.rxn_cov_list = []
+
+    def map(self, mapping_plan):
+        fevals = mapping_plan(self)
+        return MappedDFTKernel2(
             fevals,
             self.feature_list,
             self.mode,

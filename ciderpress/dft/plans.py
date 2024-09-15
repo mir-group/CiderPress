@@ -165,63 +165,56 @@ def _construct_cubic_splines(coefs_qi, dense_indexes):
     return np.ascontiguousarray(C_aip.transpose(1, 0, 2))
 
 
-def _construct_cubic_splines_old(self):
-    """Construct interpolating splines for q0. This is the old version,
-    which is less precise for a given spline density.
+def get_rho_tuple_with_grad_cross(rho_data, is_mgga=False):
+    assert rho_data.ndim == 3
+    drho = rho_data[:, 1:4]
+    nspin = rho_data.shape[0]
+    sigma = np.empty((2 * nspin - 1, rho_data.shape[-1]), order="F")
+    sigma[::2] = np.einsum("sxg,sxg->sg", drho, drho)
+    if nspin == 2:
+        sigma[1] = np.einsum("xg,xg->g", drho[0], drho[1])
+    rho = rho_data[:, 0].copy(order="F")
+    if is_mgga:
+        return rho, sigma, rho_data[:, 4].copy(order="F")
+    else:
+        return rho, sigma
 
-    The recipe is from
 
-    http://en.wikipedia.org/wiki/Spline_(mathematics)
+def get_rho_tuple(rho_data, with_spin=False, is_mgga=False):
+    if with_spin:
+        drho = rho_data[:, 1:4]
+        sigma = np.einsum("sx...,sx...->s...", drho, drho)
+        if is_mgga:
+            return rho_data[:, 0].copy(), sigma, rho_data[:, 4].copy()
+        else:
+            return rho_data[:, 0].copy(), sigma
+    else:
+        drho = rho_data[1:4]
+        sigma = np.einsum("x...,x...->...", drho, drho)
+        if is_mgga:
+            return rho_data[0], sigma, rho_data[4]
+        else:
+            return rho_data[0], sigma
 
-    This function is taken directly from the GPAW code and modified slightly.
-    """
-    self.dense_Nalpha = self.Nalpha
-    self.dense_lambd = (self.bas_exp[-1] / self.bas_exp[0]) ** (
-        1.0 / (self.dense_Nalpha - 1)
-    )
-    self.dense_bas_exp = self.bas_exp[0] * self.dense_lambd ** (
-        np.arange(self.dense_Nalpha)
-    )
-    q = self.dense_bas_exp
-    # n = self.Nalpha
-    n = len(self.alphas)
-    N = self.dense_Nalpha
 
-    if self.alphas is None or len(self.alphas) < 1:
-        return
-
-    if self.verbose:
-        pass
-
-    # shape N,n
-    y = self.get_cider_coefs(q)[0].T
-    a = y
-    h = q[1:] - q[:-1]
-    alpha = 3 * (
-        (a[2:] - a[1:-1]) / h[1:, np.newaxis] - (a[1:-1] - a[:-2]) / h[:-1, np.newaxis]
-    )
-    l = np.ones((N, n))
-    mu = np.zeros((N, n))
-    z = np.zeros((N, n))
-    for i in range(1, N - 1):
-        l[i] = 2 * (q[i + 1] - q[i - 1]) - h[i - 1] * mu[i - 1]
-        mu[i] = h[i] / l[i]
-        z[i] = (alpha[i - 1] - h[i - 1] * z[i - 1]) / l[i]
-    b = np.zeros((N, n))
-    c = np.zeros((N, n))
-    d = np.zeros((N, n))
-    for i in range(N - 2, -1, -1):
-        c[i] = z[i] - mu[i] * c[i + 1]
-        b[i] = (a[i + 1] - a[i]) / h[i] - h[i] * (c[i + 1] + 2 * c[i]) / 3
-        d[i] = (c[i + 1] - c[i]) / 3 / h[i]
-
-    self.C_aip = np.zeros((n, N, 4))
-    self.C_aip[:, :-1, 0] = a[:-1].T
-    self.C_aip[:, :-1, 1] = b[:-1].T
-    self.C_aip[:, :-1, 2] = c[:-1].T
-    self.C_aip[:, :-1, 3] = d[:-1].T
-    self.C_aip[-1, -1, 0] = 1.0
-    self.q_a = q
+def get_drhodf_tuple(rho_data, drhodf_data, with_spin=False, is_mgga=False):
+    if with_spin:
+        raise NotImplementedError("Have not implemented this function for with_spin")
+        drho = rho_data[:, 1:4]
+        ddrhodf = drhodf_data[:, 1:4]
+        dsigmadf = 2 * np.einsum("sx...,sx...->s...", drho, ddrhodf)
+        if is_mgga:
+            return drhodf_data[:, 0].copy(), dsigmadf, drhodf_data[:, 4].copy()
+        else:
+            return drhodf_data[:, 0].copy(), dsigmadf
+    else:
+        drho = rho_data[1:4]
+        ddrhodf = drhodf_data[1:4]
+        dsigmadf = 2 * np.einsum("x...,x...->...", drho, ddrhodf)
+        if is_mgga:
+            return drhodf_data[0], dsigmadf, drhodf_data[4]
+        else:
+            return drhodf_data[0], dsigmadf
 
 
 def get_ccl_settings(plan):
@@ -1479,38 +1472,17 @@ class NLDFAuxiliaryPlan(ABC):
             raise NotImplementedError
 
     def get_rho_tuple(self, rho_data, with_spin=False):
-        if with_spin:
-            drho = rho_data[:, 1:4]
-            sigma = np.einsum("sx...,sx...->s...", drho, drho)
-            if self.nldf_settings.sl_level == "MGGA":
-                return rho_data[:, 0].copy(), sigma, rho_data[:, 4].copy()
-            else:
-                return rho_data[:, 0].copy(), sigma
-        else:
-            drho = rho_data[1:4]
-            sigma = np.einsum("x...,x...->...", drho, drho)
-            if self.nldf_settings.sl_level == "MGGA":
-                return rho_data[0], sigma, rho_data[4]
-            else:
-                return rho_data[0], sigma
+        return get_rho_tuple(
+            rho_data, with_spin=with_spin, is_mgga=self.nldf_settings.sl_level == "MGGA"
+        )
 
     def get_drhodf_tuple(self, rho_data, drhodf_data, with_spin=False):
-        if with_spin:
-            drho = rho_data[:, 1:4]
-            ddrhodf = drhodf_data[:, 1:4]
-            dsigmadf = 2 * np.einsum("sx...,sx...->s...", drho, ddrhodf)
-            if self.nldf_settings.sl_level == "MGGA":
-                return drhodf_data[:, 0].copy(), dsigmadf, drhodf_data[:, 4].copy()
-            else:
-                return drhodf_data[:, 0].copy(), dsigmadf
-        else:
-            drho = rho_data[1:4]
-            ddrhodf = drhodf_data[1:4]
-            dsigmadf = 2 * np.einsum("x...,x...->...", drho, ddrhodf)
-            if self.nldf_settings.sl_level == "MGGA":
-                return drhodf_data[0], dsigmadf, drhodf_data[4]
-            else:
-                return drhodf_data[0], dsigmadf
+        return get_drhodf_tuple(
+            rho_data,
+            drhodf_data,
+            with_spin=with_spin,
+            is_mgga=self.nldf_settings.sl_level == "MGGA",
+        )
 
     def eval_feat_exp(self, rho_tuple, i=-1):
         """

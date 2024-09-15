@@ -132,9 +132,28 @@ def gga_x_pbe(X0T):
     return _sl_x_helper(X0T, _pbe_x_helper)
 
 
-# PBE C: 130
-# R2SCAN C: 498
+def get_libxc_lda_baseline(xcid, rho):
+    if isinstance(xcid, str):
+        xcid = LDA_CODES[xcid]
+    nspin, size = rho.shape
+    rho = np.asfortranarray(rho)
+    exc = np.zeros(size)
+    vrho = np.zeros_like(rho, order="F")
+    xc_helper.get_gga_baseline(
+        ctypes.c_int(xcid),
+        ctypes.c_int(nspin),
+        ctypes.c_int(size),
+        rho.ctypes.data_as(ctypes.c_void_p),
+        exc.ctypes.data_as(ctypes.c_void_p),
+        vrho.ctypes.data_as(ctypes.c_void_p),
+        ctypes.c_double(1e-12),
+    )
+    return exc, vrho
+
+
 def get_libxc_gga_baseline(xcid, rho, sigma):
+    if isinstance(xcid, str):
+        xcid = GGA_CODES[xcid]
     nspin, size = rho.shape
     assert sigma.shape == (2 * nspin - 1, size)
     rho = np.asfortranarray(rho)
@@ -156,6 +175,46 @@ def get_libxc_gga_baseline(xcid, rho, sigma):
         ctypes.c_double(1e-12),
     )
     return exc, vrho, vsigma
+
+
+def get_libxc_mgga_baseline(xcid, rho, sigma, tau):
+    if isinstance(xcid, str):
+        xcid = MGGA_CODES[xcid]
+    nspin, size = rho.shape
+    assert sigma.shape == (2 * nspin - 1, size)
+    rho = np.asfortranarray(rho)
+    # rho = np.ascontiguousarray(rho)
+    sigma = np.asfortranarray(sigma)
+    # sigma = np.ascontiguousarray(sigma)
+    exc = np.zeros(size)
+    vrho = np.zeros_like(rho, order="F")
+    vsigma = np.zeros_like(sigma, order="F")
+    vtau = np.zeros_like(sigma, order="F")
+    xc_helper.get_gga_baseline(
+        ctypes.c_int(xcid),
+        ctypes.c_int(nspin),
+        ctypes.c_int(size),
+        rho.ctypes.data_as(ctypes.c_void_p),
+        sigma.ctypes.data_as(ctypes.c_void_p),
+        tau.ctypes.data_as(ctypes.c_void_p),
+        exc.ctypes.data_as(ctypes.c_void_p),
+        vrho.ctypes.data_as(ctypes.c_void_p),
+        vsigma.ctypes.data_as(ctypes.c_void_p),
+        vtau.ctypes.data_as(ctypes.c_void_p),
+        ctypes.c_double(1e-12),
+    )
+    return exc, vrho, vsigma, vtau
+
+
+def get_libxc_baseline(xcid, rho_tuple):
+    if xcid in LDA_CODES:
+        return get_libxc_lda_baseline(xcid, rho_tuple[0])
+    elif xcid in GGA_CODES:
+        return get_libxc_gga_baseline(xcid, rho_tuple[0], rho_tuple[1])
+    elif xcid in MGGA_CODES:
+        return get_libxc_mgga_baseline(xcid, rho_tuple[0], rho_tuple[1], rho_tuple[2])
+    else:
+        raise ValueError("Unsupported xcid {}".formaT(xcid))
 
 
 def get_sigma(X0T):
@@ -227,4 +286,21 @@ BASELINE_CODES = {
     "GGA_X_PBE": gga_x_pbe,
     "GGA_X_CHACHIYO": gga_x_chachiyo,
     "GGA_C_PBE": gga_c_pbe,
+}
+
+LDA_CODES = {
+    "LDA_X": 1,
+    "LDA_C_PW_MOD": 13,
+}
+
+GGA_CODES = {
+    "GGA_X_PBE": 101,
+    "GGA_C_PBE": 130,
+    "GGA_X_PBE_SOL": 116,
+    "GGA_C_PBE_SOL": 133,
+}
+
+MGGA_CODES = {
+    "MGGA_X_R2SCAN": 497,
+    "MGGA_C_R2SCAN": 498,
 }

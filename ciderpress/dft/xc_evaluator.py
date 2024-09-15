@@ -553,51 +553,6 @@ class MappedDFTKernel(KernelEvalBase, XCEvalSerializable):
         raise NotImplementedError
 
 
-class MappedFunctional:
-    def __init__(self, mapped_kernels, desc_params, libxc_baseline=None):
-        self.kernels = mapped_kernels
-        self.desc_params = desc_params
-        self.libxc_baseline = libxc_baseline
-
-    @property
-    def desc_version(self):
-        return self.desc_params.version[0]
-
-    @property
-    def vvmul(self):
-        return self.desc_params.vvmul
-
-    @property
-    def a0(self):
-        return self.desc_params.a0
-
-    @property
-    def fac_mul(self):
-        return self.desc_params.fac_mul
-
-    @property
-    def amin(self):
-        return self.desc_params.amin
-
-    @property
-    def feature_list(self):
-        # TODO misleading because this is X functional only
-        return self.kernels[0].feature_list
-
-    def set_baseline_mode(self, mode):
-        # TODO baseline can be GPAW or PySCF mode.
-        # Need to implement for more complicated XC.
-        raise NotImplementedError
-
-    def __call__(self, X0T, rhocut=0):
-        res, dres = 0, 0
-        for kernel in self.kernels:
-            tmp, dtmp = kernel(X0T, rhocut=rhocut)
-            res += tmp
-            dres += dtmp
-        return res, dres
-
-
 class ModelWithNormalizer:
     def __init__(self, model, normalizer):
         """
