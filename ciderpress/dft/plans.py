@@ -183,8 +183,8 @@ def get_rho_tuple_with_grad_cross(rho_data, is_mgga=False):
 def vxc_tuple_to_array(rho_data, vtuple):
     varr = np.zeros_like(rho_data)
     varr[:, 0] = vtuple[0]
-    if len(varr) > 1:
-        varr[:, 1:4] = 2 * vtuple[1][::2] * rho_data[:, 1:4]
+    if len(vtuple) > 1:
+        varr[:, 1:4] = 2 * vtuple[1][::2, None] * rho_data[:, 1:4]
         if len(vtuple) == 3:
             varr[:, 4] = vtuple[2]
         if rho_data.shape[0] == 2:

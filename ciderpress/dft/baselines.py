@@ -187,8 +187,8 @@ def get_libxc_mgga_baseline(xcid, rho, sigma, tau):
     exc = np.zeros(size)
     vrho = np.zeros_like(rho, order="F")
     vsigma = np.zeros_like(sigma, order="F")
-    vtau = np.zeros_like(sigma, order="F")
-    xc_helper.get_gga_baseline(
+    vtau = np.zeros_like(tau, order="F")
+    xc_helper.get_mgga_baseline(
         ctypes.c_int(xcid),
         ctypes.c_int(nspin),
         ctypes.c_int(size),
@@ -212,7 +212,7 @@ def get_libxc_baseline(xcid, rho_tuple):
     elif xcid in MGGA_CODES:
         res = get_libxc_mgga_baseline(xcid, rho_tuple[0], rho_tuple[1], rho_tuple[2])
     else:
-        raise ValueError("Unsupported xcid {}".formaT(xcid))
+        raise ValueError("Unsupported xcid {}".format(xcid))
     res[0][:] *= rho_tuple[0].sum(0)
     return res
 

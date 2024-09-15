@@ -167,7 +167,7 @@ class KernelEvalBase2:
 
     def apply_libxc_baseline_(self, f, dfdX1, rho_tuple, vrho_tuple, add_base=True):
         m_res = self.multiplicative_baseline(rho_tuple)
-        add_base = add_base and self.additive_baseline is not None
+        add_base = add_base and self._add_basefunc is not None
         for vrho, vm in zip(vrho_tuple, m_res[1:]):
             vrho[:] += vm * f
         if self.mode == "SEP":

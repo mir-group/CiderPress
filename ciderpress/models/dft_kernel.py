@@ -258,7 +258,7 @@ class DFTKernel2(KernelEvalBase2, DFTKernel):
         self._mul_basefunc = multiplicative_baseline
         self._add_basefunc = additive_baseline
         assert isinstance(multiplicative_baseline, str)
-        assert isinstance(additive_baseline, str)
+        assert additive_baseline is None or isinstance(additive_baseline, str)
         self.ctrl_tol = ctrl_tol
         self.ctrl_nmax = ctrl_nmax
         if component is None:
