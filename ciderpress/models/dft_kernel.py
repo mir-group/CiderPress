@@ -274,6 +274,10 @@ class DFTKernel2(KernelEvalBase2, DFTKernel):
         self.dcov_dict = {}
         self.rxn_cov_list = []
 
+    @property
+    def N1(self):
+        return self.feature_list.nfeat
+
     def map(self, mapping_plan):
         fevals = mapping_plan(self)
         return MappedDFTKernel2(

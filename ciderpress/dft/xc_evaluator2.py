@@ -96,38 +96,21 @@ class KernelEvalBase2:
             raise NotImplementedError
         return X1
 
-    def _baseline(self, X0T, base_func):
-        nspin, N0, Nsamp = X0T.shape
-        if self.mode == "SEP":
-            ms = []
-            dms = []
-            for s in range(nspin):
-                m, dm = base_func(X0T[s : s + 1])
-                ms.append(m / nspin)
-                dms.append(dm / nspin)
-            return np.stack(ms), np.concatenate(dms, axis=0)
-        elif self.mode == "NPOL" or self.mode == "POL":
-            ms = []
-            dms = []
-            m, dm = base_func(X0T)
-            return m, dm
-        else:
-            raise NotImplementedError
-
     def _get_baseline(self, xcid, rho_tuple):
         if self.mode == "SEP":
             nspin = rho_tuple[0].shape[0]
             if nspin == 1:
-                return get_libxc_baseline(xcid, rho_tuple)
+                res = list(get_libxc_baseline(xcid, rho_tuple))
+                res[0] = res[0][None, :]
+                return tuple(res)
             else:
-                assert nspin == 1
-                sep_res = tuple(
-                    [np.zeros_like(rho_tuple[0]), np.zeros_like(rho_tuple[0])]
-                )
+                assert nspin == 2
+                sep_res = [np.zeros_like(rho_tuple[0]), np.zeros_like(rho_tuple[0])]
                 if len(rho_tuple) > 1:
                     sep_res.append(np.zeros_like(rho_tuple[1]))
                 if len(rho_tuple) > 2:
                     sep_res.append(np.zeros_like(rho_tuple[2]))
+                sep_res = tuple(sep_res)
                 for s in range(nspin):
                     tuple_s = [2 * rho_tuple[0][s : s + 1]]
                     if len(rho_tuple) > 1:
