@@ -157,9 +157,7 @@ def get_libxc_gga_baseline(xcid, rho, sigma):
     nspin, size = rho.shape
     assert sigma.shape == (2 * nspin - 1, size)
     rho = np.asfortranarray(rho)
-    # rho = np.ascontiguousarray(rho)
     sigma = np.asfortranarray(sigma)
-    # sigma = np.ascontiguousarray(sigma)
     exc = np.zeros(size)
     vrho = np.zeros_like(rho, order="F")
     vsigma = np.zeros_like(sigma, order="F")

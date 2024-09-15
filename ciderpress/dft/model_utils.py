@@ -2,6 +2,7 @@ import joblib
 import yaml
 
 from ciderpress.dft.xc_evaluator import MappedXC
+from ciderpress.dft.xc_evaluator2 import MappedXC2
 
 
 def load_cider_model(mlfunc, mlfunc_format):
@@ -20,7 +21,7 @@ def load_cider_model(mlfunc, mlfunc_format):
             mlfunc = joblib.load(mlfunc)
         else:
             raise ValueError("Unsupported file format")
-    if not isinstance(mlfunc, MappedXC):
+    if not isinstance(mlfunc, (MappedXC, MappedXC2)):
         raise ValueError("mlfunc must be MappedXC")
     return mlfunc
 

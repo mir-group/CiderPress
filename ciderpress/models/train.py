@@ -24,7 +24,11 @@ import numpy as np
 from pyscf.lib import chkfile, prange
 from scipy.linalg import cho_solve, cholesky
 
-from ciderpress.dft.plans import get_rho_tuple, get_rho_tuple_with_grad_cross
+from ciderpress.dft.plans import (
+    get_rho_tuple,
+    get_rho_tuple_with_grad_cross,
+    vxc_tuple_to_array,
+)
 from ciderpress.dft.settings import FeatureSettings
 from ciderpress.dft.xc_evaluator import MappedXC
 from ciderpress.dft.xc_evaluator2 import MappedXC2
@@ -47,18 +51,6 @@ def strk_to_tuplek(d, ref=False):
                 v = vnum
             nd[occ, int(num)] = (s, v)
     return nd
-
-
-def vxc_tuple_to_array(rho_data, vtuple):
-    varr = np.zeros_like(rho_data)
-    varr[:, 0] = vtuple[0]
-    if len(varr) > 1:
-        varr[:, 1:4] = 2 * vtuple[1][::2] * rho_data[:, 1:4]
-        if len(vtuple) == 3:
-            varr[:, 4] = vtuple[2]
-        if rho_data.shape[0] == 2:
-            varr[:, 1:4] = vtuple[1][1] * rho_data[::-1, 1:4]
-    return varr
 
 
 class MOLGP:

@@ -120,7 +120,7 @@ class KernelEvalBase2:
             if nspin == 1:
                 return get_libxc_baseline(xcid, rho_tuple)
             else:
-                assert nspin == 1
+                assert nspin == 2
                 sep_res = tuple(
                     [np.zeros_like(rho_tuple[0]), np.zeros_like(rho_tuple[0])]
                 )
@@ -243,15 +243,17 @@ class MappedDFTKernel2(KernelEvalBase2, XCEvalSerializable):
             feval(X1, f, df)
         if self.mode == "SEP":
             f = f.reshape(X0T.shape[0], -1)
+            df = df.reshape(X0T.shape[0], -1, self.N1)
         if rhocut > 0:
+            cond = rho_tuple[0] < rhocut
             if self.mode == "SEP":
-                cond = (rho_tuple[0] < rhocut).ravel()
+                print(f.shape, df.shape, cond.shape, rho_tuple[0].shape)
                 f[cond] = 0.0
                 df[cond] = 0.0
             else:
-                cond = rho_tuple[0].sum(0) < rhocut
-                f[cond] = 0.0
-                df[..., cond, :] = 0.0
+                scond = rho_tuple[0].sum(0) < rhocut
+                f[scond] = 0.0
+                df[cond, :] = 0.0
         self.apply_libxc_baseline_(f, df, rho_tuple, vrho_tuple)
         dfdX0T = self.apply_descriptor_grad(X0T, df, force_polarize=True)
         if self.mode == "SEP":
@@ -305,7 +307,7 @@ class MappedXC2:
             tmp, dtmp = kernel(X0T, rho_tuple, vrho_tuple, rhocut=rhocut)
             res += tmp
             dres += dtmp
-        return res, dres
+        return res, dres, vrho_tuple
 
     @property
     def normalizer(self):
