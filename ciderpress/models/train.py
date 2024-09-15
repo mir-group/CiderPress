@@ -24,11 +24,7 @@ import numpy as np
 from pyscf.lib import chkfile, prange
 from scipy.linalg import cho_solve, cholesky
 
-from ciderpress.dft.plans import (
-    get_rho_tuple,
-    get_rho_tuple_with_grad_cross,
-    vxc_tuple_to_array,
-)
+from ciderpress.dft.plans import get_rho_tuple_with_grad_cross, vxc_tuple_to_array
 from ciderpress.dft.settings import FeatureSettings
 from ciderpress.dft.xc_evaluator import MappedXC
 from ciderpress.dft.xc_evaluator2 import MappedXC2
@@ -245,7 +241,6 @@ class MOLGP:
                 else:
                     get_orb_deriv = False
         all_data["desc"] = np.concatenate(all_data["desc"], axis=-2)
-        print(mol_id, all_data["desc"].shape)
         assert all_data["desc"].ndim == 3
         if get_orb_deriv:
             ddesc = all_data["ddesc"]
@@ -269,7 +264,6 @@ class MOLGP:
                         assert all_data["ddesc"][k1][k2][1].ndim == 2
                     else:
                         for sub_ddesc in ddesc:
-                            print("SHAPE", sub_ddesc[k1][k2][0].shape)
                             all_data["ddesc"][k1][k2].append(sub_ddesc[k1][k2])
                         all_data["ddesc"][k1][k2] = np.concatenate(
                             all_data["ddesc"][k1][k2], axis=0
@@ -560,28 +554,25 @@ class MOLGP2(MOLGP):
                 assert "drho_data" in data
 
             weights = data["wt"]
-            # nspin = data['nspin']
+            nspin = data["nspin"]
             desc = data["desc"]
-            rho_data = data["rho_data"]
+            rho_data = data["rho_data"] / nspin
             vwrtt_tot = 0
             baseline = 0
             is_mgga = self.settings.sl_settings.level
             if deriv:
                 ddesc = strk_to_tuplek(data["ddesc"])
                 drho_data = strk_to_tuplek(data["drho_data"])
+                for orb, (s, drho) in drho_data.items():
+                    drho[:] /= nspin
                 self.dexx_ref_dict[mol_id] = strk_to_tuplek(data["dval"], ref=True)
                 dvwrtt_tot = {k: 0 for k in ddesc.keys()}
                 dbaseline = {k: 0 for k in ddesc.keys()}
             for i0, i1 in prange(0, weights.size, blksize):
                 X0T = self._get_normalized_features(desc[..., i0:i1])
-                if kernel.mode == "SEP":
-                    rho_tuple = get_rho_tuple(
-                        rho_data[..., i0:i1], with_spin=True, is_mgga=is_mgga
-                    )
-                else:
-                    rho_tuple = get_rho_tuple_with_grad_cross(
-                        rho_data[..., i0:i1], is_mgga=is_mgga
-                    )
+                rho_tuple = get_rho_tuple_with_grad_cross(
+                    rho_data[..., i0:i1], is_mgga=is_mgga
+                )
                 wt = weights[i0:i1]
                 m_res = kernel.multiplicative_baseline(rho_tuple)
                 a_res = kernel.additive_baseline(rho_tuple)
@@ -598,23 +589,29 @@ class MOLGP2(MOLGP):
                 # TODO setting nan to zero could cover up more serious issues,
                 # but it is the easiest way to take care of small density
                 # training data without editing functions used at eval-time.
+                cond = rho_tuple[0] < 1e-6
                 if kernel.mode == "SEP":
-                    cond = rho_tuple[0] < 1e-6
                     m[cond] = 0.0
                     a[cond] = 0.0
                     k[:, cond] = 0.0
-                    for s in range(X0T.shape[0]):
-                        drho_data[s][:, cond[s]] = 0
-                        if deriv:
+                    if deriv:
+                        for s in range(X0T.shape[0]):
+                            dm[s][:, cond[s]] = 0.0
+                            da[s][:, cond[s]] = 0.0
                             dkdX0T[:, s][:, :, cond[s]] = 0.0
                 else:
-                    cond = X0T[:, 0].sum(0) < 1e-6
-                    m[..., cond] = 0.0
-                    a[..., cond] = 0.0
-                    k[..., cond] = 0.0
-                    drho_data[..., cond] = 0.0
+                    if cond.shape[0] == 1:
+                        scond = cond[0]
+                    else:
+                        scond = np.logical_and(cond[0], cond[1])
+                    m[..., scond] = 0.0
+                    a[..., scond] = 0.0
+                    k[..., scond] = 0.0
                     if deriv:
-                        dkdX0T[..., cond] = 0.0
+                        for s in range(X0T.shape[0]):
+                            dkdX0T[:, s, cond[s], :] = 0.0
+                            dm[s][:, cond[s]] = 0.0
+                            da[s][:, cond[s]] = 0.0
                 if kernel.mode == "SEP":
                     km = (k * m).sum(1)
                     if deriv:

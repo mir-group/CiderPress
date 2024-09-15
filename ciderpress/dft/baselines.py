@@ -139,7 +139,7 @@ def get_libxc_lda_baseline(xcid, rho):
     rho = np.asfortranarray(rho)
     exc = np.zeros(size)
     vrho = np.zeros_like(rho, order="F")
-    xc_helper.get_gga_baseline(
+    xc_helper.get_lda_baseline(
         ctypes.c_int(xcid),
         ctypes.c_int(nspin),
         ctypes.c_int(size),
@@ -206,13 +206,15 @@ def get_libxc_mgga_baseline(xcid, rho, sigma, tau):
 
 def get_libxc_baseline(xcid, rho_tuple):
     if xcid in LDA_CODES:
-        return get_libxc_lda_baseline(xcid, rho_tuple[0])
+        res = get_libxc_lda_baseline(xcid, rho_tuple[0])
     elif xcid in GGA_CODES:
-        return get_libxc_gga_baseline(xcid, rho_tuple[0], rho_tuple[1])
+        res = get_libxc_gga_baseline(xcid, rho_tuple[0], rho_tuple[1])
     elif xcid in MGGA_CODES:
-        return get_libxc_mgga_baseline(xcid, rho_tuple[0], rho_tuple[1], rho_tuple[2])
+        res = get_libxc_mgga_baseline(xcid, rho_tuple[0], rho_tuple[1], rho_tuple[2])
     else:
         raise ValueError("Unsupported xcid {}".formaT(xcid))
+    res[0][:] *= rho_tuple[0].sum(0)
+    return res
 
 
 def get_sigma(X0T):
