@@ -30,6 +30,7 @@ from ciderpress.dft.plans import (
     FracLaplPlan,
     SemilocalPlan,
     get_rho_tuple_with_grad_cross,
+    vxc_tuple_to_array,
 )
 from ciderpress.dft.settings import FeatureSettings
 from ciderpress.dft.xc_evaluator import MappedXC
@@ -790,7 +791,7 @@ class CiderNumIntMixin:
             exc_ml, dexcdX0TN_ml, vrho_tuple = self.mlxc(
                 X0TN, rho_tuple, rhocut=self.rhocut
             )
-
+            vxc[:] += vxc_tuple_to_array(rho, vrho_tuple)
         else:
             raise TypeError("mlxc must be MappedXC or MappedXC2")
         xmix = self.xmix  # / rho.shape[0]

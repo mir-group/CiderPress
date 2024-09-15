@@ -169,13 +169,16 @@ class KernelEvalBase2:
         m_res = self.multiplicative_baseline(rho_tuple)
         add_base = add_base and self.additive_baseline is not None
         for vrho, vm in zip(vrho_tuple, m_res[1:]):
-            vrho[:] += vm * f
+            if self.mode == "SEP" and vrho.shape[0] == 3:
+                vrho[::2] += vm[::2] * f
+            else:
+                vrho[:] += vm * f
         if self.mode == "SEP":
             assert m_res[0].shape == f.shape == dfdX1.shape[:2]
         elif self.mode == "POL":
-            assert m_res[0].shape == f.shape == dfdX1.shape[1]
+            assert m_res[0].shape == f.shape == (dfdX1.shape[1],)
         else:
-            assert m_res[0].shape == f.shape == dfdX1.shape[0]
+            assert m_res[0].shape == f.shape == (dfdX1.shape[0],)
         dfdX1[:] *= m_res[0][..., None]
         f[:] *= m_res[0]
         if add_base:
@@ -224,13 +227,14 @@ class MappedDFTKernel2(KernelEvalBase2, XCEvalSerializable):
         df = np.zeros_like(X1)
         for feval in self.fevals:
             feval(X1, f, df)
+        if self.mode == "POL" and X0T.shape[0] == 1:
+            df = 2 * df[:1]
         if self.mode == "SEP":
             f = f.reshape(X0T.shape[0], -1)
             df = df.reshape(X0T.shape[0], -1, self.N1)
         if rhocut > 0:
             cond = rho_tuple[0] < rhocut
             if self.mode == "SEP":
-                print(f.shape, df.shape, cond.shape, rho_tuple[0].shape)
                 f[cond] = 0.0
                 df[cond] = 0.0
             else:
