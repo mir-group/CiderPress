@@ -66,6 +66,8 @@ class FeatureNormalizer(ABC):
             return YMap.from_dict(d)
         elif d["code"] == "Z":
             return ZMap.from_dict(d)
+        elif d["code"] == "E":
+            return EMap.from_dict(d)
         elif d["code"] == "SU":
             return SignedUMap.from_dict(d)
         else:
@@ -591,6 +593,43 @@ class ZMap(FeatureNormalizer):
     @classmethod
     def from_dict(cls, d):
         return ZMap(d["i"], d["gamma"], d["scale"], d["center"], bounds=d.get("bounds"))
+
+
+class EMap(FeatureNormalizer):
+    def __init__(self, i, scale=1.0, center=0.0, bounds=None):
+        self.i = i
+        self.scale = scale
+        self.center = center
+        self._bounds = bounds or (0, 1)
+
+    @property
+    def bounds(self):
+        return self._bounds
+
+    @property
+    def num_arg(self):
+        return 1
+
+    def fill_feat_(self, y, x):
+        i = self.i
+        y[:] = np.exp(-self.scale * x[i] + self.center)
+
+    def fill_deriv_(self, dfdx, dfdy, x):
+        i = self.i
+        dfdx[i] -= dfdy * self.scale * np.exp(-self.scale * x[i] + self.center)
+
+    def as_dict(self):
+        return {
+            "code": "E",
+            "i": self.i,
+            "scale": self.scale,
+            "center": self.center,
+            "bounds": self.bounds,
+        }
+
+    @classmethod
+    def from_dict(cls, d):
+        return EMap(d["i"], d["scale"], d["center"], bounds=d.get("bounds"))
 
 
 class SignedUMap(FeatureNormalizer):
