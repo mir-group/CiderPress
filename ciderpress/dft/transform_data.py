@@ -68,6 +68,8 @@ class FeatureNormalizer(ABC):
             return ZMap.from_dict(d)
         elif d["code"] == "E":
             return EMap.from_dict(d)
+        elif d["code"] == "VZ":
+            return VZMap.from_dict(d)
         elif d["code"] == "SU":
             return SignedUMap.from_dict(d)
         else:
@@ -220,6 +222,53 @@ class VMap(FeatureNormalizer):
     @classmethod
     def from_dict(cls, d):
         return VMap(d["i"], d["gamma"], d["scale"], d["center"], bounds=d.get("bounds"))
+
+
+class VZMap(FeatureNormalizer):
+    def __init__(self, i, gamma, scale=1.0, center=0.0, bounds=None):
+        self.i = i
+        self.gamma = gamma
+        self.scale = scale
+        self.center = center
+        self._bounds = bounds or (-self.center, self.scale - self.center)
+
+    @property
+    def bounds(self):
+        return self._bounds
+
+    @property
+    def num_arg(self):
+        return 1
+
+    def fill_feat_(self, y, x):
+        xi = x[self.i]
+        y[:] = -self.center + self.scale * self.gamma * (xi + xi * xi) / (
+            1 + self.gamma * (xi + xi * xi)
+        )
+
+    def fill_deriv_(self, dfdx, dfdy, x):
+        xi = x[self.i]
+        fac = dfdy * self.scale * self.gamma
+        fac /= (1 + self.gamma * (xi + xi * xi)) ** 2
+        dfdx[i] += fac
+        dfdx[i] += fac * (self.gamma + 1) * xi
+        dfdx[i] += fac * (self.gamma - 1) * xi * (3 * xi + 2 * xi * xi)
+
+    def as_dict(self):
+        return {
+            "code": "VZ",
+            "i": self.i,
+            "gamma": self.gamma,
+            "scale": self.scale,
+            "center": self.center,
+            "bounds": self.bounds,
+        }
+
+    @classmethod
+    def from_dict(cls, d):
+        return VZMap(
+            d["i"], d["gamma"], d["scale"], d["center"], bounds=d.get("bounds")
+        )
 
 
 class V2Map(FeatureNormalizer):
