@@ -1721,9 +1721,11 @@ def get_single_orbital_tau(rho, mag_grad):
 
 def get_s2(rho, sigma):
     # TODO should this cutoff not be needed if everything else is stable?
-    rho = np.maximum(1e-10, rho)
+    # rho = np.maximum(1e-10, rho)
+    cond = rho < ALPHA_TOL
     b = 2 * (3 * np.pi * np.pi) ** (1.0 / 3)
     s = np.sqrt(sigma) / (b * rho ** (4.0 / 3) + 1e-16)
+    s[cond] = 0.0
     return s * s
 
 
@@ -1742,13 +1744,17 @@ def ds2(rho, sigma):
 
 
 def get_alpha(rho, sigma, tau):
+    cond = rho < ALPHA_TOL
     rho = np.maximum(ALPHA_TOL, rho)
     tau0 = get_uniform_tau(rho)
     tauw = get_single_orbital_tau(rho, np.sqrt(sigma))
     # TODO this numerical stability trick is a bit of a hack.
     # Should make spline support small negative alpha
     # instead, for the sake of clean code and better stability.
-    return np.maximum((tau - tauw), 0) / tau0
+    alpha = np.maximum((tau - tauw), 0) / tau0
+    alpha[cond] = 0
+    return alpha
+    # return np.maximum((tau - tauw), 0) / tau0
 
 
 def dalpha(rho, sigma, tau):

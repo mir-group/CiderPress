@@ -250,9 +250,9 @@ class VZMap(FeatureNormalizer):
         xi = x[self.i]
         fac = dfdy * self.scale * self.gamma
         fac /= (1 + self.gamma * (xi + xi * xi)) ** 2
-        dfdx[i] += fac
-        dfdx[i] += fac * (self.gamma + 1) * xi
-        dfdx[i] += fac * (self.gamma - 1) * xi * (3 * xi + 2 * xi * xi)
+        dfdx[self.i] += fac
+        dfdx[self.i] += fac * (self.gamma + 1) * xi
+        dfdx[self.i] += fac * (self.gamma - 1) * xi * (3 * xi + 2 * xi * xi)
 
     def as_dict(self):
         return {
