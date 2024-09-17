@@ -27,7 +27,7 @@ import numpy as np
 from pyscf import lib
 from pyscf.dft.numint import NumInt
 
-from ciderpress.dft.plans import FracLaplPlan
+from ciderpress.dft.plans import FracLaplPlan, SemilocalPlan
 from ciderpress.dft.settings import (
     FracLaplSettings,
     NLDFSettings,
@@ -372,6 +372,18 @@ def _sl_desc_getter(mol, pgrids, dms, settings, coeffs=None, **kwargs):
     ni = NumInt()
     xctype = "MGGA"
     prho = get_full_rho(ni, mol, dms, pgrids, xctype)[0]
+
+    plan = SemilocalPlan(settings, 1)
+    if coeffs is None:
+        return plan.get_feat(prho[None, :])[0]
+    else:
+        feat = plan.get_feat(prho[None, :])[0]
+        dprho_dphi = get_mo_densities(ni, mol, coeffs, pgrids, xctype)
+        occds = []
+        for imo in range(nmo):
+            occds.append(plan.get_occd(prho[None, :], dprho_dphi[imo : imo + 1])[1][0])
+        return feat, np.stack(occds)
+
     psigma = np.einsum("xg,xg->g", prho[1:4], prho[1:4])
     if settings.mode != "npa":
         raise NotImplementedError
