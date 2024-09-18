@@ -787,7 +787,7 @@ class CiderNumIntMixin:
         if isinstance(self.mlxc, MappedXC):
             exc_ml, dexcdX0TN_ml = self.mlxc(X0TN, rhocut=self.rhocut)
         elif isinstance(self.mlxc, MappedXC2):
-            rho_tuple = get_rho_tuple_with_grad_cross(rho)
+            rho_tuple = get_rho_tuple_with_grad_cross(rho, is_mgga=True)
             exc_ml, dexcdX0TN_ml, vrho_tuple = self.mlxc(
                 X0TN, rho_tuple, rhocut=self.rhocut
             )

@@ -240,7 +240,10 @@ class MappedDFTKernel2(KernelEvalBase2, XCEvalSerializable):
             else:
                 scond = rho_tuple[0].sum(0) < rhocut
                 f[scond] = 0.0
-                df[cond, :] = 0.0
+                if self.mode == "POL":
+                    df[cond, :] = 0.0
+                else:
+                    df[scond, :] = 0.0
         self.apply_libxc_baseline_(f, df, rho_tuple, vrho_tuple)
         dfdX0T = self.apply_descriptor_grad(X0T, df, force_polarize=True)
         if self.mode == "SEP":

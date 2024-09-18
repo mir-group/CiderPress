@@ -794,7 +794,7 @@ class SLBMap(FeatureNormalizer):
         tauw = x[self.j] / (8 * x[self.i])
         tau = x[self.k]
         fac = 1.0 / (tau + tau0)
-        v0 = 2 * dfdy * (tau - tauw) * fac * fac
+        v0 = 2 * dfdy * (tauw - tau) * fac * fac
         vw = -2 * dfdy * fac
         vt = 2 * dfdy * (tau0 + tauw) * fac * fac
         dfdx[self.i] += v0 * self.const * (5.0 / 3) * x[self.i] ** (2.0 / 3)
