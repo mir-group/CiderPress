@@ -70,6 +70,8 @@ class FeatureNormalizer(ABC):
             return EMap.from_dict(d)
         elif d["code"] == "VZ":
             return VZMap.from_dict(d)
+        elif d["code"] == "SLN":
+            return SLNMap.from_dict(d)
         elif d["code"] == "SLX":
             return SLXMap.from_dict(d)
         elif d["code"] == "SLB":
@@ -714,6 +716,38 @@ class SignedUMap(FeatureNormalizer):
         return SignedUMap(d["i"], d["gamma"])
 
 
+class SLNMap(FeatureNormalizer):
+    def __init__(self, i, gamma):
+        self.i = i
+        self.gamma = gamma
+
+    @property
+    def bounds(self):
+        return (0, 1)
+
+    @property
+    def num_arg(self):
+        return 1
+
+    def fill_feat_(self, y, x):
+        rho = x[self.i]
+        const = 3.0 * self.gamma / (4 * np.pi)
+        rss = (1 + const * rho) ** (-1.0 / 3)
+        y[:] = rss
+
+    def fill_deriv_(self, dfdx, dfdy, x):
+        rho = x[self.i]
+        const = 3.0 * self.gamma / (4 * np.pi)
+        dfdx[self.i] -= const / 3.0 * (1 + const * rho) ** (-4.0 / 3)
+
+    def as_dict(self):
+        return {"code": "SLN", "i": self.i, "gamma": self.gamma}
+
+    @classmethod
+    def from_dict(cls, d):
+        return SLNMap(d["i"], d["gamma"])
+
+
 class SLXMap(FeatureNormalizer):
     """
     gamma * s^2 / (1 + gamma * s^2), where s^2 is the squared reduced gradient
@@ -742,8 +776,9 @@ class SLXMap(FeatureNormalizer):
         y[:] = sigma / (rho83 + sigma)
 
     def fill_deriv_(self, dfdx, dfdy, x):
-        rho83 = x[self.i] ** (8.0 / 3)
-        rho53 = (8.0 / 3) * x[self.i] ** (5.0 / 3)
+        rho = np.maximum(x[self.i], 1e-10)
+        rho83 = rho ** (8.0 / 3)
+        rho53 = (8.0 / 3) * rho ** (5.0 / 3)
         const = 2 * (3 * np.pi**2) ** (1.0 / 3)
         const = self.gamma / const**2
         sigma = const * x[self.j]
@@ -790,16 +825,17 @@ class SLBMap(FeatureNormalizer):
         y[:] = -1 + 2 * (tau - tauw) / (tau + tau0)
 
     def fill_deriv_(self, dfdx, dfdy, x):
-        tau0 = self.const * x[self.i] ** (5.0 / 3)
-        tauw = x[self.j] / (8 * x[self.i])
+        rho = np.maximum(x[self.i], 1e-10)
+        tau0 = self.const * rho ** (5.0 / 3)
+        tauw = x[self.j] / (8 * rho)
         tau = x[self.k]
         fac = 1.0 / (tau + tau0)
         v0 = 2 * dfdy * (tauw - tau) * fac * fac
         vw = -2 * dfdy * fac
         vt = 2 * dfdy * (tau0 + tauw) * fac * fac
-        dfdx[self.i] += v0 * self.const * (5.0 / 3) * x[self.i] ** (2.0 / 3)
-        dfdx[self.i] -= vw * tauw / x[self.i]
-        dfdx[self.j] += vw / (8 * x[self.i])
+        dfdx[self.i] += v0 * self.const * (5.0 / 3) * rho ** (2.0 / 3)
+        dfdx[self.i] -= vw * tauw / rho
+        dfdx[self.j] += vw / (8 * rho)
         dfdx[self.k] += vt
 
     def as_dict(self):
