@@ -73,20 +73,6 @@ mol = gto.M(
     atom=atoms_from_ase(atoms), basis=BAS, ecp=BAS, spin=spin, charge=charge, verbose=4
 )
 
-# various CIDER settings, as explained in the ri_cider.setup_cider_calc docstring.
-settings = {
-    "xkernel": "GGA_X_PBE",
-    "ckernel": "GGA_C_PBE",
-    "xmix": 0.25,
-    "grid_level": 3,
-    "debug": False,
-    "amax": 3000.0,
-    "cider_lmax": 10,
-    "lambd": 1.6,
-    "aux_beta": 1.6,
-    "onsite_direct": True,
-}
-
 
 def run_calc(mol, spinpol):
     if spinpol:
@@ -105,6 +91,8 @@ def run_calc(mol, spinpol):
             ckernel="GGA_C_PBE",
         )
         ks.small_rho_cutoff = 0.0
+    else:
+        ks.xc = functional
     ks.grids.level = 3
     ks = ks.apply(scf.addons.remove_linear_dep_)
     etot = ks.kernel()

@@ -738,7 +738,7 @@ class SLNMap(FeatureNormalizer):
     def fill_deriv_(self, dfdx, dfdy, x):
         rho = x[self.i]
         const = 3.0 * self.gamma / (4 * np.pi)
-        dfdx[self.i] -= const / 3.0 * (1 + const * rho) ** (-4.0 / 3)
+        dfdx[self.i] -= dfdy * const / 3.0 * (1 + const * rho) ** (-4.0 / 3)
 
     def as_dict(self):
         return {"code": "SLN", "i": self.i, "gamma": self.gamma}
