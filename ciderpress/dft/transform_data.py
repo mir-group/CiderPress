@@ -76,6 +76,8 @@ class FeatureNormalizer(ABC):
             return SLXMap.from_dict(d)
         elif d["code"] == "SLB":
             return SLBMap.from_dict(d)
+        elif d["code"] == "SLT":
+            return SLTMap.from_dict(d)
         elif d["code"] == "SU":
             return SignedUMap.from_dict(d)
         else:
@@ -844,6 +846,49 @@ class SLBMap(FeatureNormalizer):
     @classmethod
     def from_dict(cls, d):
         return SLBMap(d["i"], d["j"], d["k"])
+
+
+class SLTMap(FeatureNormalizer):
+    """
+    beta = (tau - tau0) / (tau + tau0)
+    """
+
+    const = 0.3 * (3 * np.pi**2) ** (2.0 / 3)
+
+    def __init__(self, i, j):
+        self.i = i
+        self.j = j
+
+    @property
+    def bounds(self):
+        return (-1, 1)
+
+    @property
+    def num_arg(self):
+        return 3
+
+    def fill_feat_(self, y, x):
+        rho = np.maximum(x[self.i], 1e-10)
+        tau0 = self.const * rho ** (5.0 / 3)
+        tau = x[self.j]
+        y[:] = (tau - tau0) / (tau + tau0)
+
+    def fill_deriv_(self, dfdx, dfdy, x):
+        rho = np.maximum(x[self.i], 1e-10)
+        tau0 = self.const * rho ** (5.0 / 3)
+        tau = x[self.j]
+        fac = 1.0 / (tau + tau0)
+        v0 = -2 * dfdy * tau * fac * fac
+        vt = 2 * dfdy * tau0 * fac * fac
+        dfdx[self.i] += v0 * self.const * (5.0 / 3) * rho ** (2.0 / 3)
+        dfdx[self.j] += vt
+
+    def as_dict(self):
+        return {"code": "SLT", "i": self.i, "j": self.j}
+
+    @classmethod
+    def from_dict(cls, d):
+        return SLTMap(d["i"], d["j"])
 
 
 class FeatureList:
