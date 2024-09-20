@@ -388,7 +388,7 @@ class PASDWCiderFeatureKernel(FastPASDWCiderKernel):
             dx_sgLq -= xt_sgLq
             self.timer.stop()
             self.timer.start("transform and convolve")
-            fr_sgLq, df_sgLq, c_siq = setup.cider_contribs.calculate_y_terms_v1(
+            fr_sgLq, df_sgLq, c_siq = setup.cider_contribs.calculate_y_terms(
                 xt_sgLq, dx_sgLq, psetup
             )
             self.timer.stop()

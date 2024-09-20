@@ -32,6 +32,7 @@ from ciderpress.gpaw.fit_paw_gauss_pot import (
     get_p22_matrix,
     get_pfunc2_norm,
     get_phi_iabk,
+    get_poly,
 )
 from ciderpress.gpaw.interp_paw import (
     DiffPAWXCCorrection,
@@ -39,6 +40,7 @@ from ciderpress.gpaw.interp_paw import (
 )
 
 USE_GAUSSIAN_PAW_CONV = False
+USE_PAW_ALGO_V2 = False
 
 
 def get_ag_indices(fft_obj, gd, shape, spos_c, rmax, buffer=0, get_global_disps=False):
@@ -424,21 +426,59 @@ class _PAWCiderContribs:
         vdx_sgLq = self.aux2grid(vdx_sxq)
         return vxt_sgLq, vdx_sgLq
 
-    def calculate_y_terms_v2(self, xt_sgLq, dx_sgLq):
-        c_siq = self.psetup.get_c_from_x(xt_sgLq)
-        dxt = self.psetup.get_x_from_c(c_siq)
-        xt_sgLq += dxt
-        dx_sgLq -= dxt
+    def calculate_y_terms_v2(self, xt_sgLq, dx_sgLq, psetup):
+        na = psetup.alphas.size
+        self.sbt_rgd = psetup.sbt_rgd
+        c_siq = psetup.real_to_coef(
+            np.ascontiguousarray(dx_sgLq[..., :na]), use_ffuncs=True
+        )
+        dxt_sgLq = (
+            psetup.coef_to_real(c_siq, use_ffuncs=False)
+            * get_dv(psetup.slrgd)[:, None, None]
+        )
+        xt_sgLq[..., :na] += dxt_sgLq
+        dx_sgLq[..., :na] -= dxt_sgLq
+
         xt_sxq = self.grid2aux(xt_sgLq)
-        yt_sxq = self.perform_convolution(xt_sxq)
+        yt_sxq = self.perform_convolution_fwd(xt_sxq)
         fr_sgLq = self.aux2grid(yt_sxq)
 
         dx_sxq = self.grid2aux(dx_sgLq)
-        dy_sxq = self.perform_convolution(dx_sxq)
-        dy_sgLq = self.aux2grid(dy_sxq)
-        df_sgLq = self.psetup.get_df(dy_sgLq)
+        dy_sxq = self.perform_convolution_fwd(dx_sxq)
+        df_sgLq = psetup.get_df_only(self.x2u(dy_sxq))
 
         return fr_sgLq, df_sgLq, c_siq
+
+    def calculate_vx_terms_v2(self, vfr_sgLq, vdf_sgLq, vc_siq, psetup):
+        na = psetup.alphas.size
+        self.sbt_rgd = psetup.sbt_rgd
+        vdy_suq = psetup.get_vdf_only(np.ascontiguousarray(vdf_sgLq))
+        vdx_sxq = self.perform_convolution_bwd(self.u2x(vdy_suq))
+        vdx_sgLq = self.aux2grid(vdx_sxq)
+
+        vyt_sxq = self.grid2aux(vfr_sgLq)
+        vxt_sxq = self.perform_convolution_bwd(vyt_sxq)
+        vxt_sgLq = self.aux2grid(vxt_sxq)
+
+        vc_siq = vc_siq + psetup.real_to_coef(
+            (vxt_sgLq - vdx_sgLq)[..., :na] * get_dv(psetup.slrgd)[:, None, None],
+            use_ffuncs=False,
+        )
+        vdx_sgLq[..., :na] += psetup.coef_to_real(vc_siq, use_ffuncs=True)
+
+        return vxt_sgLq, vdx_sgLq
+
+    def calculate_y_terms(self, xt_sgLq, dx_sgLq, psetup):
+        if USE_PAW_ALGO_V2:
+            return self.calculate_y_terms_v2(xt_sgLq, dx_sgLq, psetup)
+        else:
+            return self.calculate_y_terms_v1(xt_sgLq, dx_sgLq, psetup)
+
+    def calculate_vx_terms(self, vfr_sgLq, vdf_sgLq, vc_siq, psetup):
+        if USE_PAW_ALGO_V2:
+            return self.calculate_vx_terms_v2(vfr_sgLq, vdf_sgLq, vc_siq, psetup)
+        else:
+            return self.calculate_vx_terms_v1(vfr_sgLq, vdf_sgLq, vc_siq, psetup)
 
 
 class PAWCiderContribsRecip(_PAWCiderContribs):
@@ -1096,7 +1136,7 @@ class FastPASDWCiderKernel:
             xt_sgLq *= fcut[:, None, None]
             """
             self.timer.start("transform and convolve")
-            fr_sgLq, df_sgLq, c_siq = setup.cider_contribs.calculate_y_terms_v1(
+            fr_sgLq, df_sgLq, c_siq = setup.cider_contribs.calculate_y_terms(
                 xt_sgLq, dx_sgLq, psetup
             )
             self.timer.stop()
@@ -1208,7 +1248,7 @@ class FastPASDWCiderKernel:
         for a, D_sp in D_asp.items():
             setup = setups[a]
             psetup = setup.ps_setup
-            vxt_sgLq, vdx_sgLq = setup.cider_contribs.calculate_vx_terms_v1(
+            vxt_sgLq, vdx_sgLq = setup.cider_contribs.calculate_vx_terms(
                 self.vfr_asgLq[a], self.vdf_asgLq[a], vc_asiq[a], psetup
             )
             """
@@ -1696,9 +1736,11 @@ class PSmoothSetup2(PASDWData):
 
         dv_g = get_dv(rgd)
         ffuncs_jg = np.zeros((nj, ng))
+        ffuncs_jt = np.zeros((nj, self.interp_rgd.r_g.size))
         self.exact_ovlp_pf = np.zeros((self.ni, self.ni))
         self.ffuncs_jtp = np.zeros((nj, self.interp_rgd.r_g.size, 4))
         ilist = np.arange(self.ni)
+
         for j in range(self.nj):
             n = nlist_j[j]
             l = self.llist_j[j]
@@ -1712,7 +1754,30 @@ class PSmoothSetup2(PASDWData):
                     ovlp = np.dot(pfuncs_ng[n] * pfuncs_ng[n1], dv_g)
                     for i0, i1 in zip(i0s.tolist(), i1s.tolist()):
                         self.exact_ovlp_pf[i0, i1] = ovlp
+        # TODO should not initialize this when V2 is used
         self.jcol = RadialFunctionCollection(self.nbas_loc, ffuncs_jg, rgd.r_g, dv_g)
+        if USE_PAW_ALGO_V2:
+            for j in range(self.nj):
+                n = self.nlist_j[j]
+                ffuncs_jg[j] = get_poly(n, rgd.r_g, self.rcut_feat)
+                ffuncs_jt[j] = get_poly(n, self.interp_rgd.r_g, self.rcut_feat)
+            for l in range(self.lmax + 1):
+                jmin, jmax = self.nbas_loc[l], self.nbas_loc[l + 1]
+                ovlp = np.einsum(
+                    "ig,jg,g->ij",
+                    pfuncs_ng[nlist_j[jmin:jmax]],
+                    ffuncs_jg[jmin:jmax],
+                    dv_g,
+                )
+                ffuncs_jg[jmin:jmax] = np.linalg.solve(ovlp.T, ffuncs_jg[jmin:jmax])
+                ffuncs_jt[jmin:jmax] = np.linalg.solve(ovlp.T, ffuncs_jt[jmin:jmax])
+            self.ffuncs_jtp = np.zeros((nj, self.interp_rgd.r_g.size, 4))
+            for j in range(nj):
+                self.ffuncs_jtp[j] = spline(
+                    np.arange(self.interp_rgd.r_g.size).astype(np.float64),
+                    ffuncs_jt[j],
+                )
+            self.exact_ovlp_pf = np.identity(self.ni)
         self.ffuncs_jg = ffuncs_jg
 
     def _initialize_a2g(self, atco: ATCBasis):
@@ -1868,8 +1933,11 @@ class PSmoothSetup2(PASDWData):
             vy_svq[s] = self.pcol.convert(vdf_suq[s], fwd=True)
         return vy_svq
 
-    def coef_to_real(self, c_siq, out=None):
-        nq = self.alphas.size
+    def coef_to_real(self, c_siq, out=None, check_q=True, use_ffuncs=False):
+        if check_q:
+            nq = self.alphas.size
+        else:
+            nq = c_siq.shape[-1]
         ng = self.slrgd.r_g.size
         nlm = self.pcol.nlm
         nspin = c_siq.shape[0]
@@ -1878,15 +1946,25 @@ class PSmoothSetup2(PASDWData):
         else:
             xt_sgLq = out
             assert xt_sgLq.shape == (nspin, ng, nlm, nq)
-        for s in range(nspin):
-            for i in range(self.ni):
-                L = self.lmlist_i[i]
-                n = self.nlist_i[i]
-                xt_sgLq[s, :, L, :] += c_siq[s, i, :] * self.pfuncs_ng[n, :, None]
+        if use_ffuncs:
+            for s in range(nspin):
+                for i in range(self.ni):
+                    L = self.lmlist_i[i]
+                    j = self.jlist_i[i]
+                    xt_sgLq[s, :, L, :] += c_siq[s, i, :] * self.ffuncs_jg[j, :, None]
+        else:
+            for s in range(nspin):
+                for i in range(self.ni):
+                    L = self.lmlist_i[i]
+                    n = self.nlist_i[i]
+                    xt_sgLq[s, :, L, :] += c_siq[s, i, :] * self.pfuncs_ng[n, :, None]
         return xt_sgLq
 
-    def real_to_coef(self, xt_sgLq, out=None):
-        nq = self.alphas.size
+    def real_to_coef(self, xt_sgLq, out=None, check_q=True, use_ffuncs=False):
+        if check_q:
+            nq = self.alphas.size
+        else:
+            nq = xt_sgLq.shape[-1]
         ng = self.slrgd.r_g.size
         nlm = self.pcol.nlm
         nspin = xt_sgLq.shape[0]
@@ -1896,11 +1974,18 @@ class PSmoothSetup2(PASDWData):
         else:
             c_siq = out
             assert c_siq.shape == (nspin, self.ni, nq)
-        for s in range(nspin):
-            for i in range(self.ni):
-                L = self.lmlist_i[i]
-                n = self.nlist_i[i]
-                c_siq[s, i, :] += np.dot(self.pfuncs_ng[n, :], xt_sgLq[s, :, L, :])
+        if use_ffuncs:
+            for s in range(nspin):
+                for i in range(self.ni):
+                    L = self.lmlist_i[i]
+                    j = self.jlist_i[i]
+                    c_siq[s, i, :] += np.dot(self.ffuncs_jg[j, :], xt_sgLq[s, :, L, :])
+        else:
+            for s in range(nspin):
+                for i in range(self.ni):
+                    L = self.lmlist_i[i]
+                    n = self.nlist_i[i]
+                    c_siq[s, i, :] += np.dot(self.pfuncs_ng[n, :], xt_sgLq[s, :, L, :])
         return c_siq
 
     @classmethod
