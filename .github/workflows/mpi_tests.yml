@@ -43,12 +43,11 @@ jobs:
     - name: Build things
       run: |
         source .github/workflows/load_conda.sh
-        pip install -e .
+        source .github/workflows/mm_install.sh
+        pip install .
         python scripts/download_functionals.py
     - name: Test with unittest
       run: |
-        # See https://github.com/pytest-dev/pytest/issues/1075
         source .github/workflows/load_conda.sh
         sh .github/workflows/setup_gpaw.sh
         sh .github/workflows/run_mpi_tests.sh
-        # PYTHONHASHSEED=0 OMP_NUM_THREADS=2 python -m unittest discover ciderpress/dft/tests/
