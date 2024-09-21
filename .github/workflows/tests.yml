@@ -26,7 +26,6 @@ jobs:
       uses: mamba-org/setup-micromamba@v1
       with:
         micromamba-version: '1.5.6-0' # any version from https://github.com/mamba-org/micromamba-releases
-        environment-file: .github/nocomp_env.yml
         environment-name: run_tests
         init-shell: >-
           bash
@@ -43,7 +42,7 @@ jobs:
     - name: Build things
       run: |
         source .github/workflows/load_conda.sh
-        source .githib/workflows/mm_install.sh
+        source .github/workflows/mm_install.sh
         pip install .
         python scripts/download_functionals.py
     - name: Test with unittest
