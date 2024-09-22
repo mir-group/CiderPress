@@ -78,6 +78,8 @@ class FeatureNormalizer(ABC):
             return SLBMap.from_dict(d)
         elif d["code"] == "SLT":
             return SLTMap.from_dict(d)
+        elif d["code"] == "SLD":
+            return SLDMap.from_dict(d)
         elif d["code"] == "SU":
             return SignedUMap.from_dict(d)
         else:
@@ -889,6 +891,54 @@ class SLTMap(FeatureNormalizer):
     @classmethod
     def from_dict(cls, d):
         return SLTMap(d["i"], d["j"])
+
+
+class SLDMap(FeatureNormalizer):
+    const = 0.3 * (3 * np.pi**2) ** (2.0 / 3)
+
+    def __init__(self, i, j, k):
+        self.i = i
+        self.j = j
+        self.k = k
+
+    @property
+    def bounds(self):
+        return (-1, 1)
+
+    @property
+    def num_arg(self):
+        return 3
+
+    def fill_feat_(self, y, x):
+        rho = np.maximum(x[self.i], 1e-10)
+        tau0 = self.const * rho ** (5.0 / 3)
+        tauw = x[self.j] / (8 * rho)
+        tau = x[self.k]
+        y[:] = (tau - tau0) / (tau + tau0)
+        y[:] -= (tauw - tau0) / (tauw + tau0)
+
+    def fill_deriv_(self, dfdx, dfdy, x):
+        rho = np.maximum(x[self.i], 1e-10)
+        tau0 = self.const * rho ** (5.0 / 3)
+        tauw = x[self.j] / (8 * rho)
+        tau = x[self.k]
+        fac1 = 1.0 / (tau + tau0)
+        fac2 = 1.0 / (tauw + tau0)
+        v0 = -2 * dfdy * tau * fac1 * fac1
+        v0 += 2 * dfdy * tauw * fac2 * fac2
+        vw = -2 * dfdy * tau0 * fac2 * fac2
+        vt = 2 * dfdy * tau0 * fac1 * fac1
+        dfdx[self.i] += v0 * self.const * (5.0 / 3) * rho ** (2.0 / 3)
+        dfdx[self.i] -= vw * tauw / rho
+        dfdx[self.j] += vw / (8 * rho)
+        dfdx[self.k] += vt
+
+    def as_dict(self):
+        return {"code": "SLD", "i": self.i, "j": self.j, "k": self.k}
+
+    @classmethod
+    def from_dict(cls, d):
+        return SLDMap(d["i"], d["j"], d["k"])
 
 
 class FeatureList:
