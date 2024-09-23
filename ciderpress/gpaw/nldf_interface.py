@@ -134,7 +134,7 @@ class LibCiderPW:
 
     def __del__(self):
         pwutil.ciderpw_finalize(ctypes.byref(self._ptr))
-        self._data_ptr = None
+        self._ptr = None
 
     def initialize_backend(self):
         assert not self.initialized

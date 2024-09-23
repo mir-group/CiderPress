@@ -53,9 +53,13 @@ if (NOT BLAS_LIBRARIES)
   check_function_exists(ffsll HAVE_FFS)
 endif()
 
-find_package(MPI REQUIRED)
-if (NOT MPI_LIBRARIES)
-  message(FATAL_ERROR "No MPI found")
+find_package(MPI)
+if (MPI_LIBRARIES)
+  set(HAVE_MPI 1)
+  set(FFTW_CONFIGURE_ARGS "--enable-static=yes --enable-shared=yes --enable-threads --enable-mpi=yes --enable-openmp MPILIBS=-lmpi")
+else ()
+  set(HAVE_MPI 0)
+  set(FFTW_CONFIGURE_ARGS "--enable-static=yes --enable-shared=yes --enable-threads --enable-openmp")
 endif()
 include_directories(${CMAKE_PYTHON_INCLUDE_PATH})
 link_directories(${CMAKE_PYTHON_LIBRARY_PATH})
@@ -104,7 +108,7 @@ if(ENABLE_FFTW AND BUILD_FFTW)
       PREFIX ${PROJECT_BINARY_DIR}/deps
       INSTALL_DIR ${PROJECT_SOURCE_DIR}/deps
       BUILD_IN_SOURCE True
-      CONFIGURE_COMMAND ./configure --enable-static=yes --enable-shared=yes --enable-threads --enable-mpi=yes --enable-openmp MPILIBS=-lmpi CXX=${CMAKE_CXX_COMPILER} CC=${CMAKE_C_COMPILER} prefix=<INSTALL_DIR>
+      CONFIGURE_COMMAND ./configure ${FFTW_CONFIGURE_ARGS} CXX=${CMAKE_CXX_COMPILER} CC=${CMAKE_C_COMPILER} prefix=<INSTALL_DIR>
       BUILD_COMMAND make -j4 install
     )
     add_dependencies(pwutil libfftw3)

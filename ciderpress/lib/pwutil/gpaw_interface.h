@@ -13,9 +13,6 @@ typedef struct {
     int *members;
 } MPIObject;
 
-MPI_Comm unpack_gpaw_comm(PyObject *gpaw_mpi_obj) {
-    MPIObject *gpaw_comm = (MPIObject *)gpaw_mpi_obj;
-    return gpaw_comm->comm;
-}
+MPI_Comm unpack_gpaw_comm(PyObject *gpaw_mpi_obj);
 
 #endif
