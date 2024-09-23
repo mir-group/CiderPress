@@ -29,7 +29,8 @@ from ciderpress.gpaw.fast_atom_utils import (
     FastPASDWCiderKernel,
     PAugSetup,
     PAWCiderContribs,
-    PSmoothSetup2,
+    PSmoothSetupV1,
+    PSmoothSetupV2,
     SBTGridContainer,
     calculate_cider_paw_correction,
 )
@@ -351,12 +352,17 @@ class PASDWCiderFeatureKernel(FastPASDWCiderKernel):
                     setup.Z,
                     setup.xc_correction,
                     beta=1.6,
+                    paw_algo=self._paw_algo,
                 )
                 if setup.cider_contribs.plan is not None:
                     assert (
                         abs(np.max(setup.cider_contribs.plan.alphas) - encut0) < 1e-10
                     )
-                setup.ps_setup = PSmoothSetup2.from_setup_and_atco(
+                if self._paw_algo == "v1":
+                    pss_cls = PSmoothSetupV1
+                else:
+                    pss_cls = PSmoothSetupV2
+                setup.ps_setup = pss_cls.from_setup_and_atco(
                     setup,
                     setup.cider_contribs.atco_inp,
                     self.bas_exp_fit,
