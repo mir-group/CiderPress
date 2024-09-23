@@ -1,7 +1,7 @@
 import sys
 
 from ase.build import bulk
-from gpaw import PW
+from gpaw import PW, Mixer
 
 from ciderpress.gpaw.calculator import CiderGPAW, get_cider_functional
 
@@ -48,6 +48,7 @@ atoms.calc = CiderGPAW(
     # Set augments_grids=True for CIDER functionals to parallelize
     # XC energy and potential evaluation more effectively
     parallel={"augment_grids": True},
+    mixer=Mixer(0.7, 8, 50),
     spinpol=True,
 )
 etot = atoms.get_potential_energy()  # run the calculation

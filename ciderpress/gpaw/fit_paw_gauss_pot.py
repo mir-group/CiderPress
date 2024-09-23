@@ -68,6 +68,13 @@ def get_ffunc3(n, r, R):
     return y
 
 
+def get_poly(n, r, R):
+    x = r / R
+    xn = x**n
+    xn[x > 1] = 0.0
+    return xn
+
+
 def get_ffunc4_real(n, r, R):
     A = np.array(
         [[1, 0, 0, 0], [0, 1, 0, 0], [1, 1, 1, 1], [0, 1, 2, 3]], dtype=np.float64
