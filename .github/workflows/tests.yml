@@ -33,7 +33,7 @@ jobs:
         cache-environment: true
         post-cleanup: 'all'
         create-args: >-
-          python=3.10
+          python=${{ matrix.python-version }}
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     - name: Install dependencies and build
