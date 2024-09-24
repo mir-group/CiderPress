@@ -9,6 +9,7 @@ from ciderpress.lib import c_null_ptr, load_library
 
 pwutil = load_library("libpwutil")
 pwutil.ciderpw_get_work_pointer.restype = ctypes.POINTER(ctypes.c_double)
+pwutil.ciderpw_has_mpi.restype = ctypes.c_int
 
 
 def get_norms_and_expnts_from_plan(plan):
@@ -104,6 +105,16 @@ class LibCiderPW:
         self._glda = None
         self._klda = None
         self._data_arr = None
+        if not self.has_mpi and self.comm.size > 1:
+            raise ValueError(
+                "CIDER is only compiled for serial evaluation, but the GPAW calculation is parallel with {} processes.".format(
+                    self.comm.size
+                )
+            )
+
+    @property
+    def has_mpi(self):
+        return bool(int(pwutil.ciderpw_has_mpi()))
 
     def get_real_array(self):
         """
@@ -139,15 +150,24 @@ class LibCiderPW:
     def initialize_backend(self):
         assert not self.initialized
 
-        comm = self.comm
-        pwutil.ciderpw_init_mpi_from_gpaw(
-            self._ptr,
-            ctypes.py_object(comm.get_c_object()),
-            ctypes.c_int(self.nalpha),
-            ctypes.c_int(self.nbeta),
-            self.norms_ab.ctypes.data_as(ctypes.c_void_p),
-            self.expnts_ab.ctypes.data_as(ctypes.c_void_p),
-        )
+        if self.has_mpi:
+            comm = self.comm
+            pwutil.ciderpw_init_mpi_from_gpaw(
+                self._ptr,
+                ctypes.py_object(comm.get_c_object()),
+                ctypes.c_int(self.nalpha),
+                ctypes.c_int(self.nbeta),
+                self.norms_ab.ctypes.data_as(ctypes.c_void_p),
+                self.expnts_ab.ctypes.data_as(ctypes.c_void_p),
+            )
+        else:
+            pwutil.ciderpw_init_serial(
+                self._ptr,
+                ctypes.c_int(self.nalpha),
+                ctypes.c_int(self.nbeta),
+                self.norms_ab.ctypes.data_as(ctypes.c_void_p),
+                self.expnts_ab.ctypes.data_as(ctypes.c_void_p),
+            )
 
         size_data = np.zeros(8, dtype=np.int32)
         pwutil.ciderpw_get_local_size_and_lda(
@@ -172,16 +192,24 @@ class LibCiderPW:
         self.initialized = True
 
     def fft(self, in_xg, out_xg):
+        if self.has_mpi:
+            fn = pwutil.ciderpw_g2k_mpi_gpaw
+        else:
+            fn = pwutil.ciderpw_g2k_serial_gpaw
         for x in range(in_xg.shape[0]):
-            pwutil.ciderpw_g2k_mpi_gpaw(
+            fn(
                 self._ptr,
                 in_xg[x].ctypes.data_as(ctypes.c_void_p),
                 out_xg[x].ctypes.data_as(ctypes.c_void_p),
             )
 
     def ifft(self, in_xg, out_xg):
+        if self.has_mpi:
+            fn = pwutil.ciderpw_k2g_mpi_gpaw
+        else:
+            fn = pwutil.ciderpw_k2g_serial_gpaw
         for x in range(in_xg.shape[0]):
-            pwutil.ciderpw_k2g_mpi_gpaw(
+            fn(
                 self._ptr,
                 in_xg[x].ctypes.data_as(ctypes.c_void_p),
                 out_xg[x].ctypes.data_as(ctypes.c_void_p),
@@ -285,10 +313,16 @@ class FFTWrapper:
         self.fft_obj = fft_obj
         self.dist1 = distribution
         gd = pd.gd
+        if fft_obj.has_mpi:
+            nrecip_c = [gd.N_c[1], gd.N_c[0], gd.N_c[2] // 2 + 1]
+            parsize_c = [gd.parsize_c[1], gd.parsize_c[0], gd.parsize_c[2]]
+        else:
+            nrecip_c = [gd.N_c[0], gd.N_c[1], gd.N_c[2] // 2 + 1]
+            parsize_c = [gd.parsize_c[0], gd.parsize_c[1], gd.parsize_c[2]]
         self.dummy_gd = GridDescriptor(
-            [gd.N_c[1], gd.N_c[0], gd.N_c[2] // 2 + 1],
+            nrecip_c,
             comm=gd.comm,
-            parsize_c=[gd.parsize_c[1], gd.parsize_c[0], gd.parsize_c[2]],
+            parsize_c=parsize_c,
         )
         self.dist2 = FFTDistribution(self.dummy_gd, [gd.comm.size, 1, 1])
         self.pd = pd
@@ -328,7 +362,8 @@ class FFTWrapper:
         for x in range(in_xg.shape[0]):
             out_g = self.dummy_gd.collect(out_xg[x])
             if self.pd.gd.comm.rank == 0:
-                out_g = np.ascontiguousarray(out_g.transpose(1, 0, 2))
+                if self.fft_obj.has_mpi:
+                    out_g = np.ascontiguousarray(out_g.transpose(1, 0, 2))
                 to_scatter = out_g.ravel()[pd.Q_qG[0]]
             else:
                 to_scatter = None
@@ -355,9 +390,10 @@ class FFTWrapper:
                 t[n:0:-1, -m:] = t[-n:, m:0:-1].conj()
                 t[-n:, -m:] = t[n:0:-1, m:0:-1].conj()
                 t[-n:, 0] = t[n:0:-1, 0].conj()
+            if self.fft_obj.has_mpi:
                 tmp = pd.tmp_Q.transpose(1, 0, 2).copy()
             else:
-                tmp = pd.tmp_Q.transpose(1, 0, 2).copy()
+                tmp = pd.tmp_Q.copy()
             contribs.append(self.dummy_gd.distribute(tmp))
         in_xg = np.stack(contribs)
         xshape = (len(in_xg),)

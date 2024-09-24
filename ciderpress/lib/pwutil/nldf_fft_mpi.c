@@ -2,8 +2,13 @@
 #include "config.h"
 #include "gpaw_interface.h"
 #include "nldf_fft_core.h"
+#include <assert.h>
 #include <complex.h>
+#include <fftw3-mpi.h>
+#include <mpi.h>
+#include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 
 void ciderpw_set_communicator(ciderpw_data data, MPI_Comm mpi_comm) {
     assert(data->mpi_comm == NULL);
@@ -83,7 +88,7 @@ void ciderpw_init_mpi(ciderpw_data data, MPI_Comm mpi_comm, int nalpha,
     local_size_dims[0] = data->cell.Nglobal[0];
     local_size_dims[1] = data->cell.Nglobal[1];
     local_size_dims[2] = data->kLDA;
-    data->fft_type = 0;
+    data->fft_type = CIDERPW_R2C;
 
     ptrdiff_t fftw_xsize, fftw_xstart, fftw_ysize, fftw_ystart;
     ciderpw_setup_kernel(data, nalpha, nbeta, norms_ab, expnts_ab);

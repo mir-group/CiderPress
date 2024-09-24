@@ -1,8 +1,12 @@
 #include "nldf_fft_serial.h"
 #include "config.h"
 #include "nldf_fft_core.h"
+#include <assert.h>
 #include <complex.h>
+#include <fftw3.h>
+#include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 
 void ciderpw_setup_reciprocal_vectors(ciderpw_data data) {
     int N0, N1, N2;
@@ -49,24 +53,15 @@ void ciderpw_setup_reciprocal_vectors(ciderpw_data data) {
 
 void ciderpw_init_serial(ciderpw_data data, int nalpha, int nbeta,
                          double *norms_ab, double *expnts_ab) {
-    const ptrdiff_t plan_dims[3] = {
-        data->cell.Nglobal[0], data->cell.Nglobal[1], data->cell.Nglobal[2]};
-    ptrdiff_t local_size_dims[3];
+    const int plan_dims[3] = {data->cell.Nglobal[0], data->cell.Nglobal[1],
+                              data->cell.Nglobal[2]};
     ptrdiff_t fftw_alloc_size;
     data->kLDA = data->icell.Nglobal[2];
     data->gLDA = 2 * data->kLDA;
-    local_size_dims[0] = data->cell.Nglobal[0];
-    local_size_dims[1] = data->cell.Nglobal[1];
-    local_size_dims[2] = data->kLDA;
-    data->fft_type = 0;
+    data->fft_type = CIDERPW_R2C;
 
-    ptrdiff_t fftw_xsize, fftw_xstart, fftw_ysize, fftw_ystart;
     ciderpw_setup_kernel(data, nalpha, nbeta, norms_ab, expnts_ab);
 
-    fftw_alloc_size = fftw_mpi_local_size_many_transposed(
-        3, local_size_dims, data->kernel.work_size, FFTW_MPI_DEFAULT_BLOCK,
-        FFTW_MPI_DEFAULT_BLOCK, data->mpi_comm, &fftw_xsize, &fftw_xstart,
-        &fftw_ysize, &fftw_ystart);
     data->cell.Nlocal[0] = data->cell.Nglobal[0];
     data->cell.Nlocal[1] = data->cell.Nglobal[1];
     data->cell.Nlocal[2] = data->cell.Nglobal[2];
@@ -81,6 +76,8 @@ void ciderpw_init_serial(ciderpw_data data, int nalpha, int nbeta,
     data->icell.offset[1] = 0;
     data->icell.offset[2] = 0;
 
+    fftw_alloc_size =
+        plan_dims[0] * plan_dims[1] * plan_dims[2] * data->kernel.work_size;
     assert(fftw_alloc_size % data->kernel.work_size == 0);
     data->work_ska = fftw_alloc_complex(fftw_alloc_size);
 
@@ -91,7 +88,7 @@ void ciderpw_init_serial(ciderpw_data data, int nalpha, int nbeta,
             data->kernel.work_size, 1, FFTW_ESTIMATE);
         data->plan_k2g = fftw_plan_many_dft_c2r(
             3, plan_dims, data->kernel.work_size, data->work_ska, NULL,
-            (double *)data->kernel.work_size, 1, data->work_ska, NULL,
+            data->kernel.work_size, 1, (double *)data->work_ska, NULL,
             data->kernel.work_size, 1, FFTW_ESTIMATE);
     } else {
         data->plan_g2k = fftw_plan_many_dft(

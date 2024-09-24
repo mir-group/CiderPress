@@ -99,68 +99,69 @@ class _FastPASDW_MPRoutines:  # (_CiderPASDW_MPRoutines):
             global_slices = self.global_slices_s
 
         shapes = [
-            # (self._plan.nalpha, atom_slices[a].num_funcs)
             (atom_slices[a].num_funcs, self._plan.nalpha)
             for a in range(len(self.setups))
         ]
         sizes = np.array([s[0] * s[1] for s in shapes])
         rank_a = self.atom_partition.rank_a
         comm = self.atom_partition.comm
-        atoms = [[] for r in range(comm.size)]
-        for a in range(len(self.setups)):
-            atoms[rank_a[a]].append(a)
-        alocs = {}
-        rlocs = []
-        rsizes = []
-        tot = 0
-        for r in range(comm.size):
-            rlocs.append(tot)
-            for a in atoms[r]:
-                alocs[a] = tot
-                tot += sizes[a]
-            rsizes.append(tot - rlocs[-1])
-        sendbuf = np.empty(rsizes[comm.rank], dtype=np.float64)
-        rtot = 0
-        for a in atoms[comm.rank]:
-            # assert c_abi[a].flags.c_contiguous
-            c_iq = self.c_asiq[a][s]
-            if self.pasdw_ovlp_fit:
-                sendbuf[rtot : rtot + sizes[a]] = np.ascontiguousarray(
-                    # c_abi[a].dot(global_slices[a].sinv_pf.T)
-                    global_slices[a].sinv_pf.dot(c_iq)
-                ).ravel()
-            else:
-                sendbuf[rtot : rtot + sizes[a]] = np.ascontiguousarray(c_iq).ravel()
-            rtot += sizes[a]
-        np.asarray([rtot] * comm.size)
-        np.asarray([0] * comm.size)
-        recvbuf = np.empty(tot, dtype=np.float64)
+        if self.fft_obj.has_mpi:
+            atoms = [[] for r in range(comm.size)]
+            for a in range(len(self.setups)):
+                atoms[rank_a[a]].append(a)
+            alocs = {}
+            rlocs = []
+            rsizes = []
+            tot = 0
+            for r in range(comm.size):
+                rlocs.append(tot)
+                for a in atoms[r]:
+                    alocs[a] = tot
+                    tot += sizes[a]
+                rsizes.append(tot - rlocs[-1])
+            sendbuf = np.empty(rsizes[comm.rank], dtype=np.float64)
+            rtot = 0
+            for a in atoms[comm.rank]:
+                # assert c_abi[a].flags.c_contiguous
+                c_iq = self.c_asiq[a][s]
+                if self.pasdw_ovlp_fit:
+                    sendbuf[rtot : rtot + sizes[a]] = np.ascontiguousarray(
+                        # c_abi[a].dot(global_slices[a].sinv_pf.T)
+                        global_slices[a].sinv_pf.dot(c_iq)
+                    ).ravel()
+                else:
+                    sendbuf[rtot : rtot + sizes[a]] = np.ascontiguousarray(c_iq).ravel()
+                rtot += sizes[a]
+            np.asarray([rtot] * comm.size)
+            np.asarray([0] * comm.size)
+            recvbuf = np.empty(tot, dtype=np.float64)
+            self.timer.stop()
+            self.timer.start("comm")
+            rsizes = np.asarray(rsizes, order="C", dtype=np.int32)
+            rlocs = np.asarray(rlocs, order="C", dtype=np.int32)
+            libpwutil.ciderpw_all_gatherv_from_gpaw(
+                ctypes.py_object(comm.get_c_object()),
+                sendbuf.ctypes.data_as(ctypes.c_void_p),
+                ctypes.c_int(rtot),
+                recvbuf.ctypes.data_as(ctypes.c_void_p),
+                rsizes.ctypes.data_as(ctypes.c_void_p),
+                rlocs.ctypes.data_as(ctypes.c_void_p),
+            )
+        else:
+            max_size = np.max([s[0] * s[1] for s in shapes])
+            buf = np.empty(max_size, dtype=np.float64)
         self.timer.stop()
-        self.timer.start("comm")
-        rsizes = np.asarray(rsizes, order="C", dtype=np.int32)
-        rlocs = np.asarray(rlocs, order="C", dtype=np.int32)
-        libpwutil.ciderpw_all_gatherv_from_gpaw(
-            ctypes.py_object(comm.get_c_object()),
-            sendbuf.ctypes.data_as(ctypes.c_void_p),
-            ctypes.c_int(rtot),
-            recvbuf.ctypes.data_as(ctypes.c_void_p),
-            rsizes.ctypes.data_as(ctypes.c_void_p),
-            rlocs.ctypes.data_as(ctypes.c_void_p),
-        )
-        self.timer.stop()
-        # max_size = np.max([s[0] * s[1] for s in shapes])
-        # buf = np.empty(max_size, dtype=np.float64)
 
         for a in range(len(self.setups)):
             atom_slice = atom_slices[a]
-            coefs_iq = np.ndarray(shapes[a], buffer=recvbuf[alocs[a] :])
-            # coefs_bi = np.ndarray(shapes[a], buffer=buf)
-            # coefs_bi = np.ndarray(shapes[a], buffer=buf)
-            # if comm.rank == rank_a[a]:
-            #     coefs_bi[:] = c_abi[a]
-            # self.timer.start("comm")
-            # comm.broadcast(coefs_bi, rank_a[a])
-            # self.timer.stop()
+            if self.fft_obj.has_mpi:
+                coefs_iq = np.ndarray(shapes[a], buffer=recvbuf[alocs[a] :])
+            else:
+                coefs_iq = np.ndarray(shapes[a], buffer=buf)
+                coefs_iq = np.ndarray(shapes[a], buffer=buf)
+                if comm.rank == rank_a[a]:
+                    coefs_iq[:] = self.c_asiq[a][s]
+                comm.broadcast(coefs_iq, rank_a[a])
             if atom_slice is not None and atom_slices[a].rad_g.size > 0:
                 self.timer.start("funcs")
                 funcs_ig = atom_slice.get_funcs()

@@ -2,6 +2,7 @@
 #define NLDF_FFT_CORE_H
 #include "config.h"
 #include <complex.h>
+#include <stdint.h>
 #if HAVE_MPI
 #include <fftw3-mpi.h>
 #include <mpi.h>
