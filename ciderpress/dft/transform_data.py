@@ -66,6 +66,20 @@ class FeatureNormalizer(ABC):
             return YMap.from_dict(d)
         elif d["code"] == "Z":
             return ZMap.from_dict(d)
+        elif d["code"] == "E":
+            return EMap.from_dict(d)
+        elif d["code"] == "VZ":
+            return VZMap.from_dict(d)
+        elif d["code"] == "SLN":
+            return SLNMap.from_dict(d)
+        elif d["code"] == "SLX":
+            return SLXMap.from_dict(d)
+        elif d["code"] == "SLB":
+            return SLBMap.from_dict(d)
+        elif d["code"] == "SLT":
+            return SLTMap.from_dict(d)
+        elif d["code"] == "SLD":
+            return SLDMap.from_dict(d)
         elif d["code"] == "SU":
             return SignedUMap.from_dict(d)
         else:
@@ -218,6 +232,53 @@ class VMap(FeatureNormalizer):
     @classmethod
     def from_dict(cls, d):
         return VMap(d["i"], d["gamma"], d["scale"], d["center"], bounds=d.get("bounds"))
+
+
+class VZMap(FeatureNormalizer):
+    def __init__(self, i, gamma, scale=1.0, center=0.0, bounds=None):
+        self.i = i
+        self.gamma = gamma
+        self.scale = scale
+        self.center = center
+        self._bounds = bounds or (-self.center, self.scale - self.center)
+
+    @property
+    def bounds(self):
+        return self._bounds
+
+    @property
+    def num_arg(self):
+        return 1
+
+    def fill_feat_(self, y, x):
+        xi = x[self.i]
+        y[:] = -self.center + self.scale * self.gamma * (xi + xi * xi) / (
+            1 + self.gamma * (xi + xi * xi)
+        )
+
+    def fill_deriv_(self, dfdx, dfdy, x):
+        xi = x[self.i]
+        fac = dfdy * self.scale * self.gamma
+        fac /= (1 + self.gamma * (xi + xi * xi)) ** 2
+        dfdx[self.i] += fac
+        dfdx[self.i] += fac * (self.gamma + 1) * xi
+        dfdx[self.i] += fac * (self.gamma - 1) * xi * (3 * xi + 2 * xi * xi)
+
+    def as_dict(self):
+        return {
+            "code": "VZ",
+            "i": self.i,
+            "gamma": self.gamma,
+            "scale": self.scale,
+            "center": self.center,
+            "bounds": self.bounds,
+        }
+
+    @classmethod
+    def from_dict(cls, d):
+        return VZMap(
+            d["i"], d["gamma"], d["scale"], d["center"], bounds=d.get("bounds")
+        )
 
 
 class V2Map(FeatureNormalizer):
@@ -593,6 +654,43 @@ class ZMap(FeatureNormalizer):
         return ZMap(d["i"], d["gamma"], d["scale"], d["center"], bounds=d.get("bounds"))
 
 
+class EMap(FeatureNormalizer):
+    def __init__(self, i, scale=1.0, center=0.0, bounds=None):
+        self.i = i
+        self.scale = scale
+        self.center = center
+        self._bounds = bounds or (0, 1)
+
+    @property
+    def bounds(self):
+        return self._bounds
+
+    @property
+    def num_arg(self):
+        return 1
+
+    def fill_feat_(self, y, x):
+        i = self.i
+        y[:] = np.exp(-self.scale * x[i] + self.center)
+
+    def fill_deriv_(self, dfdx, dfdy, x):
+        i = self.i
+        dfdx[i] -= dfdy * self.scale * np.exp(-self.scale * x[i] + self.center)
+
+    def as_dict(self):
+        return {
+            "code": "E",
+            "i": self.i,
+            "scale": self.scale,
+            "center": self.center,
+            "bounds": self.bounds,
+        }
+
+    @classmethod
+    def from_dict(cls, d):
+        return EMap(d["i"], d["scale"], d["center"], bounds=d.get("bounds"))
+
+
 class SignedUMap(FeatureNormalizer):
     def __init__(self, i, gamma):
         self.i = i
@@ -620,6 +718,227 @@ class SignedUMap(FeatureNormalizer):
     @classmethod
     def from_dict(cls, d):
         return SignedUMap(d["i"], d["gamma"])
+
+
+class SLNMap(FeatureNormalizer):
+    def __init__(self, i, gamma):
+        self.i = i
+        self.gamma = gamma
+
+    @property
+    def bounds(self):
+        return (0, 1)
+
+    @property
+    def num_arg(self):
+        return 1
+
+    def fill_feat_(self, y, x):
+        rho = x[self.i]
+        const = 3.0 * self.gamma / (4 * np.pi)
+        rss = (1 + const * rho) ** (-1.0 / 3)
+        y[:] = rss
+
+    def fill_deriv_(self, dfdx, dfdy, x):
+        rho = x[self.i]
+        const = 3.0 * self.gamma / (4 * np.pi)
+        dfdx[self.i] -= dfdy * const / 3.0 * (1 + const * rho) ** (-4.0 / 3)
+
+    def as_dict(self):
+        return {"code": "SLN", "i": self.i, "gamma": self.gamma}
+
+    @classmethod
+    def from_dict(cls, d):
+        return SLNMap(d["i"], d["gamma"])
+
+
+class SLXMap(FeatureNormalizer):
+    """
+    gamma * s^2 / (1 + gamma * s^2), where s^2 is the squared reduced gradient
+    s^2 = sigma / C n^8/3
+    """
+
+    def __init__(self, i, j, gamma):
+        self.i = i
+        self.j = j
+        self.gamma = gamma
+
+    @property
+    def bounds(self):
+        return (0, 1)
+
+    @property
+    def num_arg(self):
+        return 2
+
+    def fill_feat_(self, y, x):
+        rho = np.maximum(x[self.i], 1e-10)
+        rho83 = rho ** (8.0 / 3)
+        const = 2 * (3 * np.pi**2) ** (1.0 / 3)
+        const = self.gamma / const**2
+        sigma = const * x[self.j]
+        y[:] = sigma / (rho83 + sigma)
+
+    def fill_deriv_(self, dfdx, dfdy, x):
+        rho = np.maximum(x[self.i], 1e-10)
+        rho83 = rho ** (8.0 / 3)
+        rho53 = (8.0 / 3) * rho ** (5.0 / 3)
+        const = 2 * (3 * np.pi**2) ** (1.0 / 3)
+        const = self.gamma / const**2
+        sigma = const * x[self.j]
+        fac = rho83 + sigma
+        fac[:] = fac * fac
+        fac[:] = dfdy / fac
+        dfdx[self.i] -= fac * sigma * rho53
+        dfdx[self.j] += fac * rho83 * const
+
+    def as_dict(self):
+        return {"code": "SLX", "i": self.i, "j": self.j, "gamma": self.gamma}
+
+    @classmethod
+    def from_dict(cls, d):
+        return SLXMap(d["i"], d["j"], d["gamma"])
+
+
+class SLBMap(FeatureNormalizer):
+    """
+    beta = (tau - tauw) / (tau + tau0)
+    """
+
+    const = 0.3 * (3 * np.pi**2) ** (2.0 / 3)
+
+    def __init__(self, i, j, k):
+        self.i = i
+        self.j = j
+        self.k = k
+
+    @property
+    def bounds(self):
+        return (-1, 1)
+
+    @property
+    def num_arg(self):
+        return 3
+
+    def fill_feat_(self, y, x):
+        rho = np.maximum(x[self.i], 1e-10)
+        tau0 = self.const * rho ** (5.0 / 3)
+        tauw = x[self.j] / (8 * rho)
+        tau = x[self.k]
+        # y[:] = -1 + 2 * (tau - tauw) / (tau0 + tau - tauw)
+        y[:] = -1 + 2 * (tau - tauw) / (tau + tau0)
+
+    def fill_deriv_(self, dfdx, dfdy, x):
+        rho = np.maximum(x[self.i], 1e-10)
+        tau0 = self.const * rho ** (5.0 / 3)
+        tauw = x[self.j] / (8 * rho)
+        tau = x[self.k]
+        fac = 1.0 / (tau + tau0)
+        v0 = 2 * dfdy * (tauw - tau) * fac * fac
+        vw = -2 * dfdy * fac
+        vt = 2 * dfdy * (tau0 + tauw) * fac * fac
+        dfdx[self.i] += v0 * self.const * (5.0 / 3) * rho ** (2.0 / 3)
+        dfdx[self.i] -= vw * tauw / rho
+        dfdx[self.j] += vw / (8 * rho)
+        dfdx[self.k] += vt
+
+    def as_dict(self):
+        return {"code": "SLB", "i": self.i, "j": self.j, "k": self.k}
+
+    @classmethod
+    def from_dict(cls, d):
+        return SLBMap(d["i"], d["j"], d["k"])
+
+
+class SLTMap(FeatureNormalizer):
+    """
+    beta = (tau - tau0) / (tau + tau0)
+    """
+
+    const = 0.3 * (3 * np.pi**2) ** (2.0 / 3)
+
+    def __init__(self, i, j):
+        self.i = i
+        self.j = j
+
+    @property
+    def bounds(self):
+        return (-1, 1)
+
+    @property
+    def num_arg(self):
+        return 3
+
+    def fill_feat_(self, y, x):
+        rho = np.maximum(x[self.i], 1e-10)
+        tau0 = self.const * rho ** (5.0 / 3)
+        tau = x[self.j]
+        y[:] = (tau - tau0) / (tau + tau0)
+
+    def fill_deriv_(self, dfdx, dfdy, x):
+        rho = np.maximum(x[self.i], 1e-10)
+        tau0 = self.const * rho ** (5.0 / 3)
+        tau = x[self.j]
+        fac = 1.0 / (tau + tau0)
+        v0 = -2 * dfdy * tau * fac * fac
+        vt = 2 * dfdy * tau0 * fac * fac
+        dfdx[self.i] += v0 * self.const * (5.0 / 3) * rho ** (2.0 / 3)
+        dfdx[self.j] += vt
+
+    def as_dict(self):
+        return {"code": "SLT", "i": self.i, "j": self.j}
+
+    @classmethod
+    def from_dict(cls, d):
+        return SLTMap(d["i"], d["j"])
+
+
+class SLDMap(FeatureNormalizer):
+    const = 0.3 * (3 * np.pi**2) ** (2.0 / 3)
+
+    def __init__(self, i, j, k):
+        self.i = i
+        self.j = j
+        self.k = k
+
+    @property
+    def bounds(self):
+        return (-1, 1)
+
+    @property
+    def num_arg(self):
+        return 3
+
+    def fill_feat_(self, y, x):
+        rho = np.maximum(x[self.i], 1e-10)
+        tau0 = self.const * rho ** (5.0 / 3)
+        tauw = x[self.j] / (8 * rho)
+        tau = x[self.k]
+        y[:] = tau / (tau + tau0)
+        y[:] -= tauw / (tauw + tau0)
+
+    def fill_deriv_(self, dfdx, dfdy, x):
+        rho = np.maximum(x[self.i], 1e-10)
+        tau0 = self.const * rho ** (5.0 / 3)
+        tauw = x[self.j] / (8 * rho)
+        tau = x[self.k]
+        fac1 = 1.0 / (tau + tau0)
+        fac2 = 1.0 / (tauw + tau0)
+        v0 = -dfdy * tau * fac1 * fac1
+        v0 += dfdy * tauw * fac2 * fac2
+        vw = -dfdy * tau0 * fac2 * fac2
+        vt = dfdy * tau0 * fac1 * fac1
+        dfdx[self.i] += v0 * self.const * (5.0 / 3) * rho ** (2.0 / 3)
+        dfdx[self.i] -= vw * tauw / rho
+        dfdx[self.j] += vw / (8 * rho)
+        dfdx[self.k] += vt
+
+    def as_dict(self):
+        return {"code": "SLD", "i": self.i, "j": self.j, "k": self.k}
+
+    @classmethod
+    def from_dict(cls, d):
+        return SLDMap(d["i"], d["j"], d["k"])
 
 
 class FeatureList:

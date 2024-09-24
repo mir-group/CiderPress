@@ -26,8 +26,15 @@ from pyscf.dft.gen_grid import ALIGNMENT_UNIT, BLKSIZE, NBINS
 from pyscf.dft.numint import _dot_ao_ao_sparse, _scale_ao_sparse, eval_ao
 
 import ciderpress.pyscf.frac_lapl as nlof
-from ciderpress.dft.plans import FracLaplPlan, SemilocalPlan
+from ciderpress.dft.plans import (
+    FracLaplPlan,
+    SemilocalPlan,
+    get_rho_tuple_with_grad_cross,
+    vxc_tuple_to_array,
+)
 from ciderpress.dft.settings import FeatureSettings
+from ciderpress.dft.xc_evaluator import MappedXC
+from ciderpress.dft.xc_evaluator2 import MappedXC2
 from ciderpress.pyscf.nldf_convolutions import PyscfNLDFGenerator
 from ciderpress.pyscf.sdmx import EXXSphGenerator
 
@@ -777,7 +784,16 @@ class CiderNumIntMixin:
             raise RuntimeError("nfeat mismatch, this should not happen!")
 
         X0TN = self.settings.normalizers.get_normalized_feature_vector(X0T)
-        exc_ml, dexcdX0TN_ml = self.mlxc(X0TN, rhocut=self.rhocut)
+        if isinstance(self.mlxc, MappedXC):
+            exc_ml, dexcdX0TN_ml = self.mlxc(X0TN, rhocut=self.rhocut)
+        elif isinstance(self.mlxc, MappedXC2):
+            rho_tuple = get_rho_tuple_with_grad_cross(rho, is_mgga=True)
+            exc_ml, dexcdX0TN_ml, vrho_tuple = self.mlxc(
+                X0TN, rho_tuple, rhocut=self.rhocut
+            )
+            vxc[:] += vxc_tuple_to_array(rho, vrho_tuple)
+        else:
+            raise TypeError("mlxc must be MappedXC or MappedXC2")
         xmix = self.xmix  # / rho.shape[0]
         exc_ml *= xmix
         dexcdX0TN_ml *= xmix

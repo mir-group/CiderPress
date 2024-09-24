@@ -76,12 +76,14 @@ def get_descriptors(
 
     Args:
         calc: a converged GPAW calculation
+        settings (BaseSettings): A settings object specifying
+            which features to compute.
         p_i (optional): A list of (s, k, n) indexes for orbitals
             for which to differentiate features with respect to
             occupation
         use_paw (bool, True): Whether to use PAW corrections.
-        version (str, 'b'): Descriptor version b, d, or l.
-            l stands for local.
+        screen_dens (bool, True): Whether to remove low-density
+            grids from the return feature vectors.
 
     Returns:
         if p_i is None:

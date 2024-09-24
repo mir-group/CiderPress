@@ -24,8 +24,10 @@ import numpy as np
 from pyscf.lib import chkfile, prange
 from scipy.linalg import cho_solve, cholesky
 
+from ciderpress.dft.plans import get_rho_tuple_with_grad_cross, vxc_tuple_to_array
 from ciderpress.dft.settings import FeatureSettings
-from ciderpress.dft.xc_evaluator import MappedFunctional, MappedXC, XCEvalSerializable
+from ciderpress.dft.xc_evaluator import MappedXC
+from ciderpress.dft.xc_evaluator2 import MappedXC2
 
 
 def strk_to_tuplek(d, ref=False):
@@ -47,66 +49,21 @@ def strk_to_tuplek(d, ref=False):
     return nd
 
 
-class DescParams(XCEvalSerializable):
-    """
-    Container for descriptor set parameters
-    """
-
-    def __init__(self, version, a0, fac_mul, amin, vvmul):
-        self.version = version
-        self.a0 = a0
-        self.fac_mul = fac_mul
-        self.amin = amin
-        self.vvmul = vvmul
-
-    @property
-    def size(self):
-        if self.version[0] == "d":
-            return 5
-        elif self.version[0] == "b":
-            return 6
-        elif self.version[0] == "h":
-            return 10
-        elif self.version[0] == "i":
-            return 11
-        elif self.version[0] == "k":
-            return 8
-        else:
-            raise ValueError("Unsupported version")
-
-    def to_dict(self):
-        return {
-            "version": self.version,
-            "a0": self.a0,
-            "fac_mul": self.fac_mul,
-            "amin": self.amin,
-            "vvmul": self.vvmul,
-        }
-
-    @classmethod
-    def from_dict(cls, d):
-        return cls(
-            d["version"],
-            d["a0"],
-            d["fac_mul"],
-            d["amin"],
-            d["vvmul"],
-        )
-
-
 class MOLGP:
     def __init__(
         self,
         kernels,
-        desc_params,
+        settings,
         libxc_baseline=None,
         default_noise=0.030,
     ):
         """
+        Initialize a Gaussian process model for the exchange-correlation functional
+        or its components.
 
         Args:
             kernels (list[DFTKernel]): List of kernels that sum to the XC energy.
-            desc_params (DescParams or FeatureSettings): Settings for the
+            settings (DescParams or FeatureSettings): Settings for the
                 features. Specifies what the feature vector is.
             libxc_baseline (str or None): Additional baseline functional to
                 evaluate using the libxc library.
@@ -114,13 +71,9 @@ class MOLGP:
                 is not provided for a particular data point
         """
         self.libxc_baseline = libxc_baseline
-        if isinstance(desc_params, DescParams):
-            self._settings_version = "old"
-        elif isinstance(desc_params, FeatureSettings):
-            self._settings_version = "new"
-        else:
-            raise ValueError("desc_params must be DescParams or FeatureSettings")
-        self.desc_params = desc_params
+        if not isinstance(settings, FeatureSettings):
+            raise ValueError("settings must be FeatureSettings")
+        self.settings = settings
         if self.libxc_baseline is not None:
             raise NotImplementedError
         if not isinstance(kernels, list):
@@ -158,10 +111,6 @@ class MOLGP:
         # Vector of derivative of correlation covariances with control points
         self.corr_dcov_dict = {}
 
-    @property
-    def settings(self):
-        return self.desc_params
-
     def map(self, mapping_plans):
         """
         Map the MOLGP model to an Evaluator objec that can efficiently
@@ -175,10 +124,9 @@ class MOLGP:
             kernel.map(mapping_plan)
             for kernel, mapping_plan in zip(self.kernels, mapping_plans)
         ]
-        cls = MappedFunctional if self._settings_version == "old" else MappedXC
-        return cls(
+        return MappedXC(
             mapped_kernels,
-            self.desc_params,
+            self.settings,
             libxc_baseline=self.libxc_baseline,
         )
 
@@ -266,78 +214,64 @@ class MOLGP:
             kernel.set_control_points(X0T_list, reduce=reduce)
 
     def _get_normalized_features(self, desc):
-        if self._settings_version == "old":
-            return desc
-        else:
-            return self.settings.normalizers.get_normalized_feature_vector(desc)
+        return self.settings.normalizers.get_normalized_feature_vector(desc)
 
     def _get_normalized_feature_derivs(self, desc, ddesc):
-        if self._settings_version == "old":
-            return ddesc
-        else:
-            return self.settings.normalizers.get_derivative_of_normed_features(
-                desc, ddesc
-            )
+        return self.settings.normalizers.get_derivative_of_normed_features(desc, ddesc)
 
     @staticmethod
-    def load_data(ddir, mol_id, get_orb_deriv, settings_version):
-        if settings_version == "old":
-            fname = os.path.join(ddir, mol_id + ".hdf5")
-            return chkfile.load(fname, "train_data")
-        else:
-            fname = os.path.join(ddir["REF"], mol_id + ".hdf5")
-            all_data = chkfile.load(fname, "train_data")
-            all_data["desc"] = []
-            all_data["ddesc"] = []
-            for feat_type in ["SL", "NLDF", "NLOF", "SDMX", "HYB"]:
-                if ddir[feat_type] is None:
-                    if feat_type == "SL":
-                        raise ValueError("Need semilocal features")
-                    else:
-                        continue
+    def load_data(ddir, mol_id, get_orb_deriv):
+        fname = os.path.join(ddir["REF"], mol_id + ".hdf5")
+        all_data = chkfile.load(fname, "train_data")
+        all_data["desc"] = []
+        all_data["ddesc"] = []
+        for feat_type in ["SL", "NLDF", "NLOF", "SDMX", "HYB"]:
+            if ddir[feat_type] is None:
+                if feat_type == "SL":
+                    raise ValueError("Need semilocal features")
                 else:
-                    fname = os.path.join(ddir[feat_type], mol_id + ".hdf5")
-                    data = chkfile.load(fname, "train_data")
-                    all_data["desc"].append(data["desc"])
-                    if get_orb_deriv or (get_orb_deriv is None and "ddesc" in data):
-                        all_data["ddesc"].append(data["ddesc"])
-                        get_orb_deriv = True
-                    else:
-                        get_orb_deriv = False
-            all_data["desc"] = np.concatenate(all_data["desc"], axis=-2)
-            print(mol_id, all_data["desc"].shape)
-            assert all_data["desc"].ndim == 3
-            if get_orb_deriv:
-                ddesc = all_data["ddesc"]
-                all_data["ddesc"] = {}
-                ddesc0 = ddesc[0]
-                for k1, v1 in ddesc0.items():
-                    all_data["ddesc"][k1] = {}
-                    for k2, v2 in ddesc0[k1].items():
-                        all_data["ddesc"][k1][k2] = []
-                        if all_data["desc"].shape[0] == 2:
-                            assert len(v2) == 2
-                            spin = ddesc0[k1][k2][0]
-                            all_data["ddesc"][k1][k2] = []
-                            for sub_ddesc in ddesc:
-                                assert spin == sub_ddesc[k1][k2][0]
-                                all_data["ddesc"][k1][k2].append(sub_ddesc[k1][k2][1])
-                            all_data["ddesc"][k1][k2] = (
-                                spin,
-                                np.concatenate(all_data["ddesc"][k1][k2], axis=0),
-                            )
-                            assert all_data["ddesc"][k1][k2][1].ndim == 2
-                        else:
-                            for sub_ddesc in ddesc:
-                                print("SHAPE", sub_ddesc[k1][k2][0].shape)
-                                all_data["ddesc"][k1][k2].append(sub_ddesc[k1][k2])
-                            all_data["ddesc"][k1][k2] = np.concatenate(
-                                all_data["ddesc"][k1][k2], axis=0
-                            )
-                            assert all_data["ddesc"][k1][k2].ndim == 2
+                    continue
             else:
-                all_data.pop("ddesc")
-            return all_data
+                fname = os.path.join(ddir[feat_type], mol_id + ".hdf5")
+                data = chkfile.load(fname, "train_data")
+                all_data["desc"].append(data["desc"])
+                if get_orb_deriv or (get_orb_deriv is None and "ddesc" in data):
+                    all_data["ddesc"].append(data["ddesc"])
+                    get_orb_deriv = True
+                else:
+                    get_orb_deriv = False
+        all_data["desc"] = np.concatenate(all_data["desc"], axis=-2)
+        assert all_data["desc"].ndim == 3
+        if get_orb_deriv:
+            ddesc = all_data["ddesc"]
+            all_data["ddesc"] = {}
+            ddesc0 = ddesc[0]
+            for k1, v1 in ddesc0.items():
+                all_data["ddesc"][k1] = {}
+                for k2, v2 in ddesc0[k1].items():
+                    all_data["ddesc"][k1][k2] = []
+                    if all_data["desc"].shape[0] == 2:
+                        assert len(v2) == 2
+                        spin = ddesc0[k1][k2][0]
+                        all_data["ddesc"][k1][k2] = []
+                        for sub_ddesc in ddesc:
+                            assert spin == sub_ddesc[k1][k2][0]
+                            all_data["ddesc"][k1][k2].append(sub_ddesc[k1][k2][1])
+                        all_data["ddesc"][k1][k2] = (
+                            spin,
+                            np.concatenate(all_data["ddesc"][k1][k2], axis=0),
+                        )
+                        assert all_data["ddesc"][k1][k2][1].ndim == 2
+                    else:
+                        for sub_ddesc in ddesc:
+                            all_data["ddesc"][k1][k2].append(sub_ddesc[k1][k2])
+                        all_data["ddesc"][k1][k2] = np.concatenate(
+                            all_data["ddesc"][k1][k2], axis=0
+                        )
+                        assert all_data["ddesc"][k1][k2].ndim == 2
+        else:
+            all_data.pop("ddesc")
+        return all_data
 
     def _compute_mol_covs(
         self, ddir, mol_ids, kernel, get_orb_deriv=None, save_refs=False
@@ -354,7 +288,7 @@ class MOLGP:
         deriv = None
         for i, mol_id in enumerate(mol_ids):
             print("MOL ID", mol_id)
-            data = self.load_data(ddir, mol_id, get_orb_deriv, self._settings_version)
+            data = self.load_data(ddir, mol_id, get_orb_deriv)
             if deriv is None:
                 if get_orb_deriv is None:
                     if "ddesc" in data:
@@ -375,7 +309,6 @@ class MOLGP:
                 etst = 0
             if deriv:
                 ddesc = strk_to_tuplek(data["ddesc"])
-                print("DVAL", strk_to_tuplek(data["dval"], ref=True))
                 self.dexx_ref_dict[mol_id] = strk_to_tuplek(data["dval"], ref=True)
                 dvwrtt_tot = {k: 0 for k in ddesc.keys()}
                 dbaseline = {k: 0 for k in ddesc.keys()}
@@ -409,8 +342,6 @@ class MOLGP:
                             dkdX0T[:, s][:, :, cond[s]] = 0.0
                 else:
                     cond = X0T[:, 0].sum(0) < 1e-6
-                    # print(X0T.shape, cond.shape, m.shape, dm.shape, a.shape, da.shape, k.shape)
-                    # (1, 6, 10000) (10000,) (10000,) (1, 6, 10000) (10000,) (1, 6, 10000) (10000, 180)
                     m[..., cond] = 0.0
                     dm[..., cond] = 0.0
                     a[..., cond] = 0.0
@@ -447,9 +378,7 @@ class MOLGP:
             if debug_spline is not None:
                 print("DEBUG EN", etst)
             print("BASELINE", baseline)
-            # den = data['rho'][0] if nspin == 1 else data['rho'][:, 0]
             if save_refs:
-                # TODO check this works
                 self.exx_ref_dict[mol_id] = (data["val"] * weights).sum()
                 print("exx_ref", self.exx_ref_dict[mol_id])
                 self.ks_baseline_dict[mol_id] = data["e_tot_orig"] - data["exc_orig"]
@@ -582,3 +511,154 @@ class MOLGP:
             if rxn.get("weight") is not None:
                 noise /= np.sqrt(rxn["weight"])
             self.rxn_noise_list.append(noise)
+
+
+class MOLGP2(MOLGP):
+    def __init__(
+        self,
+        kernels,
+        settings,
+        libxc_baseline=None,
+        default_noise=0.030,
+    ):
+        """
+        Same as MOLGP, except kernels should be of type DFTKernel2
+        """
+        super(MOLGP2, self).__init__(
+            kernels,
+            settings,
+            libxc_baseline=libxc_baseline,
+            default_noise=default_noise,
+        )
+
+    def _compute_mol_covs(
+        self, ddir, mol_ids, kernel, get_orb_deriv=None, save_refs=False
+    ):
+        # need to have different _compute_mol_covs function to handle baselines differently.
+        blksize = 10000
+
+        deriv = None
+        for mol_id in mol_ids:
+            print("MOL ID", mol_id)
+            data = self.load_data(ddir, mol_id, get_orb_deriv)
+            if deriv is None:
+                if get_orb_deriv is None:
+                    if "ddesc" in data:
+                        deriv = True
+                    else:
+                        deriv = False
+                else:
+                    deriv = get_orb_deriv
+            if deriv:
+                assert "ddesc" in data
+                assert "drho_data" in data
+
+            weights = data["wt"]
+            nspin = data["nspin"]
+            desc = data["desc"]
+            rho_data = data["rho_data"] / nspin
+            vwrtt_tot = 0
+            baseline = 0
+            is_mgga = self.settings.sl_settings.level
+            if deriv:
+                ddesc = strk_to_tuplek(data["ddesc"])
+                drho_data = strk_to_tuplek(data["drho_data"])
+                for orb, (s, drho) in drho_data.items():
+                    drho[:] /= nspin
+                self.dexx_ref_dict[mol_id] = strk_to_tuplek(data["dval"], ref=True)
+                dvwrtt_tot = {k: 0 for k in ddesc.keys()}
+                dbaseline = {k: 0 for k in ddesc.keys()}
+            for i0, i1 in prange(0, weights.size, blksize):
+                X0T = self._get_normalized_features(desc[..., i0:i1])
+                rho_tuple = get_rho_tuple_with_grad_cross(
+                    rho_data[..., i0:i1], is_mgga=is_mgga
+                )
+                wt = weights[i0:i1]
+                m_res = kernel.multiplicative_baseline(rho_tuple)
+                a_res = kernel.additive_baseline(rho_tuple)
+                dm = vxc_tuple_to_array(rho_data[..., i0:i1], m_res[1:])
+                da = vxc_tuple_to_array(rho_data[..., i0:i1], a_res[1:])
+                m, a = m_res[0], a_res[0]
+                # k is (Nctrl, nspin, Nsamp)
+                # dk is (Nctrl, nspin, N0, Nsamp)
+                if deriv:
+                    k, dkdX0T = kernel.get_k_and_deriv(X0T)
+                else:
+                    k = kernel.get_k(X0T)
+                    dkdX0T = None
+                # TODO setting nan to zero could cover up more serious issues,
+                # but it is the easiest way to take care of small density
+                # training data without editing functions used at eval-time.
+                cond = rho_tuple[0] < 1e-6
+                if kernel.mode == "SEP":
+                    m[cond] = 0.0
+                    a[cond] = 0.0
+                    k[:, cond] = 0.0
+                    if deriv:
+                        for s in range(X0T.shape[0]):
+                            dm[s][:, cond[s]] = 0.0
+                            da[s][:, cond[s]] = 0.0
+                            dkdX0T[:, s][:, :, cond[s]] = 0.0
+                else:
+                    if cond.shape[0] == 1:
+                        scond = cond[0]
+                    else:
+                        scond = np.logical_and(cond[0], cond[1])
+                    m[..., scond] = 0.0
+                    a[..., scond] = 0.0
+                    k[..., scond] = 0.0
+                    if deriv:
+                        for s in range(X0T.shape[0]):
+                            dkdX0T[:, s, cond[s], :] = 0.0
+                            dm[s][:, cond[s]] = 0.0
+                            da[s][:, cond[s]] = 0.0
+                if kernel.mode == "SEP":
+                    km = (k * m).sum(1)
+                    if deriv:
+                        dkm1 = dkdX0T * m[:, None, :]
+                        dkm2 = k[:, :, None, :] * dm
+                else:
+                    km = k * m
+                    if deriv:
+                        dkm1 = dkdX0T * m
+                        dkm2 = k[:, None, None, :] * dm
+                vwrtt_tot += (km * wt).sum(axis=1)
+                baseline += (a * wt).sum()
+                if deriv:
+                    for orb, (s, ddesc_tmp) in ddesc.items():
+                        # ddesc_tmp has shape (N0, Nsamp)
+                        # avoid overwriting slice
+                        ddesc_tmp = wt * self._get_normalized_feature_derivs(
+                            desc[s, :, i0:i1], ddesc_tmp[:, i0:i1]
+                        )
+                        drho_tmp = wt * drho_data[orb][:, i0:i1]
+                        dvwrtt_tot[orb] += np.einsum("cdn,dn->c", dkm1[:, s], ddesc_tmp)
+                        dvwrtt_tot[orb] += np.einsum("cdn,dn->c", dkm2[:, s], drho_tmp)
+                        dbaseline[orb] += np.dot(da * drho_tmp, wt)
+            kernel.cov_dict[mol_id] = vwrtt_tot
+            kernel.base_dict[mol_id] = baseline
+            if save_refs:
+                self.exx_ref_dict[mol_id] = (data["val"] * weights).sum()
+                self.ks_baseline_dict[mol_id] = data["e_tot_orig"] - data["exc_orig"]
+            if deriv:
+                kernel.dcov_dict[mol_id] = dvwrtt_tot
+                kernel.dbase_dict[mol_id] = dbaseline
+
+    def map(self, mapping_plans):
+        """
+        Map the MOLGP model to an Evaluator objec that can efficiently
+        evaluate the XC energy and which can also be serialized.
+
+        Returns:
+            mapping_plans (list of function): Functions that map each
+                kernel to a MappedDFTKernel object
+        """
+        mapped_kernels = [
+            kernel.map(mapping_plan)
+            for kernel, mapping_plan in zip(self.kernels, mapping_plans)
+        ]
+        return MappedXC2(
+            mapped_kernels,
+            self.settings,
+            libxc_baseline=self.libxc_baseline,
+        )
