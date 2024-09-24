@@ -43,8 +43,11 @@ endif()
 
 set(MKL_INTERFACE lp64)
 find_package(MKL CONFIG REQUIRED PATHS $ENV{MKLROOT})
-message(STATUS "Imported oneMKL targets: ${MKL_IMPORTED_TARGETS}")
-if (NOT MKL_IMPORTED_TARGETS)
+set(MKL_INCLUDE_DIR ${MKL_ROOT}/include)
+message(STATUS "Imported MKL targets: ${MKL_IMPORTED_TARGETS}")
+message(STATUS "MKL libraries in: ${MKL_LIBRARIES}")
+message(STATUS "MKL include path is: ${MKL_INCLUDE_DIR}")
+if (NOT MKL_FOUND)
   message(FATAL_ERROR "MKL not found")
 endif()
 

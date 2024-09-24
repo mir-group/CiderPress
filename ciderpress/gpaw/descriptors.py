@@ -280,7 +280,15 @@ class FixedKOccupationNumbers(OccupationNumberCalculator):
         self.f_skn = np.array(f_skn)
         self.weight_sk = weight_sk
 
-    def _calculate(self, nelectrons, eig_qn, weight_q, f_qn, fermi_level_guess=np.nan):
+    def _calculate(
+        self,
+        nelectrons,
+        eig_qn,
+        weight_q,
+        f_qn,
+        fermi_level_guess=np.nan,
+        fix_fermi_level=False,
+    ):
         calc_fixed(self.bd, self.f_skn[:, self.kpt_indices, :], f_qn)
 
         return np.inf, 0.0

@@ -9,4 +9,6 @@ set_target_properties(mcider PROPERTIES
   COMPILE_FLAGS ${OpenMP_C_FLAGS}
   LINK_FLAGS ${OpenMP_C_FLAGS})
 
-target_link_libraries(mcider ${BLAS_LIBRARIES})
+# target_link_libraries(mcider ${BLAS_LIBRARIES})
+target_link_libraries(mcider ${MKL_LIBRARIES})
+target_include_directories(mcider PRIVATE ${MKL_INCLUDE_DIR})

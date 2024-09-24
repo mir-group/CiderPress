@@ -1,6 +1,8 @@
 include MANIFEST.in
 include README.md setup.py LICENSE NOTICE
 
+include ciderpress/data/*.npy
+
 prune pyscf/lib/build
 include ciderpress/lib/*.so
 include ciderpress/lib/*.so*

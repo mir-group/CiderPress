@@ -38,11 +38,11 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     - name: Install dependencies and build
       run: |
-        sudo apt-get -qq install gcc libblas-dev cmake
+        sudo apt-get -qq install gcc cmake
     - name: Build things
       run: |
         source .github/workflows/load_conda.sh
-        source .github/workflows/mm_install.sh
+        source .github/workflows/mm_install_mpi.sh
         pip install .
         python scripts/download_functionals.py
     - name: Test with unittest
