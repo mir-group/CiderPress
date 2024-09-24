@@ -965,6 +965,7 @@ ALL_CLASSES = [
     SLDMap,
 ]
 for cls in ALL_CLASSES:
+    assert cls.code not in ALL_CLASS_DICT
     ALL_CLASS_DICT[cls.code] = cls
 
 
