@@ -380,6 +380,7 @@ def _sl_desc_getter(mol, pgrids, dms, settings, coeffs=None, **kwargs):
         feat = plan.get_feat(prho[None, :])[0]
         dprho_dphi = get_mo_densities(ni, mol, coeffs, pgrids, xctype)
         occds = []
+        nmo = coeffs.shape[0]
         for imo in range(nmo):
             occds.append(plan.get_occd(prho[None, :], dprho_dphi[imo : imo + 1])[1][0])
         return feat, np.stack(occds)
