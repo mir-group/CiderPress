@@ -1156,9 +1156,9 @@ class NLDFSettingsVI(NLDFSettings):
         l1ueg = [0] * len(self.l1_feat_dots)
         a0 = self.theta_params[0]
         if self.sl_level == "MGGA":
-            t0t = self.theta_params[2]
+            t0 = self.theta_params[2]
         else:
-            t0t = self.theta_params[1]
+            t0 = self.theta_params[1]
         rho_mult = self._ueg_rho_mult(rho)
         for spec in self.l0_feat_specs:
             # 'se', 'se_r2', 'se_apr2', 'se_ap', 'se_ap2r2', 'se_lapl'

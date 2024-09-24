@@ -914,8 +914,8 @@ class SLDMap(FeatureNormalizer):
         tau0 = self.const * rho ** (5.0 / 3)
         tauw = x[self.j] / (8 * rho)
         tau = x[self.k]
-        y[:] = (tau - tau0) / (tau + tau0)
-        y[:] -= (tauw - tau0) / (tauw + tau0)
+        y[:] = tau / (tau + tau0)
+        y[:] -= tauw / (tauw + tau0)
 
     def fill_deriv_(self, dfdx, dfdy, x):
         rho = np.maximum(x[self.i], 1e-10)
@@ -924,10 +924,10 @@ class SLDMap(FeatureNormalizer):
         tau = x[self.k]
         fac1 = 1.0 / (tau + tau0)
         fac2 = 1.0 / (tauw + tau0)
-        v0 = -2 * dfdy * tau * fac1 * fac1
-        v0 += 2 * dfdy * tauw * fac2 * fac2
-        vw = -2 * dfdy * tau0 * fac2 * fac2
-        vt = 2 * dfdy * tau0 * fac1 * fac1
+        v0 = -dfdy * tau * fac1 * fac1
+        v0 += dfdy * tauw * fac2 * fac2
+        vw = -dfdy * tau0 * fac2 * fac2
+        vt = dfdy * tau0 * fac1 * fac1
         dfdx[self.i] += v0 * self.const * (5.0 / 3) * rho ** (2.0 / 3)
         dfdx[self.i] -= vw * tauw / rho
         dfdx[self.j] += vw / (8 * rho)
