@@ -59,10 +59,12 @@ endif()
 find_package(MPI)
 if (MPI_LIBRARIES)
   set(HAVE_MPI 1)
-  set(FFTW_CONFIGURE_ARGS "--enable-static=yes --enable-shared=yes --enable-threads --enable-mpi=yes --enable-openmp MPILIBS=-lmpi")
+  set(FFTW_CONFIGURE_ARGS --enable-static=no --enable-shared=yes --enable-threads --enable-mpi=yes --enable-openmp MPILIBS=-lmpi)
+  message(STATUS "Found MPI: ${FFTW_CONFIGURE_ARGS}")
 else ()
   set(HAVE_MPI 0)
-  set(FFTW_CONFIGURE_ARGS "--enable-static=yes --enable-shared=yes --enable-threads --enable-openmp")
+  set(FFTW_CONFIGURE_ARGS --enable-static=no --enable-shared=yes --enable-threads --enable-openmp)
+  message(STATUS "Did not find MPI: ${FFTW_CONFIGURE_ARGS}")
 endif()
 include_directories(${CMAKE_PYTHON_INCLUDE_PATH})
 link_directories(${CMAKE_PYTHON_LIBRARY_PATH})
@@ -105,7 +107,6 @@ add_subdirectory(sbt)
 add_subdirectory(xc_utils)
 
 if(ENABLE_FFTW AND BUILD_FFTW)
-#  if(NOT EXISTS "${PROJECT_SOURCE_DIR}/deps/include/fftw3.h")
     ExternalProject_Add(libfftw3
       URL https://www.fftw.org/fftw-3.3.10.tar.gz
       PREFIX ${PROJECT_BINARY_DIR}/deps
@@ -115,7 +116,6 @@ if(ENABLE_FFTW AND BUILD_FFTW)
       BUILD_COMMAND make -j4 install
     )
     add_dependencies(pwutil libfftw3)
-#  endif()
 endif()
 
 # TODO some other stuff from pyscf CMake file was here
