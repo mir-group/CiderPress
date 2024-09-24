@@ -265,6 +265,7 @@ void ciderpw_convolution_fwd(ciderpw_data data) {
         }
     }
     ciderpw_multiply_l1(data);
+    free(kernel_ba);
 }
 
 void ciderpw_convolution_bwd(ciderpw_data data) {
@@ -296,6 +297,7 @@ void ciderpw_convolution_bwd(ciderpw_data data) {
             work_a[a] = F_a[a];
         }
     }
+    free(kernel_ab);
 }
 
 void ciderpw_compute_features(ciderpw_data data) {
