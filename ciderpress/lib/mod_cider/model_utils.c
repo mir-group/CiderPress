@@ -24,10 +24,6 @@ void evaluate_se_kernel(double *out, double *outd, double *xin, double *xctrl,
                         int nfeat) {
 #pragma omp parallel for
     for (int i = 0; i < n; i++) {
-        // out[i] = 0;
-        // for (int j = 0; j < nfeat; j++) {
-        //     outd[i * nfeat + j] = 0;
-        // }
         for (int t = 0; t < nctrl; t++) {
             int iloc = i * nfeat;
             int cloc = t * nfeat;
@@ -35,6 +31,47 @@ void evaluate_se_kernel(double *out, double *outd, double *xin, double *xctrl,
             tot = actrl[t] * exp(-tot);
             out[i] += tot;
             _add_deriv(outd + iloc, xin + iloc, xctrl + cloc, exps, tot, nfeat);
+        }
+    }
+}
+
+void evaluate_se_kernel_antisym(double *out, double *outd, double *xin,
+                                double *xctrl, double *actrl, double *exps,
+                                int n, int nctrl, int nfeat) {
+#pragma omp parallel for
+    for (int i = 0; i < n; i++) {
+        for (int t = 0; t < nctrl; t++) {
+            int iloc = i * nfeat;
+            double *xi = xin + iloc;
+            double *od = outd + iloc;
+            int cloc = t * nfeat;
+            double *xc = xctrl + cloc;
+
+            double fac = _evaluate_se(xi + 2, xc + 2, exps + 1, nfeat - 2);
+            fac = actrl[t] * exp(-fac);
+
+            double tmp = xi[0] - xc[0];
+            tmp = exp(-exps[0] * tmp * tmp);
+            double tot = tmp * fac;
+            od[0] -= 2 * exps[0] * tmp * fac * (xi[0] - xc[0]);
+
+            tmp = xi[0] - xc[1];
+            tmp = exp(-exps[0] * tmp * tmp);
+            tot -= tmp * fac;
+            od[0] += 2 * exps[0] * tmp * fac * (xi[0] - xc[1]);
+
+            tmp = xi[1] - xc[0];
+            tmp = exp(-exps[0] * tmp * tmp);
+            tot -= tmp * fac;
+            od[1] += 2 * exps[0] * tmp * fac * (xi[1] - xc[0]);
+
+            tmp = xi[1] - xc[1];
+            tmp = exp(-exps[0] * tmp * tmp);
+            tot += tmp * fac;
+            od[1] -= 2 * exps[0] * tmp * fac * (xi[1] - xc[1]);
+
+            out[i] += tot;
+            _add_deriv(od + 2, xi + 2, xc + 2, exps + 1, tot, nfeat - 2);
         }
     }
 }
@@ -50,11 +87,6 @@ void evaluate_se_kernel_spin(double *out, double *outd, double *xin,
     double *outd_b = outd + n * nfeat;
 #pragma omp parallel for
     for (int i = 0; i < n; i++) {
-        // out[i] = 0;
-        // for (int j = 0; j < nfeat; j++) {
-        //     outd_a[i * nfeat + j] = 0;
-        //     outd_b[i * nfeat + j] = 0;
-        // }
         for (int t = 0; t < nctrl; t++) {
             int iloc = i * nfeat;
             int cloc = t * nfeat;
