@@ -44,10 +44,9 @@ from sklearn.gaussian_process.kernels import (
 
 def _check_length_scale(X, length_scale):
     length_scale = np.squeeze(length_scale).astype(float)
-    if (
-        np.ndim(length_scale) == 1
-        and X.shape[1] * (X.shape[1] + 1) // 2 != length_scale.shape[0]
-    ):
+    if np.ndim(length_scale) > 1:
+        raise ValueError("length_scale cannot be of dimension greater than 1")
+    if np.ndim(length_scale) == 1 and X.shape[1] != length_scale.shape[0]:
         raise ValueError(
             "Anisotropic kernel must have the same number of "
             "dimensions as data (%d!=%d)" % (length_scale.shape[0], X.shape[1])
@@ -258,13 +257,13 @@ class DiffAntisymRBF(DiffRBF):
         KT = np.exp(-0.5 * dists)
         XS = X[:, :2] / length_scale[0]
         YS = Y[:, :2] / length_scale[0]
-        dists = cdist(XS[:, 0], YS[:, 0], metric="sqeuclidian")
+        dists = cdist(XS[:, 0:1], YS[:, 0:1], metric="sqeuclidean")
         KS = np.exp(-0.5 * dists)
-        dists = cdist(XS[:, 0], YS[:, 1], metric="sqeuclidian")
+        dists = cdist(XS[:, 0:1], YS[:, 1:2], metric="sqeuclidean")
         KS[:] -= np.exp(-0.5 * dists)
-        dists = cdist(XS[:, 1], YS[:, 0], metric="sqeuclidian")
+        dists = cdist(XS[:, 1:2], YS[:, 0:1], metric="sqeuclidean")
         KS[:] -= np.exp(-0.5 * dists)
-        dists = cdist(XS[:, 1], YS[:, 1], metric="sqeuclidian")
+        dists = cdist(XS[:, 1:2], YS[:, 1:2], metric="sqeuclidean")
         KS[:] += np.exp(-0.5 * dists)
         return KS * KT
 
