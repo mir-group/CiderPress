@@ -35,6 +35,24 @@ def get_rbf_kernel(
     )
 
 
+def get_antisym_rbf_kernel(
+    indexes, length_scale, scale=1.0, opt_hparams=False, min_lscale=None
+):
+    if min_lscale is None:
+        min_lscale = 0.01
+    length_scale_bounds = (min_lscale, 10) if opt_hparams else "fixed"
+    scale_bounds = (1e-5, 1e3) if opt_hparams else "fixed"
+    length_scale = length_scale[indexes]
+    length_scale = np.append(
+        0.5 * (length_scale[0] + length_scale[1]), length_scale[2:]
+    )
+    return DiffConstantKernel(scale, constant_value_bounds=scale_bounds) * SubsetRBF(
+        indexes,
+        length_scale=length_scale,
+        length_scale_bounds=length_scale_bounds,
+    )
+
+
 def get_agpr_kernel(
     sinds,
     ainds,
