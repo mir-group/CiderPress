@@ -215,14 +215,14 @@ def get_libxc_baseline_ss(xcid, rho_tuple):
             SS_GGA_CODES[xcid], _rho_tuple[0], _rho_tuple[1]
         )
         for r, ref in zip(_rho_tuple, rho_tuple):
-            r[:-1] = 0.0
-            r[-1] = ref[-1]
+            r[:1] = ref[-1]
         exc_b, vrho_b, vsigma_b = get_libxc_gga_baseline(
             SS_GGA_CODES[xcid], _rho_tuple[0], _rho_tuple[1]
         )
         exc = exc_a * rho_tuple[0][0] + exc_b * rho_tuple[0][1]
-        vrho_a[1] = vrho_b[1]
-        vsigma_a[2] = vsigma_b[2]
+        vrho_a[1] = vrho_b[0]
+        vsigma_a[1] = 0
+        vsigma_a[2] = vsigma_b[0]
         vrho = vrho_a
         vsigma = vsigma_a
     else:
@@ -234,7 +234,7 @@ def get_libxc_baseline_ss(xcid, rho_tuple):
         exc, vrho, vsigma = get_libxc_gga_baseline(
             SS_GGA_CODES[xcid], _rho_tuple[0], _rho_tuple[1]
         )
-        exc *= rho_tuple[0][0] * 2
+        exc *= _rho_tuple[0][0] * 2
         vrho = vrho[:1]
         vsigma = 0.5 * vsigma[:1]
     return exc, vrho, vsigma
