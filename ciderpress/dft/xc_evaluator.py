@@ -344,6 +344,14 @@ class RBFEvaluator(FuncEvaluator, XCEvalSerializable):
         return res, dres
 
 
+class AntisymRBFluator(RBFEvaluator):
+    _fn = libcider.evaluate_se_kernel_antisym
+
+    def __call__(self, X1, res=None, dres=None):
+        assert X1.ndim == 2 or (X1.ndim == 3 and X1.shape[0] == 1)
+        return super(SpinRBFEvaluator, self).__call__(X1, res, dres)
+
+
 class SpinRBFEvaluator(RBFEvaluator):
     _fn = libcider.evaluate_se_kernel_spin
 

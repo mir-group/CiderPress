@@ -38,6 +38,7 @@ from sklearn.gaussian_process.kernels import (
     Sum,
     WhiteKernel,
     _num_samples,
+    cdist,
 )
 
 
@@ -231,6 +232,78 @@ class DiffRBF(DiffKernelMixin, RBF):
         dk = k[:, :, None] * (Y[None, :, :] - X[:, None, :])
         dk /= self.length_scale**2
         return k, dk
+
+
+class DiffAntisymRBF(DiffRBF):
+    """
+    This is like a regular RBF kernel, except it obeys a sort
+    of "antisymmetry" property where
+    k(x0, x1, x2, ....; x0', x1', x2' ....) = 0
+    if x0 == x1 or x0' == x1'.
+    This property applies only to the first two features. It could
+    be useful for enforcing exact constraints.
+    """
+
+    def __call__(self, X, Y=None, eval_gradient=False):
+        if eval_gradient:
+            raise NotImplementedError(
+                "eval_gradient not implemented for this kernel yet"
+            )
+        length_scale = _check_length_scale(X[:, 1:], self.length_scale)
+        if Y is None:
+            Y = X.copy()
+        XT = X[:, 2:] / length_scale[1:]
+        YT = Y[:, 2:] / length_scale[1:]
+        dists = cdist(XT, YT, metric="sqeuclidean")
+        KT = np.exp(-0.5 * dists)
+        XS = X[:, :2] / length_scale[0]
+        YS = Y[:, :2] / length_scale[0]
+        dists = cdist(XS[:, 0], YS[:, 0], metric="sqeuclidian")
+        KS = np.exp(-0.5 * dists)
+        dists = cdist(XS[:, 0], YS[:, 1], metric="sqeuclidian")
+        KS[:] -= np.exp(-0.5 * dists)
+        dists = cdist(XS[:, 1], YS[:, 0], metric="sqeuclidian")
+        KS[:] -= np.exp(-0.5 * dists)
+        dists = cdist(XS[:, 1], YS[:, 1], metric="sqeuclidian")
+        KS[:] += np.exp(-0.5 * dists)
+        return KS * KT
+
+    def k_and_deriv(self, X, Y=None):
+        length_scale = _check_length_scale(X[:, 1:], self.length_scale)
+        if Y is None:
+            Y = X.copy()
+        XT = X[:, 2:] / length_scale[1:]
+        YT = Y[:, 2:] / length_scale[1:]
+        DK = np.zeros((XT.shape[0], YT.shape[0], X.shape[1]))
+        dists = cdist(XT, YT, metric="sqeuclidean")
+        KT = np.exp(-0.5 * dists)
+        XS = X[:, :2] / length_scale[0]
+        YS = Y[:, :2] / length_scale[0]
+
+        dists = cdist(XS[:, 0], YS[:, 0], metric="sqeuclidian")
+        tmp = np.exp(-0.5 * dists)
+        DK[..., 0] = tmp * (YS[:, 0] - XS[:, 0])
+        KS = tmp
+
+        dists = cdist(XS[:, 0], YS[:, 1], metric="sqeuclidian")
+        tmp = np.exp(-0.5 * dists)
+        DK[..., 0] += tmp * (XS[:, 0] - YS[:, 1])
+        KS[:] -= tmp
+
+        dists = cdist(XS[:, 1], YS[:, 0], metric="sqeuclidian")
+        tmp = np.exp(-0.5 * dists)
+        DK[..., 1] = tmp * (XS[:, 1] - YS[:, 0])
+        KS[:] -= tmp
+
+        dists = cdist(XS[:, 1], YS[:, 1], metric="sqeuclidian")
+        tmp = np.exp(-0.5 * dists)
+        DK[..., 1] += tmp * (YS[:, 1] - XS[:, 1])
+        KS[:] += tmp
+
+        DK[..., 2:] = (KS * KT)[..., None] * (YT[None, :, :] - XT[:, None, :])
+        DK[..., 2:] /= length_scale[1:]
+        DK[..., :2] /= length_scale[0]
+        return KS * KT, DK
 
 
 class DiffLinearKernel(DiffKernelMixin, Kernel):
