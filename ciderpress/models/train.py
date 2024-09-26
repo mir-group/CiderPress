@@ -577,8 +577,14 @@ class MOLGP2(MOLGP):
                 m_res = kernel.multiplicative_baseline(rho_tuple)
                 a_res = kernel.additive_baseline(rho_tuple)
                 dm = vxc_tuple_to_array(rho_data[..., i0:i1], m_res[1:])
-                da = vxc_tuple_to_array(rho_data[..., i0:i1], a_res[1:])
-                m, a = m_res[0], a_res[0]
+                m = m_res[0]
+                if a_res is None:
+                    da = np.zeros_like(dm)
+                    a = np.zeros_like(m)
+                else:
+                    da = vxc_tuple_to_array(rho_data[..., i0:i1], a_res[1:])
+                    a = a_res[0]
+
                 # k is (Nctrl, nspin, Nsamp)
                 # dk is (Nctrl, nspin, N0, Nsamp)
                 if deriv:

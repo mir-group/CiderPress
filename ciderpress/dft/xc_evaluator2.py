@@ -132,6 +132,8 @@ class KernelEvalBase2:
         return self._get_baseline(self._mul_basefunc, rho_tuple)
 
     def additive_baseline(self, rho_tuple):
+        if self._add_basefunc is None:
+            return None
         return self._get_baseline(self._add_basefunc, rho_tuple)
 
     def apply_descriptor_grad(self, X0T, dfdX1, force_polarize=False):
