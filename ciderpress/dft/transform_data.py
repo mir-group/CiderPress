@@ -928,7 +928,7 @@ class SLTWMap(FeatureNormalizer):
         v0 = -2 * dfdy * tauw * fac * fac
         vw = 2 * dfdy * tau0 * fac * fac
         dfdx[self.i] += v0 * self.const * (5.0 / 3) * rho ** (2.0 / 3)
-        dfdx[self.i] -= wv * tauw / rho
+        dfdx[self.i] -= vw * tauw / rho
         dfdx[self.j] += vw / (8 * rho)
 
     def as_dict(self):

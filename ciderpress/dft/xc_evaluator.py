@@ -30,6 +30,12 @@ from interpolation.splines.eval_cubic_numba import (
 )
 
 from ciderpress.lib import load_library
+from ciderpress.models.kernels import (
+    DiffConstantKernel,
+    DiffProduct,
+    DiffRBF,
+    SubsetRBF,
+)
 
 libcider = load_library("libmcider.so")
 
@@ -283,13 +289,6 @@ class RBFEvaluator(FuncEvaluator, XCEvalSerializable):
     _fn = libcider.evaluate_se_kernel
 
     def __init__(self, kernel, X1ctrl, alpha):
-        from ciderpress.models.kernels import (
-            DiffConstantKernel,
-            DiffProduct,
-            DiffRBF,
-            SubsetRBF,
-        )
-
         if isinstance(kernel, DiffProduct):
             assert isinstance(kernel.k1, DiffConstantKernel)
             scale = kernel.k1.constant_value
@@ -326,6 +325,7 @@ class RBFEvaluator(FuncEvaluator, XCEvalSerializable):
         if dres is None:
             dres = np.zeros(X1.shape)
         elif dres.shape != X1.shape:
+            print(X1.shape, dres.shape)
             raise ValueError
         n = X1.shape[-2]
         for arr in [res, dres, X1]:
@@ -344,20 +344,28 @@ class RBFEvaluator(FuncEvaluator, XCEvalSerializable):
         return res, dres
 
 
-class AntisymRBFluator(RBFEvaluator):
+class AntisymRBFEvaluator(RBFEvaluator):
     _fn = libcider.evaluate_se_kernel_antisym
+
+    def __init__(self, kernel, X1ctrl, alpha):
+        super(AntisymRBFEvaluator, self).__init__(kernel, X1ctrl, alpha)
+        if isinstance(kernel, DiffProduct):
+            assert isinstance(kernel.k1, DiffConstantKernel)
+            kernel.k1.constant_value
+            kernel = kernel.k2
+        else:
+            assert isinstance(kernel, DiffRBF)
+        self._indexes = np.arange(len(kernel.length_scale) + 1, dtype=np.int32)
 
     def __call__(self, X1, res=None, dres=None):
         assert X1.ndim == 2 or (X1.ndim == 3 and X1.shape[0] == 1)
-        return super(SpinRBFEvaluator, self).__call__(X1, res, dres)
+        return super(AntisymRBFEvaluator, self).__call__(X1, res, dres)
 
 
 class SpinRBFEvaluator(RBFEvaluator):
     _fn = libcider.evaluate_se_kernel_spin
 
     def __init__(self, kernel, X1ctrl, alpha):
-        from ciderpress.models.kernels import DiffProduct
-
         super(SpinRBFEvaluator, self).__init__(kernel, X1ctrl, alpha)
         if isinstance(kernel, DiffProduct):
             self._alpha *= kernel.k1.constant_value
