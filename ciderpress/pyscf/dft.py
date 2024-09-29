@@ -183,17 +183,31 @@ class _CiderKS:
     def method_not_implemented(self, *args, **kwargs):
         raise NotImplementedError
 
+    def density_fit(self, auxbasis=None, with_df=None, only_dfj=False):
+        new_self = super().density_fit(
+            auxbasis=auxbasis, with_df=with_df, only_dfj=only_dfj
+        )
+        lib.set_class(new_self, (_CiderDF, new_self.__class__))
+        return new_self
+
     def nuc_grad_method(self):
         from pyscf import dft
 
+        has_df = hasattr(self, "with_df") and self.with_df is not None
         if isinstance(self, dft.rks.RKS):
             from ciderpress.pyscf import rks_grad
 
-            return rks_grad.Gradients(self)
+            if has_df:
+                return rks_grad.DFGradients(self)
+            else:
+                return rks_grad.Gradients(self)
         elif isinstance(self, dft.uks.UKS):
             from ciderpress.pyscf import uks_grad
 
-            return uks_grad.Gradients(self)
+            if has_df:
+                return uks_grad.DFGradients(self)
+            else:
+                return uks_grad.Gradients(self)
 
     Gradients = nuc_grad_method
 
@@ -207,3 +221,7 @@ class _CiderKS:
     CCSD = method_not_implemented
     CASCI = method_not_implemented
     CASSCF = method_not_implemented
+
+
+class _CiderDF:
+    nuc_grad_method = _CiderKS.nuc_grad_method
