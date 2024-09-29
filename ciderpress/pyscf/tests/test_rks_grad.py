@@ -1,9 +1,11 @@
 import unittest
 
+import yaml
 from numpy.testing import assert_almost_equal
 from pyscf import dft, gto, lib
 
 from ciderpress.pyscf.dft import make_cider_calc
+from ciderpress.pyscf.nldf_convolutions import PySCFNLDFInitializer
 
 CONV_TOL = 1e-12
 
@@ -11,22 +13,27 @@ SETTINGS = {
     "xkernel": "GGA_X_PBE",
     "ckernel": "GGA_C_PBE",
     "xmix": 0.25,
-    # 'grid_level': 2,
-    # 'amax': 1000.0,
-    # 'cider_lmax': 8,
-    # 'lambd': 1.8,
-    # 'aux_beta': 1.8,
-    # 'onsite_direct': True,
+}
+
+
+NLDF_SETTINGS = {
+    "lmax": 8,
+    "aux_lambd": 1.8,
+    "aug_beta": 1.8,
+    "alpha_max": 1000.0,
 }
 
 
 def build_ks_calc(mol, mlfunc, df=False):
     assert mol.spin == 0
+    with open(mlfunc, "r") as f:
+        mlfunc = yaml.load(f, Loader=yaml.CLoader)
+    nldf_init = PySCFNLDFInitializer(mlfunc.settings.nldf_settings, **NLDF_SETTINGS)
     ks = dft.RKS(mol)
     if df:
         ks = ks.density_fit()
     ks.grids.level = 1
-    ks = make_cider_calc(ks, mlfunc, **SETTINGS)
+    ks = make_cider_calc(ks, mlfunc, nldf_init=nldf_init, **SETTINGS)
     ks.small_rho_cutoff = 0.0
     ks.conv_tol = CONV_TOL
     return ks
@@ -82,9 +89,9 @@ def setUpModule():
 
 
 def tearDownModule():
-    global mol, mlfuncs, mf1, mf2, mf3
+    global mol, mlfuncs, mf1, mf2, mf3, mf4, mf5
     mol.stdout.close()
-    del mol, mlfuncs, mf1, mf2, mf3
+    del mol, mlfuncs, mf1, mf2, mf3, mf4, mf5
 
 
 class KnownValues(unittest.TestCase):

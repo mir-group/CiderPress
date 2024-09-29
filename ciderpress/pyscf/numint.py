@@ -101,7 +101,6 @@ def nr_rks(
     Returns:
 
     """
-    max_memory = 2000
     ni.timer.start("nr_rks")
     if relativity != 0:
         raise NotImplementedError
@@ -204,7 +203,6 @@ def nr_rks(
 def nr_uks(
     ni, mol, grids, xc_code, dms, relativity=0, hermi=1, max_memory=2000, verbose=None
 ):
-    max_memory = 2000
     ni.timer.start("nr_uks")
     if relativity != 0:
         raise NotImplementedError
@@ -469,7 +467,6 @@ def nr_rks_nldf(
 def nr_uks_nldf(
     ni, mol, grids, xc_code, dms, relativity=0, hermi=1, max_memory=2000, verbose=None
 ):
-    max_memory = 2000
     ni.timer.start("nr_uks")
     if relativity != 0:
         raise NotImplementedError

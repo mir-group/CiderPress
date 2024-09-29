@@ -2,7 +2,6 @@ import numpy as np
 import pyscf.df.grad.rks as rks_grad_df
 from pyscf import lib
 from pyscf.dft import gen_grid
-from pyscf.dft.gen_grid import NBINS
 from pyscf.grad import rks as rks_grad
 from pyscf.grad.rks import (
     _gga_grad_sum_,
@@ -24,12 +23,7 @@ def get_veff(ks_grad, mol=None, dm=None):
 
     mf = ks_grad.base
     ni = mf._numint
-    # TODO need to make sure this returns CIDER grids
-    grids, nlcgrids = _initialize_grids(ks_grad)
-    # if ks_grad.grids is not None:
-    #     grids = ks_grad.grids
-    # else:
-    #     grids = mf.grids
+    grids, nlcgrids = rks_grad._initialize_grids(ks_grad)
 
     # NOTE pyscf has hyb params here, shouldn't be needed for now
 
@@ -103,26 +97,6 @@ def get_veff(ks_grad, mol=None, dm=None):
     return lib.tag_array(vxc, exc1_grid=exc)
 
 
-def _initialize_grids(ks_grad):
-    mf = ks_grad.base
-    if ks_grad.grids is not None:
-        grids = ks_grad.grids
-    else:
-        grids = mf.grids
-    if grids.coords is None:
-        grids.build(with_non0tab=True)
-
-    nlcgrids = None
-    if mf.do_nlc():
-        if ks_grad.nlcgrids is not None:
-            nlcgrids = ks_grad.nlcgrids
-        else:
-            nlcgrids = mf.nlcgrids
-        if nlcgrids.coords is None:
-            nlcgrids.build(with_non0tab=True)
-    return grids, nlcgrids
-
-
 def get_vxc(
     ni, mol, grids, xc_code, dms, relativity=0, hermi=1, max_memory=2000, verbose=None
 ):
@@ -138,7 +112,6 @@ def get_vxc(
             max_memory=max_memory,
             verbose=verbose,
         )
-    max_memory = 2000
     ni.timer.start("nr_rks")
     if relativity != 0:
         raise NotImplementedError
@@ -148,8 +121,6 @@ def get_vxc(
 
     make_rho, nset, nao = ni._gen_rho_evaluator(mol, dms, hermi, False, grids)
     ao_loc = mol.ao_loc_nr()
-    cutoff = grids.cutoff * 1e2
-    NBINS * 2 - int(NBINS * np.log(cutoff) / np.log(grids.cutoff))
 
     if dms.ndim == 2:
         dms = dms[None, :, :]
@@ -211,8 +182,6 @@ def get_vxc_nldf(
 
     make_rho, nset, nao = ni._gen_rho_evaluator(mol, dms, hermi, False, grids)
     ao_loc = mol.ao_loc_nr()
-    cutoff = grids.cutoff * 1e2
-    NBINS * 2 - int(NBINS * np.log(cutoff) / np.log(grids.cutoff))
 
     if dms.ndim == 2:
         dms = dms[None, :, :]
@@ -373,8 +342,6 @@ def get_vxc_nldf_full_response(
     if nset != 1:
         raise NotImplementedError
     ao_loc = mol.ao_loc_nr()
-    cutoff = grids.cutoff * 1e2
-    NBINS * 2 - int(NBINS * np.log(cutoff) / np.log(grids.cutoff))
 
     assert dms.ndim == 2
 
@@ -396,9 +363,7 @@ def get_vxc_nldf_full_response(
     exc = np.zeros(ga_loc[-1], dtype=np.float64, order="C")
     all_coords = np.zeros((ga_loc[-1], 3), dtype=np.float64, order="C")
 
-    if any(x in xc_code.upper() for x in ("CC06", "CS", "BR89", "MK00")):
-        raise NotImplementedError("laplacian in meta-GGA method")
-    ao_deriv = 2
+    ao_deriv = 1
     for atm_id, (coords, weight) in enumerate(grids_noresponse_cc(grids)):
         ip0, ip1 = ga_loc[atm_id : atm_id + 2]
         mask = gen_grid.make_mask(mol, coords)
@@ -445,6 +410,7 @@ def get_vxc_nldf_full_response(
         wv_full[0] += wvtmp
 
     exc_ref = 0
+    ao_deriv = 2
     for atm_id, (coords, weight, weight1) in enumerate(grids_response_cc(grids)):
         mask = gen_grid.make_mask(mol, coords)
         ao = ni.eval_ao(mol, coords, deriv=ao_deriv, non0tab=mask, cutoff=grids.cutoff)
