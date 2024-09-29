@@ -183,7 +183,20 @@ class _CiderKS:
     def method_not_implemented(self, *args, **kwargs):
         raise NotImplementedError
 
-    nuc_grad_method = Gradients = method_not_implemented
+    def nuc_grad_method(self):
+        from pyscf import dft
+
+        if isinstance(self, dft.rks.RKS):
+            from ciderpress.pyscf import rks_grad
+
+            return rks_grad.Gradients(self)
+        elif isinstance(self, dft.uks.UKS):
+            from ciderpress.pyscf import uks_grad
+
+            return uks_grad.Gradients(self)
+
+    Gradients = nuc_grad_method
+
     Hessian = method_not_implemented
     NMR = method_not_implemented
     NSR = method_not_implemented

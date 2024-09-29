@@ -183,6 +183,83 @@ void compute_spline_bas_separate(double *auxo_agl, double *auxo_agp,
     }
 }
 
+void compute_spline_bas_separate_deriv(double *auxo_vagl, double *auxo_vagp,
+                                       double *coords, double *atm_coords,
+                                       int natm, int ngrids, int nrad, int nlm,
+                                       double aparam, double dparam) {
+#pragma omp parallel
+    {
+        int g, lm, ag, at;
+        int ir;
+        double dr;
+        double diffr[3];
+        double *auxo0_l;
+        double *auxox_l;
+        double *auxoy_l;
+        double *auxoz_l;
+        double *auxo0_p;
+        double *auxox_p;
+        double *auxoy_p;
+        double *auxoz_p;
+        sphbuf buf = setup_sph_harm_buffer(nlm);
+        double *dylm = (double *)malloc(3 * nlm * sizeof(double));
+        double ddr2;
+        double ddr3;
+        double invdr;
+#pragma omp for
+        for (ag = 0; ag < natm * ngrids; ag++) {
+            at = ag / ngrids;
+            g = ag % ngrids;
+            auxo0_l = auxo_vagl + ag * nlm;
+            auxox_l = auxo0_l + 1 * natm * ngrids * nlm;
+            auxoy_l = auxo0_l + 2 * natm * ngrids * nlm;
+            auxoz_l = auxo0_l + 3 * natm * ngrids * nlm;
+            auxo0_p = auxo_vagp + ag * 4;
+            auxox_p = auxo0_p + 1 * natm * ngrids * 4;
+            auxoy_p = auxo0_p + 2 * natm * ngrids * 4;
+            auxoz_p = auxo0_p + 3 * natm * ngrids * 4;
+            diffr[0] = coords[3 * g + 0] - atm_coords[3 * at + 0];
+            diffr[1] = coords[3 * g + 1] - atm_coords[3 * at + 1];
+            diffr[2] = coords[3 * g + 2] - atm_coords[3 * at + 2];
+            dr = sqrt(diffr[0] * diffr[0] + diffr[1] * diffr[1] +
+                      diffr[2] * diffr[2]);
+            invdr = 1.0 / (dr + 1e-10);
+            diffr[0] /= dr;
+            diffr[1] /= dr;
+            diffr[2] /= dr;
+            recursive_sph_harm_deriv(buf, diffr, auxo0_l, dylm);
+            ir = (int)floor(log(dr / aparam + 1) / dparam);
+            ir = MIN(ir, nrad - 1);
+            dr -= aparam * (exp(dparam * (double)ir) - 1);
+            auxo0_p[0] = 1.0;
+            auxo0_p[1] = dr;
+            auxo0_p[2] = dr * dr;
+            auxo0_p[3] = dr * dr * dr;
+            ddr2 = 2 * dr;
+            ddr3 = 3 * dr * dr;
+            auxox_p[0] = 0;
+            auxox_p[1] = diffr[0];
+            auxox_p[2] = ddr2 * diffr[0];
+            auxox_p[3] = ddr3 * diffr[0];
+            auxoy_p[0] = 0;
+            auxoy_p[1] = diffr[1];
+            auxoy_p[2] = ddr2 * diffr[1];
+            auxoy_p[3] = ddr3 * diffr[1];
+            auxoz_p[0] = 0;
+            auxoz_p[1] = diffr[2];
+            auxoz_p[2] = ddr2 * diffr[2];
+            auxoz_p[3] = ddr3 * diffr[2];
+            for (lm = 0; lm < nlm; lm++) {
+                auxox_l[lm] = dylm[lm] * invdr;
+                auxoy_l[lm] = dylm[lm + nlm] * invdr;
+                auxoz_l[lm] = dylm[lm + 2 * nlm] * invdr;
+            }
+        }
+        free_sph_harm_buffer(buf);
+        free(dylm);
+    }
+}
+
 void compute_num_spline_contribs_single(int *num_i, double *coords,
                                         double *atm_coord, double aparam,
                                         double dparam, int ngrids, int nrad,
@@ -1090,4 +1167,44 @@ void add_lp1_term_onsite_bwd(double *f, double *coords, int natm,
             }
         }
     }
+}
+
+// TODO might want to move this somewhere else
+void contract_grad_terms(double *excsum, double *f_g, int natm, int a, int v,
+                         int ngrids, int *ga_loc) {
+    double *tmp = (double *)calloc(natm, sizeof(double));
+    int ib;
+#pragma omp parallel
+    {
+        int ia;
+        int g;
+#pragma omp for
+        for (ia = 0; ia < natm; ia++) {
+            for (g = ga_loc[ia]; g < ga_loc[ia + 1]; g++) {
+                tmp[ia] += f_g[g];
+            }
+        }
+    }
+    for (ib = 0; ib < natm; ib++) {
+        excsum[ib * 3 + v] += tmp[ib];
+        excsum[a * 3 + v] -= tmp[ib];
+    }
+    free(tmp);
+}
+
+void contract_grad_terms2(double *excsum, double *f_g, int natm, int a, int v,
+                          int ngrids, int *atm_g) {
+    // TODO neeed to parallelize
+    double *tmp = (double *)calloc(natm, sizeof(double));
+    int ib;
+    int ia;
+    int g;
+    for (g = 0; g < ngrids; g++) {
+        tmp[atm_g[g]] += f_g[g];
+    }
+    for (ib = 0; ib < natm; ib++) {
+        excsum[ib * 3 + v] += tmp[ib];
+        excsum[a * 3 + v] -= tmp[ib];
+    }
+    free(tmp);
 }
