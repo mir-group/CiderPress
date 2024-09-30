@@ -16,6 +16,14 @@ SETTINGS = {
 }
 
 
+XC_SETTINGS = {
+    "xkernel": None,
+    "ckernel": None,
+    "xc": None,
+    "xmix": 1.00,
+}
+
+
 NLDF_SETTINGS = {
     "lmax": 8,
     "aux_lambd": 1.8,
@@ -24,16 +32,21 @@ NLDF_SETTINGS = {
 }
 
 
-def build_ks_calc(mol, mlfunc, df=False):
+def build_ks_calc(mol, mlfunc, df=False, alt_settings=None):
+    if alt_settings is None:
+        settings = SETTINGS
+    else:
+        settings = alt_settings
     assert mol.spin == 0
     with open(mlfunc, "r") as f:
         mlfunc = yaml.load(f, Loader=yaml.CLoader)
     nldf_init = PySCFNLDFInitializer(mlfunc.settings.nldf_settings, **NLDF_SETTINGS)
     ks = dft.RKS(mol)
+    ks.xc = "PBE"
     if df:
         ks = ks.density_fit()
     ks.grids.level = 1
-    ks = make_cider_calc(ks, mlfunc, nldf_init=nldf_init, **SETTINGS)
+    ks = make_cider_calc(ks, mlfunc, nldf_init=nldf_init, **settings)
     ks.small_rho_cutoff = 0.0
     ks.conv_tol = CONV_TOL
     return ks
@@ -149,6 +162,34 @@ class KnownValues(unittest.TestCase):
 
         g2 = mf5.nuc_grad_method().set(grid_response=True).kernel()
         assert_almost_equal(g2, g, 9)
+
+    def _check_fd(self, functional):
+        import os
+
+        path = "{}/functionals/{}.yaml".format(os.getcwd(), functional)
+        if not os.path.exists(path):
+            print("Functional not available, skipping...{}".format(path))
+            return
+        ks = build_ks_calc(mol, path, alt_settings=XC_SETTINGS)
+        ks.grids.level = 1
+        ks.kernel()
+        g = ks.nuc_grad_method().set(grid_response=True).kernel()
+        mol1 = mol.copy()
+
+        mf_scanner = ks.as_scanner()
+        e1 = mf_scanner(
+            mol1.set_geom_("O  0. 0. 0.00001; 1  0. -0.757 0.587; 1  0. 0.757 0.587")
+        )
+        e2 = mf_scanner(
+            mol1.set_geom_("O  0. 0. -.00001; 1  0. -0.757 0.587; 1  0. 0.757 0.587")
+        )
+        assert_almost_equal(g[0, 2], (e1 - e2) / 2e-5 * lib.param.BOHR, 6)
+
+    def test_vk_xc(self):
+        self._check_fd("EXAMPLE_VK_FUNCTIONAL")
+
+    def test_vij_xc(self):
+        self._check_fd("EXAMPLE_VIJ_FUNCTIONAL")
 
 
 if __name__ == "__main__":

@@ -236,8 +236,8 @@ def get_vxc_nldf(
                 sdmx_feat = None
                 exc, (vxc, vxc_nldf, vxc_sdmx) = ni.eval_xc_cider(
                     xc_code,
-                    rho,
-                    nldf_feat[idm][:, ip0:ip1],
+                    np.ascontiguousarray(rho),
+                    np.ascontiguousarray(nldf_feat[idm][:, ip0:ip1]),
                     sdmx_feat,
                     deriv=1,
                     xctype=xctype,

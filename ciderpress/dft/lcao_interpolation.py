@@ -532,6 +532,28 @@ class LCAOInterpolator:
                 ctypes.c_int(f_gq.shape[1]),
             )
 
+    def _call_l1_fill_grad(self, excsum, f_gq, vf_gq, ia):
+        natm = self.atco.natm
+        iatom_list = self.grids_indexer.iatom_list
+        n = iatom_list.size
+        for i1 in range(self._n1):
+            ig = self.num_out + i1 - self._n1
+            ix = self._n0 + 3 * i1
+            libcider.add_lp1_term_grad(
+                excsum.ctypes.data_as(ctypes.c_void_p),
+                f_gq.ctypes.data_as(ctypes.c_void_p),
+                vf_gq.ctypes.data_as(ctypes.c_void_p),
+                iatom_list.ctypes.data_as(ctypes.c_void_p),
+                ctypes.c_int(ia),
+                ctypes.c_int(natm),
+                ctypes.c_int(n),
+                ctypes.c_int(ig),
+                ctypes.c_int(ix + 0),
+                ctypes.c_int(ix + 1),
+                ctypes.c_int(ix + 2),
+                ctypes.c_int(f_gq.shape[1]),
+            )
+
     def _interpolate_nopar_atom(self, f_arlpq, f_gq, fwd):
         assert self.is_num_ai_setup
         ngrids_tot = self.all_coords.shape[0]
@@ -612,6 +634,10 @@ class LCAOInterpolator:
                     ctypes.c_int(self.nlm),
                     ctypes.c_int(self._maxg),
                 ]
+                if self._n1 > 0:
+                    ftmp_gq[:] = 0
+                    fn(*args)
+                    self._call_l1_fill_grad(excsum, ftmp_gq, f_gq, a)
                 for v in range(3):
                     ftmp_gq[:] = 0
                     args[2] = auxo_vgl[0].ctypes.data_as(ctypes.c_void_p)

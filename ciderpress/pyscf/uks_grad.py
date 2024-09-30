@@ -421,7 +421,7 @@ def get_vxc_nldf_full_response(
             exc[inds], (vxc, vxc_nldf, vxc_sdmx) = ni.eval_xc_cider(
                 xc_code,
                 rho,
-                nldf_feat[..., ip0:ip1],
+                np.ascontiguousarray(nldf_feat[..., ip0:ip1]),
                 None,
                 deriv=1,
                 xctype=xctype,

@@ -1039,6 +1039,45 @@ void add_lp1_term_fwd(double *f, double *coords, double *atom_coord, int n,
     }
 }
 
+void add_lp1_term_grad(double *out, double *f0, double *f1, int *atm_g, int ia,
+                       int natm, int n, int ig, int ix, int iy, int iz,
+                       int nf) {
+#pragma omp parallel
+    {
+        int g;
+        double *f0_q;
+        double *f1_q;
+        double fac;
+        int ib;
+        double *tmp = (double *)malloc(natm * 3 * sizeof(double));
+        for (int a = 0; a < 3 * natm; a++) {
+            tmp[a] = 0;
+        }
+#pragma omp for
+        for (g = 0; g < n; g++) {
+            f0_q = f0 + nf * g;
+            f1_q = f1 + nf * g;
+            ib = atm_g[g];
+            fac = f0_q[ig] * f1_q[ix];
+            tmp[3 * ib + 0] += fac;
+            tmp[3 * ia + 0] -= fac;
+            fac = f0_q[ig] * f1_q[iy];
+            tmp[3 * ib + 1] += fac;
+            tmp[3 * ia + 1] -= fac;
+            fac = f0_q[ig] * f1_q[iz];
+            tmp[3 * ib + 2] += fac;
+            tmp[3 * ia + 2] -= fac;
+        }
+#pragma omp critical
+        {
+            for (int a = 0; a < 3 * natm; a++) {
+                out[a] += tmp[a];
+            }
+        }
+        free(tmp);
+    }
+}
+
 void add_lp1_term_onsite_fwd(double *f, double *coords, int natm,
                              double *atom_coords, int *ar_loc, int ig, int ix,
                              int iy, int iz, int nf) {
