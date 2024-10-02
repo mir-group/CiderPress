@@ -3,17 +3,23 @@ import ctypes
 import numpy as np
 from gpaw.xc.mgga import MGGA
 
-from ciderpress.gpaw.cider_paw import _CiderPASDW_MPRoutines
 from ciderpress.gpaw.fast_atom_utils import FastAtomPASDWSlice, FastPASDWCiderKernel
 from ciderpress.gpaw.fast_fft import CiderGGA, CiderMGGA, add_gradient_correction
 from ciderpress.gpaw.nldf_interface import pwutil as libpwutil
 
 
-class _FastPASDW_MPRoutines:  # (_CiderPASDW_MPRoutines):
+class _FastPASDW_MPRoutines:
     has_paw = True
 
     def get_D_asp(self):
         return self.atomdist.to_work(self.dens.D_asp)
+
+    def add_forces(self, F_av):
+        nt_sg = self.dens.nt_xg
+        redist = self._hamiltonian.xc_redistributor
+        if redist is not None:
+            nt_sg = redist.distribute(nt_sg)
+        self.calculate_force_contribs(F_av, nt_sg)
 
     def _collect_paw_corrections(self):
         """
@@ -85,7 +91,7 @@ class _FastPASDW_MPRoutines:  # (_CiderPASDW_MPRoutines):
                 )
         self.timer.stop()
 
-    def write_augfeat_to_rbuf(self, s, pot=False):
+    def write_augfeat_to_rbuf(self, s, pot=False, get_force=False):
         self.timer.start("PAW TO GRID")
         if self.atom_slices_s is None:
             self._setup_atom_slices()
@@ -168,10 +174,7 @@ class _FastPASDW_MPRoutines:  # (_CiderPASDW_MPRoutines):
                 funcs_gq = np.dot(funcs_ig.T, coefs_iq)
                 self.timer.stop()
                 self.timer.start("paw2grid")
-                self.fft_obj.add_paw2grid(
-                    funcs_gq,
-                    atom_slice.indset,
-                )
+                self.fft_obj.add_paw2grid(funcs_gq, atom_slice.indset)
                 self.timer.stop()
         self.timer.stop()
 
@@ -194,6 +197,7 @@ class _FastPASDW_MPRoutines:  # (_CiderPASDW_MPRoutines):
 
         rank_a = self.atom_partition.rank_a
         comm = self.atom_partition.comm
+        coefs_a_iq = {}
         for a in range(len(self.setups)):
             atom_slice: FastAtomPASDWSlice = atom_slices[a]
             if atom_slice.rad_g.size > 0:
@@ -207,6 +211,9 @@ class _FastPASDW_MPRoutines:  # (_CiderPASDW_MPRoutines):
                 coefs_iq[:] *= atom_slice.dv
             else:
                 coefs_iq = np.zeros(shapes[a])
+            coefs_a_iq[a] = coefs_iq
+        for a in range(len(self.setups)):
+            coefs_iq = coefs_a_iq[a]
             comm.sum(coefs_iq, rank_a[a])
             if rank_a[a] == comm.rank:
                 assert coefs_iq is not None
@@ -214,14 +221,67 @@ class _FastPASDW_MPRoutines:  # (_CiderPASDW_MPRoutines):
                     self.c_asiq[a][s] = global_slices[a].sinv_pf.T.dot(coefs_iq)
                 else:
                     self.c_asiq[a][s] = coefs_iq
+        self.timer.stop()
 
+    def interpolate_rbuf_onto_atoms_grad(self, s, pot=False):
+        self.timer.start("GRID TO PAW")
+        if self.atom_slices_s is None:
+            self._setup_atom_slices()
+
+        if pot:
+            atom_slices = self.atom_slices_s
+            global_slices = self.global_slices_s
+        else:
+            atom_slices = self.atom_slices_a
+            global_slices = self.global_slices_a
+
+        shapes = [
+            (atom_slices[a].num_funcs, self._plan.nalpha)
+            for a in range(len(self.setups))
+        ]
+
+        rank_a = self.atom_partition.rank_a
+        comm = self.atom_partition.comm
+        coefs_a_viq = {}
+        for a in range(len(self.setups)):
+            atom_slice: FastAtomPASDWSlice = atom_slices[a]
+            if atom_slice.rad_g.size > 0:
+                funcs_vig = atom_slice.get_grads()
+                funcs_gq = np.empty((funcs_vig.shape[2], self._plan.nalpha))
+                self.fft_obj.set_grid2paw(
+                    funcs_gq,
+                    atom_slice.indset,
+                )
+                coefs_viq = np.dot(funcs_vig, funcs_gq)
+                coefs_viq[:] *= atom_slice.dv
+            else:
+                coefs_viq = np.zeros((3,) + shapes[a])
+            coefs_a_viq[a] = coefs_viq
+        for a in range(len(self.setups)):
+            coefs_viq = coefs_a_viq[a]
+            comm.sum(coefs_viq, rank_a[a])
+            if rank_a[a] == comm.rank:
+                assert coefs_viq is not None
+                for v in range(3):
+                    if self.pasdw_ovlp_fit:
+                        self._save_v_avsiq[a][v, s] = global_slices[a].sinv_pf.T.dot(
+                            coefs_viq[v]
+                        )
+                    else:
+                        self._save_v_avsiq[a][v, s] = coefs_viq[v]
         self.timer.stop()
 
     def set_fft_work(self, s, pot=False):
         self.write_augfeat_to_rbuf(s, pot=pot)
 
-    def get_fft_work(self, s, pot=False):
+    def get_fft_work(self, s, pot=False, get_grad_terms=False):
         self.interpolate_rbuf_onto_atoms(s, pot=pot)
+        if get_grad_terms:
+            if s == 0:
+                self._save_v_avsiq = {}
+                for a, c_siq in self.c_asiq.items():
+                    self._save_v_avsiq[a] = np.zeros((3,) + c_siq.shape)
+            self.interpolate_rbuf_onto_atoms_grad(s, pot=pot)
 
     def _set_paw_terms(self):
         self.timer.start("PAW TERMS")
@@ -231,6 +291,7 @@ class _FastPASDW_MPRoutines:  # (_CiderPASDW_MPRoutines):
         self.c_asiq, self.df_asgLq = self.paw_kernel.calculate_paw_feat_corrections(
             self.setups, D_asp
         )
+        self._save_c_asiq = {k: v.copy() for k, v in self.c_asiq.items()}
         self.D_asp = D_asp
         self.timer.stop()
 
@@ -319,9 +380,8 @@ class CiderGGAPASDW(_FastPASDW_MPRoutines, CiderGGA):
         return d
 
     def add_forces(self, F_av):
-        raise NotImplementedError
-        CiderGGA.add_forces(self, F_av)
-        _CiderPASDW_MPRoutines.add_forces(self, F_av)
+        MGGA.add_forces(self, F_av)
+        _FastPASDW_MPRoutines.add_forces(self, F_av)
 
     def stress_tensor_contribution(self, n_sg):
         raise NotImplementedError
@@ -393,9 +453,8 @@ class CiderMGGAPASDW(_FastPASDW_MPRoutines, CiderMGGA):
         return d
 
     def add_forces(self, F_av):
-        raise NotImplementedError
         MGGA.add_forces(self, F_av)
-        _CiderPASDW_MPRoutines.add_forces(self, F_av)
+        _FastPASDW_MPRoutines.add_forces(self, F_av)
 
     def stress_tensor_contribution(self, n_sg):
         raise NotImplementedError
@@ -470,19 +529,11 @@ class CiderMGGAPASDW(_FastPASDW_MPRoutines, CiderMGGA):
         return taut_sg, dedtaut_sg, taut_sG
 
     def calculate_impl(self, gd, n_sg, v_sg, e_g):
-        # TODO don't calculate sigma/dedsigma here
-        # instead just compute the gradient and dedgrad
-        # for sake of generality
-        # TODO cleaner approach?
         taut_sg, dedtaut_sg, taut_sG = self._get_taut(n_sg)
-        self.timer.start("Reorganize density")
         _e, rho_sxg, dedrho_sxg = self._get_cider_inputs(n_sg, taut_sg)
         tmp_dedrho_sxg = np.zeros((len(n_sg), rho_sxg.shape[1]) + e_g.shape)
-        _e = self._distribute_to_cider_grid(np.zeros_like(e_g)[None, :])[0]
         e_g[:] = 0.0
-        self.timer.stop()
         self.calc_cider(_e, rho_sxg, dedrho_sxg)
-        self.timer.start("Reorganize potential")
         self._add_from_cider_grid(e_g[None, :], _e[None, :])
         for s in range(len(n_sg)):
             self._add_from_cider_grid(tmp_dedrho_sxg[s], dedrho_sxg[s])
@@ -498,4 +549,16 @@ class CiderMGGAPASDW(_FastPASDW_MPRoutines, CiderMGGA):
                 self.ekin -= self.wfs.gd.integrate(
                     self.dedtaut_sG[s] * (taut_sG[s] - self.tauct_G / self.wfs.nspins)
                 )
-        self.timer.stop()
+
+    def calculate_force_contribs(self, F_av, n_sg):
+        e_g = np.zeros(n_sg.shape[1:])
+        Ftmp_av = np.zeros_like(F_av)
+        taut_sg, dedtaut_sg, taut_sG = self._get_taut(n_sg)
+        _e, rho_sxg, dedrho_sxg = self._get_cider_inputs(n_sg, taut_sg)
+        e_g[:] = 0.0
+        fs = self.calc_cider(_e, rho_sxg, dedrho_sxg, compute_force=True)
+        for a, f in fs.items():
+            Ftmp_av[a] = f
+        self.world.sum(Ftmp_av, 0)
+        if self.world.rank == 0:
+            F_av[:] += Ftmp_av

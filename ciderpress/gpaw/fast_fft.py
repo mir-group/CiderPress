@@ -78,6 +78,9 @@ class _FastCiderBase:
         self._plan = None
         self.distribution = None
         self.fft_obj = None
+        self.c_asiq = None
+        self._save_c_asiq = None
+        self._save_v_avsiq = None
 
         self.setup_name = "PBE"
 
@@ -167,7 +170,7 @@ class _FastCiderBase:
     def set_fft_work(self, s, pot=False):
         pass
 
-    def get_fft_work(self, s, pot=False):
+    def get_fft_work(self, s, pot=False, get_grad_terms=False):
         pass
 
     def _set_paw_terms(self):
@@ -179,7 +182,7 @@ class _FastCiderBase:
     def _get_dH_asp(self):
         pass
 
-    def call_fwd(self, rho_tuple):
+    def call_fwd(self, rho_tuple, get_force_terms=False):
         p, dp = None, None
         plan = self._plan
         self._set_paw_terms()
@@ -201,7 +204,7 @@ class _FastCiderBase:
             self.fft_obj.compute_forward_convolution()
             self.timer.stop("FFT and kernel")
             self.timer.start("Features")
-            self.get_fft_work(s, pot=False)
+            self.get_fft_work(s, pot=False, get_grad_terms=get_force_terms)
             for i in range(plan.num_vj):
                 a_g = plan.get_interpolation_arguments(_rho_tuple, i=i)[0]
                 p, dp = plan.get_interpolation_coefficients(a_g, i=i, vbuf=p, dbuf=dp)
@@ -235,11 +238,16 @@ class _FastCiderBase:
         dedtau_sg,
         p_gq=None,
         dp_gq=None,
+        get_force_terms=False,
     ):
         dedarg_sg = np.empty(v_sg.shape)
         dedfun_sg = np.empty(v_sg.shape)
         plan = self._plan
         self._calculate_paw_energy_and_potential()
+        if get_force_terms:
+            fs = {}
+            for a, v_vsiq in self._save_v_avsiq.items():
+                fs[a] = np.einsum("vsiq,siq->v", v_vsiq, self.c_asiq[a])
         for s in range(plan.nspin):
             self.timer.start("Feature potential")
             self.fft_obj.reset_work()
@@ -266,7 +274,7 @@ class _FastCiderBase:
             self.timer.start("FFT and kernel")
             self.fft_obj.compute_backward_convolution()
             self.timer.stop("FFT and kernel")
-            self.get_fft_work(s, pot=True)
+            self.get_fft_work(s, pot=True, get_grad_terms=get_force_terms)
             p_gq, dp_gq = plan.get_interpolation_coefficients(
                 arg_sg[s], i=-1, vbuf=p_gq, dbuf=dp_gq
             )
@@ -274,9 +282,15 @@ class _FastCiderBase:
             dp_gq.shape = fun_sg.shape[-3:] + (dp_gq.shape[-1],)
             self.fft_obj.fill_vj_feature_(dedarg_sg[s], dp_gq)
             self.fft_obj.fill_vj_feature_(dedfun_sg[s], p_gq)
+        if get_force_terms:
+            for a, v_vsiq in self._save_v_avsiq.items():
+                fs[a] += np.einsum("vsiq,siq->v", v_vsiq, self._save_c_asiq[a])
         dedarg_sg[:] *= fun_sg
         self._get_dH_asp()
-        return dedarg_sg, dedfun_sg
+        if get_force_terms:
+            return dedarg_sg, dedfun_sg, fs
+        else:
+            return dedarg_sg, dedfun_sg
 
     def initialize_more_things(self):
         pass
@@ -293,7 +307,7 @@ class _FastCiderBase:
         e_g,
         rho_sxg,
         dedrho_sxg,
-        compute_stress=False,
+        compute_force=False,
     ):
         nspin = len(rho_sxg)
         self.nspin = nspin
@@ -314,7 +328,7 @@ class _FastCiderBase:
             tau_sg = rho_tuple[2].copy()
             dedtau_sg = np.zeros_like(tau_sg)
 
-        res = self.call_fwd(rho_tuple)
+        res = self.call_fwd(rho_tuple, get_force_terms=compute_force)
         feat_sig, dfeat_sjg, arg_sg, darg_sg, fun_sg, dfun_sg, p_gq, dp_gq = res
         # TODO version i features
         feat_sig[:] *= plan.nspin
@@ -334,7 +348,7 @@ class _FastCiderBase:
         self.timer.stop()
 
         vfeat_sig[:] *= plan.nspin
-        dedarg_sg, dedfun_sg = self.call_bwd(
+        res = self.call_bwd(
             rho_tuple,
             vfeat_sig,
             dfeat_sjg,
@@ -345,7 +359,12 @@ class _FastCiderBase:
             dedtau_sg,
             p_gq=p_gq,
             dp_gq=dp_gq,
+            get_force_terms=compute_force,
         )
+        if compute_force:
+            dedarg_sg, dedfun_sg, fs = res
+        else:
+            dedarg_sg, dedfun_sg = res
         self.timer.start("add potential")
         for i, term in enumerate(darg_sg):
             term[:] *= dedarg_sg
@@ -363,6 +382,8 @@ class _FastCiderBase:
         if tau_sg is not None:
             dedrho_sxg[:, 4] += dedtau_sg
         self.timer.stop()
+        if compute_force:
+            return fs
 
     def _distribute_to_cider_grid(self, n_xg):
         # shape = (len(n_xg),)

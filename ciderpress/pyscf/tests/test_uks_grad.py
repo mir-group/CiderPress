@@ -170,8 +170,7 @@ class KnownValues(unittest.TestCase):
 
         path = "{}/functionals/{}.yaml".format(os.getcwd(), functional)
         if not os.path.exists(path):
-            print("Functional not available, skipping...{}".format(path))
-            return
+            self.skipTest("Functional not available, skipping...{}".format(path))
         ks = build_ks_calc(mol, path, alt_settings=XC_SETTINGS)
         ks.kernel()
         g = ks.nuc_grad_method().set(grid_response=True).kernel()
