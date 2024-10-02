@@ -1,6 +1,7 @@
 import ctypes
 
 import numpy as np
+from gpaw.xc.gga import GGA
 from gpaw.xc.mgga import MGGA
 
 from ciderpress.gpaw.fast_atom_utils import FastAtomPASDWSlice, FastPASDWCiderKernel
@@ -213,8 +214,9 @@ class _FastPASDW_MPRoutines:
                 coefs_iq = np.zeros(shapes[a])
             coefs_a_iq[a] = coefs_iq
         for a in range(len(self.setups)):
+            comm.sum(coefs_a_iq[a], rank_a[a])
+        for a in range(len(self.setups)):
             coefs_iq = coefs_a_iq[a]
-            comm.sum(coefs_iq, rank_a[a])
             if rank_a[a] == comm.rank:
                 assert coefs_iq is not None
                 if self.pasdw_ovlp_fit:
@@ -258,8 +260,9 @@ class _FastPASDW_MPRoutines:
                 coefs_viq = np.zeros((3,) + shapes[a])
             coefs_a_viq[a] = coefs_viq
         for a in range(len(self.setups)):
+            comm.sum(coefs_a_viq[a], rank_a[a])
+        for a in range(len(self.setups)):
             coefs_viq = coefs_a_viq[a]
-            comm.sum(coefs_viq, rank_a[a])
             if rank_a[a] == comm.rank:
                 assert coefs_viq is not None
                 for v in range(3):
@@ -269,6 +272,19 @@ class _FastPASDW_MPRoutines:
                         )
                     else:
                         self._save_v_avsiq[a][v, s] = coefs_viq[v]
+                if self.pasdw_ovlp_fit:
+                    sl = global_slices[a]
+                    X_vii = sl.get_ovlp_deriv(
+                        sl.get_funcs(), sl.get_grads(), stress=False
+                    )
+                    # TODO not sure if this line below is quite right but it seems to work
+                    # could also just be self.c_asiq[a][s]
+                    # but in principle we need to remove the sinv_pf from c_asiq before multiplying
+                    # in the derivative matrix
+                    coefs_iq = np.linalg.solve(sl.sinv_pf.T, self.c_asiq[a][s])
+                    self._save_v_avsiq[a][:, s] += np.einsum(
+                        "vij,iq->vjq", X_vii, coefs_iq
+                    )
         self.timer.stop()
 
     def set_fft_work(self, s, pot=False):
@@ -380,7 +396,7 @@ class CiderGGAPASDW(_FastPASDW_MPRoutines, CiderGGA):
         return d
 
     def add_forces(self, F_av):
-        MGGA.add_forces(self, F_av)
+        GGA.add_forces(self, F_av)
         _FastPASDW_MPRoutines.add_forces(self, F_av)
 
     def stress_tensor_contribution(self, n_sg):
@@ -420,6 +436,19 @@ class CiderGGAPASDW(_FastPASDW_MPRoutines, CiderGGA):
         self.pwfft = None
         self.rbuf_ag = None
         self._check_parallelization(wfs)
+
+    def calculate_force_contribs(self, F_av, n_sg):
+        e_g = np.zeros(n_sg.shape[1:])
+        Ftmp_av = np.zeros_like(F_av)
+        taut_sg, dedtaut_sg, taut_sG = self._get_taut(n_sg)
+        _e, rho_sxg, dedrho_sxg = self._get_cider_inputs(n_sg, taut_sg)
+        e_g[:] = 0.0
+        fs = self.calc_cider(_e, rho_sxg, dedrho_sxg, compute_force=True)
+        for a, f in fs.items():
+            Ftmp_av[a] = f
+        self.world.sum(Ftmp_av, 0)
+        if self.world.rank == 0:
+            F_av[:] += Ftmp_av
 
 
 class CiderMGGAPASDW(_FastPASDW_MPRoutines, CiderMGGA):

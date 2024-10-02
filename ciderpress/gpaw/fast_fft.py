@@ -535,3 +535,9 @@ class CiderMGGA(_FastCiderBase, MGGA):
         self, setup, D_sp, dEdD_sp=None, addcoredensity=True, a=None
     ):
         return 0
+
+    def add_forces(self, F_av):
+        raise NotImplementedError(
+            "Forces not implemented for CIDER MGGA with NCPP. "
+            "Please use PAW setups to get forces."
+        )

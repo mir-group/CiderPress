@@ -1344,6 +1344,7 @@ class AtomPASDWSlice:
                 "vpg,fg->vpf", pgrads_vig, ffuncs_ig
             )
             dovlp_vpf *= self.dv
+            # d(sinv_pf)/dR = (ovlp_pf^T)^-1 * (d(ovlp_pf)/dR)^T * sinv_pf
             B_vfq = -1 * np.einsum("vpf,pq->vfq", dovlp_vpf, self.sinv_pf)
             ni = ovlp_pf.shape[0]
             X_vpq = np.empty((3, ni, ni))
