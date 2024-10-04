@@ -61,15 +61,6 @@ void ciderpw_finalize(ciderpw_data *cider) {
 }
 
 void ciderpw_set_unit_cell(ciderpw_data data, int *N_c, double *cell_cv) {
-    /*double C00 = cell_cv[0];
-    double C01 = cell_cv[1];
-    double C02 = cell_cv[2];
-    double C10 = cell_cv[3];
-    double C11 = cell_cv[4];
-    double C12 = cell_cv[5];
-    double C20 = cell_cv[6];
-    double C21 = cell_cv[7];
-    double C22 = cell_cv[8];*/
     double C00 = cell_cv[0];
     double C01 = cell_cv[3];
     double C02 = cell_cv[6];
@@ -84,13 +75,13 @@ void ciderpw_set_unit_cell(ciderpw_data data, int *N_c, double *cell_cv) {
          C02 * (C10 * C21 - C11 * C20));
     data->cell.dV = det / (N_c[0] * N_c[1] * N_c[2]);
     data->cell.vec[0] = C00;
-    data->cell.vec[1] = C01;
-    data->cell.vec[2] = C02;
-    data->cell.vec[3] = C10;
+    data->cell.vec[1] = C10;
+    data->cell.vec[2] = C20;
+    data->cell.vec[3] = C01;
     data->cell.vec[4] = C11;
-    data->cell.vec[5] = C12;
-    data->cell.vec[6] = C20;
-    data->cell.vec[7] = C21;
+    data->cell.vec[5] = C21;
+    data->cell.vec[6] = C02;
+    data->cell.vec[7] = C12;
     data->cell.vec[8] = C22;
 
     data->cell.Nglobal[0] = N_c[0];
@@ -519,7 +510,7 @@ void ciderpw_fill_atom_info(ciderpw_data data, int64_t *inds_c, double *disps_c,
             for (iz = 0; iz < num_z; iz++, g++) {
                 locs_g[g] =
                     indz[iz] + data->gLDA * (indy[iy] + nlocy * indx[ix]);
-                /*double rx = data->cell.vec[0] * dispx[ix] +
+                double rx = data->cell.vec[0] * dispx[ix] +
                             data->cell.vec[3] * dispy[iy] +
                             data->cell.vec[6] * dispz[iz];
                 double ry = data->cell.vec[1] * dispx[ix] +
@@ -527,15 +518,6 @@ void ciderpw_fill_atom_info(ciderpw_data data, int64_t *inds_c, double *disps_c,
                             data->cell.vec[7] * dispz[iz];
                 double rz = data->cell.vec[2] * dispx[ix] +
                             data->cell.vec[5] * dispy[iy] +
-                            data->cell.vec[8] * dispz[iz];*/
-                double rx = data->cell.vec[0] * dispx[ix] +
-                            data->cell.vec[1] * dispy[iy] +
-                            data->cell.vec[2] * dispz[iz];
-                double ry = data->cell.vec[3] * dispx[ix] +
-                            data->cell.vec[4] * dispy[iy] +
-                            data->cell.vec[5] * dispz[iz];
-                double rz = data->cell.vec[6] * dispx[ix] +
-                            data->cell.vec[7] * dispy[iy] +
                             data->cell.vec[8] * dispz[iz];
                 r_vg[g] = sqrt(rx * rx + ry * ry + rz * rz + 1e-16);
                 r_vg[1 * num_t + g] = rx / r_vg[g];

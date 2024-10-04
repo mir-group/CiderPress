@@ -90,7 +90,6 @@ class LibCiderPW:
             ) = get_norms_and_expnts_from_plan(plan)
         alphas = np.asarray(self.alphas, dtype=np.float64, order="C")
         alpha_norms = np.asarray(self.alpha_norms, dtype=np.float64, order="C")
-        len(alphas)
         assert len(alphas) == len(alpha_norms)
         assert cell_cv.flags.c_contiguous
         pwutil.ciderpw_create(
