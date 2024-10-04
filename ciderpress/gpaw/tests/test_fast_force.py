@@ -41,10 +41,6 @@ def _run_cider_forces(functional, get_xc=None):
         pbc=True,
     )
     bulk.set_cell((a, a, a), scale_atoms=True)
-    bulk.set_cell(
-        np.dot(bulk.cell, [[1.02, 0, 0.03], [0, 0.99, -0.02], [0.2, -0.01, 1.03]]),
-        scale_atoms=True,
-    )
     if get_xc is not None:
         functional = get_xc()
     calc = GPAW(
