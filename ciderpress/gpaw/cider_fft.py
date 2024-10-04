@@ -768,7 +768,6 @@ class _CiderBase:
                         hermitian=True,
                     )
         self.world.sum(stress_vv)
-        # print(stress_vv)
         self._stress_vv += stress_vv
 
     def calculate_6d_integral_fwd(self, n_g, cider_exp, c_abi=None):
@@ -1015,7 +1014,6 @@ class _CiderBase:
                 compute_stress=compute_stress,
             )
         self.timer.stop()
-
         self.add_scale_derivs(vexp, ascale_derivs, v_sg, dedsigma_xg, dedtau_sg)
 
     def calculate_impl(self, gd, n_sg, v_sg, e_g):

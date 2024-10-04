@@ -92,6 +92,7 @@ class LibCiderPW:
         alpha_norms = np.asarray(self.alpha_norms, dtype=np.float64, order="C")
         len(alphas)
         assert len(alphas) == len(alpha_norms)
+        assert cell_cv.flags.c_contiguous
         pwutil.ciderpw_create(
             ctypes.byref(ptr),
             ctypes.c_double(1),
@@ -191,6 +192,12 @@ class LibCiderPW:
 
         self.initialized = True
 
+    def fftv2(self, arr_gq):
+        pwutil.ciderpw_g2k_v2(
+            self._ptr,
+            arr_gq.ctypes.data_as(ctypes.c_void_p),
+        )
+
     def fft(self, in_xg, out_xg):
         if self.has_mpi:
             fn = pwutil.ciderpw_g2k_mpi_gpaw
@@ -220,6 +227,15 @@ class LibCiderPW:
 
     def compute_backward_convolution(self):
         pwutil.ciderpw_compute_potential(self._ptr)
+
+    def compute_backward_convolution_with_stress(self, theta_gq):
+        stress_vv = np.zeros((3, 3))
+        pwutil.ciderpw_convolution_potential_and_stress(
+            self._ptr,
+            stress_vv.ctypes.data_as(ctypes.c_void_p),
+            theta_gq.ctypes.data_as(ctypes.c_void_p),
+        )
+        return stress_vv
 
     def fill_vj_feature_(self, feat_g, p_gq):
         assert feat_g.flags.c_contiguous
@@ -307,6 +323,15 @@ class LibCiderPW:
         )
         return bound_inds[:3], bound_inds[3:]
 
+    def get_recip_size(self):
+        pwutil.ciderpw_get_recip_size.restype = ctypes.c_int
+        return int(pwutil.ciderpw_get_recip_size(self._ptr))
+
+    def copy_work_array(self):
+        arr = np.empty(self.get_recip_size() * self.nalpha, dtype=np.complex128)
+        pwutil.ciderpw_copy_work_array(self._ptr, arr.ctypes.data_as(ctypes.c_void_p))
+        return arr
+
 
 class FFTWrapper:
     def __init__(self, fft_obj, distribution, pd, timer=nulltimer):
@@ -328,8 +353,8 @@ class FFTWrapper:
         self.pd = pd
         self.timer = timer
 
-    def get_reciprocal_space_vectors(self, q=0, add_q=True):
-        return self.pd.get_reciprocal_space_vectors(q=q, add_q=True)
+    def get_reciprocal_vectors(self, q=0, add_q=True):
+        return self.pd.get_reciprocal_vectors(q=q, add_q=True)
 
     @property
     def G2_qG(self):

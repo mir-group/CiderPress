@@ -2,7 +2,7 @@ import unittest
 
 import numpy as np
 from ase import Atoms
-from gpaw import GPAW, PW, FermiDirac
+from gpaw import GPAW, PW, FermiDirac, Mixer
 
 from ciderpress.gpaw.calculator import get_cider_functional
 from ciderpress.gpaw.tests import equal
@@ -41,17 +41,22 @@ def _run_cider_forces(functional, get_xc=None):
         pbc=True,
     )
     bulk.set_cell((a, a, a), scale_atoms=True)
+    bulk.set_cell(
+        np.dot(bulk.cell, [[1.02, 0, 0.03], [0, 0.99, -0.02], [0.2, -0.01, 1.03]]),
+        scale_atoms=True,
+    )
     if get_xc is not None:
         functional = get_xc()
     calc = GPAW(
-        h=0.15,
-        mode=PW(520),
+        h=0.2,
+        mode=PW(350),
         xc=functional,
         nbands="150%",
         occupations=FermiDirac(width=0.01),
-        kpts=(4, 4, 4),
+        kpts=(3, 3, 3),
         convergence={"energy": 1e-7},
         parallel={"augment_grids": True},
+        mixer=Mixer(0.7, 8, 50),
     )
     bulk.calc = calc
     f1 = bulk.get_forces()[0, 2]
@@ -94,7 +99,7 @@ class TestForce(unittest.TestCase):
                 qmax=300,
                 lambd=1.8,
                 xmix=0.25,
-                pasdw_ovlp_fit=False,
+                pasdw_ovlp_fit=True,
                 pasdw_store_funcs=False,
             )
 

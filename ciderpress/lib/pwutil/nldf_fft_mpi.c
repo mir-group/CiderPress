@@ -41,6 +41,7 @@ void ciderpw_setup_reciprocal_vectors(ciderpw_data data) {
     data->ky_G = (double *)malloc(sizeof(double) * data->nk);
     data->kz_G = (double *)malloc(sizeof(double) * data->nk);
     data->k2_G = (double *)malloc(sizeof(double) * data->nk);
+    data->wt_G = (uint8_t *)malloc(sizeof(uint8_t) * data->nk);
     for (N1 = 0; N1 < data->icell.Nlocal[1]; N1++) {
         N1glob = N1 + data->icell.offset[1];
         for (N0 = 0; N0 < data->icell.Nlocal[0]; N0++) {
@@ -69,6 +70,9 @@ void ciderpw_setup_reciprocal_vectors(ciderpw_data data) {
                 data->ky_G[kindex] = ky;
                 data->kz_G[kindex] = kz;
                 data->k2_G[kindex] = ksq;
+                data->wt_G[kindex] =
+                    (N2glob == 0 || N2glob == data->icell.Nglobal[2] - 1) ? 1
+                                                                          : 2;
             }
         }
     }

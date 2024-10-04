@@ -54,13 +54,14 @@ void ciderpw_finalize(ciderpw_data *cider) {
     free(data->kx_G);
     free(data->ky_G);
     free(data->kz_G);
+    free(data->wt_G);
     ciderpw_nullify(data);
     free(data);
     cider[0] = NULL;
 }
 
 void ciderpw_set_unit_cell(ciderpw_data data, int *N_c, double *cell_cv) {
-    double C00 = cell_cv[0];
+    /*double C00 = cell_cv[0];
     double C01 = cell_cv[1];
     double C02 = cell_cv[2];
     double C10 = cell_cv[3];
@@ -68,6 +69,15 @@ void ciderpw_set_unit_cell(ciderpw_data data, int *N_c, double *cell_cv) {
     double C12 = cell_cv[5];
     double C20 = cell_cv[6];
     double C21 = cell_cv[7];
+    double C22 = cell_cv[8];*/
+    double C00 = cell_cv[0];
+    double C01 = cell_cv[3];
+    double C02 = cell_cv[6];
+    double C10 = cell_cv[1];
+    double C11 = cell_cv[4];
+    double C12 = cell_cv[7];
+    double C20 = cell_cv[2];
+    double C21 = cell_cv[5];
     double C22 = cell_cv[8];
     double det =
         (C00 * (C11 * C22 - C21 * C12) - C01 * (C10 * C22 - C12 * C20) +
@@ -159,6 +169,11 @@ void ciderpw_get_bound_inds(ciderpw_data data, int *bound_inds) {
     bound_inds[5] = bound_inds[2] + data->cell.Nlocal[2];
 }
 
+int ciderpw_get_recip_size(ciderpw_data data) {
+    return data->icell.Nlocal[0] * data->icell.Nlocal[1] *
+           data->icell.Nlocal[2];
+}
+
 double *ciderpw_get_work_pointer(ciderpw_data data) {
     return (double *)data->work_ska;
 }
@@ -198,6 +213,24 @@ void ciderpw_compute_kernels_sym_helper(double k2, double *kernel_ab,
     }
 }
 
+void ciderpw_compute_kernels_sym_stress_helper(double k2, double *kernel_ab,
+                                               double *norms_ab,
+                                               double *expnts_ab, int nalpha) {
+    int ab, a, b;
+    double kval;
+    for (b = 0; b < nalpha; b++) {
+        ab = b * nalpha + b;
+        kernel_ab[ab] =
+            2 * norms_ab[ab] * expnts_ab[ab] * exp(expnts_ab[ab] * k2);
+        for (a = b + 1; a < nalpha; a++) {
+            ab = b * nalpha + a;
+            kernel_ab[ab] =
+                2 * norms_ab[ab] * expnts_ab[ab] * exp(expnts_ab[ab] * k2);
+            kernel_ab[a * nalpha + b] = kernel_ab[ab];
+        }
+    }
+}
+
 void ciderpw_compute_kernels(struct ciderpw_kernel *kernel, double k2,
                              double *kernel_ba) {
     ciderpw_compute_kernels_helper(k2, kernel_ba, kernel->norms_ba,
@@ -209,6 +242,12 @@ void ciderpw_compute_kernels_sym(struct ciderpw_kernel *kernel, double k2,
                                  double *kernel_ba) {
     ciderpw_compute_kernels_sym_helper(k2, kernel_ba, kernel->norms_ba,
                                        kernel->expnts_ba, kernel->nalpha);
+}
+
+void ciderpw_compute_kernels_sym_stress(struct ciderpw_kernel *kernel,
+                                        double k2, double *kernel_ba) {
+    ciderpw_compute_kernels_sym_stress_helper(
+        k2, kernel_ba, kernel->norms_ba, kernel->expnts_ba, kernel->nalpha);
 }
 
 void ciderpw_compute_kernels_t(struct ciderpw_kernel *kernel, double k2,
@@ -268,6 +307,58 @@ void ciderpw_convolution_fwd(ciderpw_data data) {
     free(kernel_ba);
 }
 
+void ciderpw_convolution_stress(ciderpw_data data, double *stress_vv,
+                                double complex *theta_gq) {
+    double *kernel_ba = (double *)malloc(sizeof(double) * data->kernel.nbeta *
+                                         data->kernel.nalpha);
+    double complex *work_ska = (double complex *)data->work_ska;
+    int a, b;
+    int kindex;
+    double complex F;
+    double F2;
+    double *ikernel_ba;
+    double complex *work_b;
+    double complex *theta_a;
+    for (int vv = 0; vv < 9; vv++) {
+        stress_vv[vv] = 0;
+    }
+    for (kindex = 0; kindex < data->nk; kindex++) {
+        theta_a = theta_gq + kindex * data->kernel.work_size;
+        work_b = work_ska + kindex * data->kernel.work_size;
+        ciderpw_compute_kernels_sym_stress(&data->kernel, data->k2_G[kindex],
+                                           kernel_ba);
+        ikernel_ba = kernel_ba;
+        F2 = 0;
+        for (b = 0; b < data->kernel.nbeta; b++) {
+            F = 0.0;
+            for (a = 0; a < data->kernel.nalpha; a++) {
+                F += theta_a[a] * (*ikernel_ba++);
+            }
+            F2 += creal(work_b[b]) * creal(F) + cimag(work_b[b]) * cimag(F);
+        }
+        F2 *= ((double)data->wt_G[kindex]);
+        stress_vv[0] += F2 * data->kx_G[kindex] * data->kx_G[kindex];
+        stress_vv[1] += F2 * data->kx_G[kindex] * data->ky_G[kindex];
+        stress_vv[2] += F2 * data->kx_G[kindex] * data->kz_G[kindex];
+        stress_vv[4] += F2 * data->ky_G[kindex] * data->ky_G[kindex];
+        stress_vv[5] += F2 * data->ky_G[kindex] * data->kz_G[kindex];
+        stress_vv[8] += F2 * data->kz_G[kindex] * data->kz_G[kindex];
+    }
+    stress_vv[3] = stress_vv[1];
+    stress_vv[6] = stress_vv[2];
+    stress_vv[7] = stress_vv[5];
+    for (int vv = 0; vv < 9; vv++) {
+        // TODO not sure why the -1 factor is needed and why 1 / data->Nglobal
+        // is not needed here, but this works using finite difference tests.
+        // Would be good to figure out why this is.
+        // stress_vv[vv] *= data->cell.dV / data->Nglobal;
+        stress_vv[vv] *= -1 * data->cell.dV;
+    }
+    // TODO need to implement this
+    // ciderpw_multiply_l1(data);
+    free(kernel_ba);
+}
+
 void ciderpw_convolution_bwd(ciderpw_data data) {
     double *kernel_ab = (double *)malloc(sizeof(double) * data->kernel.nbeta *
                                          data->kernel.nalpha);
@@ -300,6 +391,17 @@ void ciderpw_convolution_bwd(ciderpw_data data) {
     free(kernel_ab);
 }
 
+void ciderpw_g2k_v2(ciderpw_data data, double complex *arr) {
+    int nalpha = data->kernel.work_size;
+    for (int index = 0; index < data->nk * nalpha; index++) {
+        data->work_ska[index] = arr[index];
+    }
+    CIDERPW_G2K(data);
+    for (int index = 0; index < data->nk * nalpha; index++) {
+        arr[index] = data->work_ska[index];
+    }
+}
+
 void ciderpw_compute_features(ciderpw_data data) {
     CIDERPW_G2K(data);
     ciderpw_convolution_fwd(data);
@@ -308,6 +410,15 @@ void ciderpw_compute_features(ciderpw_data data) {
 
 void ciderpw_compute_potential(ciderpw_data data) {
     CIDERPW_G2K(data);
+    ciderpw_convolution_bwd(data);
+    CIDERPW_K2G(data);
+}
+
+void ciderpw_convolution_potential_and_stress(ciderpw_data data,
+                                              double *stress_vv,
+                                              double complex *theta_gq) {
+    CIDERPW_G2K(data);
+    ciderpw_convolution_stress(data, stress_vv, theta_gq);
     ciderpw_convolution_bwd(data);
     CIDERPW_K2G(data);
 }
@@ -408,7 +519,7 @@ void ciderpw_fill_atom_info(ciderpw_data data, int64_t *inds_c, double *disps_c,
             for (iz = 0; iz < num_z; iz++, g++) {
                 locs_g[g] =
                     indz[iz] + data->gLDA * (indy[iy] + nlocy * indx[ix]);
-                double rx = data->cell.vec[0] * dispx[ix] +
+                /*double rx = data->cell.vec[0] * dispx[ix] +
                             data->cell.vec[3] * dispy[iy] +
                             data->cell.vec[6] * dispz[iz];
                 double ry = data->cell.vec[1] * dispx[ix] +
@@ -416,6 +527,15 @@ void ciderpw_fill_atom_info(ciderpw_data data, int64_t *inds_c, double *disps_c,
                             data->cell.vec[7] * dispz[iz];
                 double rz = data->cell.vec[2] * dispx[ix] +
                             data->cell.vec[5] * dispy[iy] +
+                            data->cell.vec[8] * dispz[iz];*/
+                double rx = data->cell.vec[0] * dispx[ix] +
+                            data->cell.vec[1] * dispy[iy] +
+                            data->cell.vec[2] * dispz[iz];
+                double ry = data->cell.vec[3] * dispx[ix] +
+                            data->cell.vec[4] * dispy[iy] +
+                            data->cell.vec[5] * dispz[iz];
+                double rz = data->cell.vec[6] * dispx[ix] +
+                            data->cell.vec[7] * dispy[iy] +
                             data->cell.vec[8] * dispz[iz];
                 r_vg[g] = sqrt(rx * rx + ry * ry + rz * rz + 1e-16);
                 r_vg[1 * num_t + g] = rx / r_vg[g];
@@ -459,5 +579,12 @@ void ciderpw_set_atom_info(ciderpw_data data, double *funcs_ga, int64_t *locs_g,
         for (a = 0; a < nalpha; a++) {
             funcs_a[a] = work_a[a];
         }
+    }
+}
+
+void ciderpw_copy_work_array(ciderpw_data data, double complex *out) {
+    int nalpha = data->kernel.work_size;
+    for (int index = 0; index < data->nk * nalpha; index++) {
+        out[index] = data->work_ska[index];
     }
 }

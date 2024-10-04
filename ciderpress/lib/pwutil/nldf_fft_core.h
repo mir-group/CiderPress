@@ -68,6 +68,7 @@ struct ciderpw_data_obj {
     double *kx_G;
     double *ky_G;
     double *kz_G;
+    uint8_t *wt_G;
 
     int errorcode;
 };
@@ -95,6 +96,8 @@ void ciderpw_setup_kernel(ciderpw_data data, int nalpha, int nbeta,
                           double *norms_ab, double *expnts_ab);
 
 void ciderpw_get_bound_inds(ciderpw_data data, int *bound_inds);
+
+int ciderpw_get_recip_size(ciderpw_data data);
 
 double *ciderpw_get_work_pointer(ciderpw_data data);
 
@@ -143,5 +146,7 @@ void ciderpw_add_atom_info(ciderpw_data data, double *funcs_ga, int64_t *locs_g,
 
 void ciderpw_set_atom_info(ciderpw_data data, double *funcs_ga, int64_t *locs_g,
                            int ng);
+
+void ciderpw_copy_work_array(ciderpw_data data, double complex *out);
 
 #endif

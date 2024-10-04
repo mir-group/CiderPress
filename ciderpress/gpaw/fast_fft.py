@@ -35,6 +35,10 @@ from ciderpress.gpaw.cider_fft import (
 )
 from ciderpress.gpaw.nldf_interface import LibCiderPW
 
+CIDERPW_GRAD_MODE_NONE = 0
+CIDERPW_GRAD_MODE_FORCE = 1
+CIDERPW_GRAD_MODE_STRESS = 2
+
 
 class _FastCiderBase:
 
@@ -122,9 +126,7 @@ class _FastCiderBase:
         self.timer = wfs.timer
         self.world = wfs.world
         self.dens = density
-        self.rbuf_ag = None
-        self.kbuf_ak = None
-        self.theta_ak = None
+        self._plan = None
         self._check_parallelization(wfs)
 
     def _setup_plan(self):
@@ -170,19 +172,21 @@ class _FastCiderBase:
     def set_fft_work(self, s, pot=False):
         pass
 
-    def get_fft_work(self, s, pot=False, get_grad_terms=False):
-        pass
+    def get_fft_work(self, s, pot=False, grad_mode=CIDERPW_GRAD_MODE_NONE):
+        if grad_mode in [CIDERPW_GRAD_MODE_FORCE, CIDERPW_GRAD_MODE_STRESS]:
+            self._save_v_avsiq = {}
 
     def _set_paw_terms(self):
         pass
 
-    def _calculate_paw_energy_and_potential(self):
-        pass
+    def _calculate_paw_energy_and_potential(self, grad_mode=CIDERPW_GRAD_MODE_NONE):
+        if grad_mode == CIDERPW_GRAD_MODE_STRESS:
+            return 0
 
     def _get_dH_asp(self):
         pass
 
-    def call_fwd(self, rho_tuple, get_force_terms=False):
+    def call_fwd(self, rho_tuple, grad_mode=CIDERPW_GRAD_MODE_NONE):
         p, dp = None, None
         plan = self._plan
         self._set_paw_terms()
@@ -192,6 +196,8 @@ class _FastCiderBase:
         feat_sig = np.empty(shape)
         shape = (plan.nspin, plan.num_vj) + arg_sg.shape[1:]
         dfeat_sjg = np.empty(shape)
+        if grad_mode == CIDERPW_GRAD_MODE_STRESS:
+            self._theta_s_gq = {}
         for s in range(plan.nspin):
             _rho_tuple = tuple(x[s] for x in rho_tuple)
             p, dp = plan.get_interpolation_coefficients(
@@ -200,11 +206,13 @@ class _FastCiderBase:
             p.shape = fun_sg.shape[-3:] + (p.shape[-1],)
             self.fft_obj.set_work(fun_sg[s], p)
             self.set_fft_work(s, pot=False)
+            if grad_mode == CIDERPW_GRAD_MODE_STRESS:
+                self._theta_s_gq[s] = self.fft_obj.copy_work_array()
             self.timer.start("FFT and kernel")
             self.fft_obj.compute_forward_convolution()
             self.timer.stop("FFT and kernel")
             self.timer.start("Features")
-            self.get_fft_work(s, pot=False, get_grad_terms=get_force_terms)
+            self.get_fft_work(s, pot=False, grad_mode=grad_mode)
             for i in range(plan.num_vj):
                 a_g = plan.get_interpolation_arguments(_rho_tuple, i=i)[0]
                 p, dp = plan.get_interpolation_coefficients(a_g, i=i, vbuf=p, dbuf=dp)
@@ -238,18 +246,27 @@ class _FastCiderBase:
         dedtau_sg,
         p_gq=None,
         dp_gq=None,
-        get_force_terms=False,
+        grad_mode=CIDERPW_GRAD_MODE_NONE,
     ):
         dedarg_sg = np.empty(v_sg.shape)
         dedfun_sg = np.empty(v_sg.shape)
         plan = self._plan
-        self._calculate_paw_energy_and_potential()
-        if get_force_terms:
+        paw_res = self._calculate_paw_energy_and_potential(grad_mode=grad_mode)
+        if grad_mode == CIDERPW_GRAD_MODE_FORCE:
             fs = {}
             for a, v_vsiq in self._save_v_avsiq.items():
                 fs[a] = np.einsum("vsiq,siq->v", v_vsiq, self.c_asiq[a])
+        elif grad_mode == CIDERPW_GRAD_MODE_STRESS:
+            fs = paw_res * np.eye(3)
+            for a, v_vvsiq in self._save_v_avsiq.items():
+                fs += np.einsum("uvsiq,siq->uv", v_vvsiq, self.c_asiq[a])
+        else:
+            fs = None
         for s in range(plan.nspin):
             self.timer.start("Feature potential")
+            self.fft_obj.reset_work()
+            if grad_mode == CIDERPW_GRAD_MODE_STRESS:
+                self.fft_obj.fftv2(self._theta_s_gq[s])
             self.fft_obj.reset_work()
             for i in range(plan.num_vj):
                 _rho_tuple = (x[s] for x in rho_tuple)
@@ -272,9 +289,14 @@ class _FastCiderBase:
             self.timer.stop()
             self.set_fft_work(s, pot=True)
             self.timer.start("FFT and kernel")
-            self.fft_obj.compute_backward_convolution()
+            if grad_mode == CIDERPW_GRAD_MODE_STRESS:
+                fs += self.fft_obj.compute_backward_convolution_with_stress(
+                    self._theta_s_gq[s]
+                )
+            else:
+                self.fft_obj.compute_backward_convolution()
             self.timer.stop("FFT and kernel")
-            self.get_fft_work(s, pot=True, get_grad_terms=get_force_terms)
+            self.get_fft_work(s, pot=True, grad_mode=grad_mode)
             p_gq, dp_gq = plan.get_interpolation_coefficients(
                 arg_sg[s], i=-1, vbuf=p_gq, dbuf=dp_gq
             )
@@ -282,12 +304,15 @@ class _FastCiderBase:
             dp_gq.shape = fun_sg.shape[-3:] + (dp_gq.shape[-1],)
             self.fft_obj.fill_vj_feature_(dedarg_sg[s], dp_gq)
             self.fft_obj.fill_vj_feature_(dedfun_sg[s], p_gq)
-        if get_force_terms:
+        if grad_mode == CIDERPW_GRAD_MODE_FORCE:
             for a, v_vsiq in self._save_v_avsiq.items():
                 fs[a] += np.einsum("vsiq,siq->v", v_vsiq, self._save_c_asiq[a])
+        elif grad_mode == CIDERPW_GRAD_MODE_STRESS:
+            for a, v_vvsiq in self._save_v_avsiq.items():
+                fs += np.einsum("uvsiq,siq->uv", v_vvsiq, self._save_c_asiq[a])
         dedarg_sg[:] *= fun_sg
         self._get_dH_asp()
-        if get_force_terms:
+        if fs is not None:
             return dedarg_sg, dedfun_sg, fs
         else:
             return dedarg_sg, dedfun_sg
@@ -307,7 +332,7 @@ class _FastCiderBase:
         e_g,
         rho_sxg,
         dedrho_sxg,
-        compute_force=False,
+        grad_mode=CIDERPW_GRAD_MODE_NONE,
     ):
         nspin = len(rho_sxg)
         self.nspin = nspin
@@ -328,7 +353,7 @@ class _FastCiderBase:
             tau_sg = rho_tuple[2].copy()
             dedtau_sg = np.zeros_like(tau_sg)
 
-        res = self.call_fwd(rho_tuple, get_force_terms=compute_force)
+        res = self.call_fwd(rho_tuple, grad_mode=grad_mode)
         feat_sig, dfeat_sjg, arg_sg, darg_sg, fun_sg, dfun_sg, p_gq, dp_gq = res
         # TODO version i features
         feat_sig[:] *= plan.nspin
@@ -359,12 +384,13 @@ class _FastCiderBase:
             dedtau_sg,
             p_gq=p_gq,
             dp_gq=dp_gq,
-            get_force_terms=compute_force,
+            grad_mode=grad_mode,
         )
-        if compute_force:
+        if grad_mode in [CIDERPW_GRAD_MODE_FORCE, CIDERPW_GRAD_MODE_STRESS]:
             dedarg_sg, dedfun_sg, fs = res
         else:
             dedarg_sg, dedfun_sg = res
+            fs = None
         self.timer.start("add potential")
         for i, term in enumerate(darg_sg):
             term[:] *= dedarg_sg
@@ -382,8 +408,7 @@ class _FastCiderBase:
         if tau_sg is not None:
             dedrho_sxg[:, 4] += dedtau_sg
         self.timer.stop()
-        if compute_force:
-            return fs
+        return fs
 
     def _distribute_to_cider_grid(self, n_xg):
         # shape = (len(n_xg),)
@@ -480,6 +505,53 @@ class CiderGGA(_FastCiderBase, GGA):
 
     def set_positions(self, spos_ac):
         self.spos_ac = spos_ac
+
+    def stress_tensor_contribution(self, n_sg):
+        e_g = np.zeros(n_sg.shape[1:])
+        stress1_vv = np.zeros((3, 3))
+        _e, rho_sxg, dedrho_sxg = self._get_cider_inputs(n_sg, None)
+        tmp_dedrho_sxg = np.zeros((len(n_sg), rho_sxg.shape[1]) + e_g.shape)
+        e_g[:] = 0.0
+        fs = self.calc_cider(
+            _e, rho_sxg, dedrho_sxg, grad_mode=CIDERPW_GRAD_MODE_STRESS
+        )
+        stress1_vv[:] += 0.5 * (fs + fs.T)
+        self.world.sum(stress1_vv, 0)
+
+        self._add_from_cider_grid(e_g[None, :], _e[None, :])
+        for s in range(len(n_sg)):
+            self._add_from_cider_grid(tmp_dedrho_sxg[s], dedrho_sxg[s])
+        dedrho_sxg = tmp_dedrho_sxg
+        tmp_rho_sxg = np.zeros_like(tmp_dedrho_sxg)
+        for s in range(len(n_sg)):
+            self._add_from_cider_grid(tmp_rho_sxg[s], rho_sxg[s])
+        rho_sxg = tmp_rho_sxg
+
+        def integrate(a1_g, a2_g=None):
+            return self.gd.integrate(a1_g, a2_g, global_integral=False)
+
+        P = integrate(e_g)
+        nspin = n_sg.shape[0]
+        for s in range(nspin):
+            for x in range(rho_sxg.shape[1]):
+                P -= integrate(dedrho_sxg[s, x], rho_sxg[s, x])
+
+        stress_vv = P * np.eye(3)
+        for s in range(nspin):
+            for v1 in range(3):
+                for v2 in range(3):
+                    stress_vv[v1, v2] -= integrate(
+                        rho_sxg[s, v1 + 1], dedrho_sxg[s, v2 + 1]
+                    )
+
+        stress_vv = 0.5 * (stress_vv + stress_vv.T)
+
+        self.gd.comm.sum(stress_vv)
+
+        stress_vv += stress1_vv
+
+        self.gd.comm.broadcast(stress_vv, 0)
+        return stress_vv
 
 
 def get_rho_sxg(n_sg, grad_v, tau_sg=None):

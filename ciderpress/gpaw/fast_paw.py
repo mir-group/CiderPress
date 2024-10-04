@@ -5,7 +5,14 @@ from gpaw.xc.gga import GGA
 from gpaw.xc.mgga import MGGA
 
 from ciderpress.gpaw.fast_atom_utils import FastAtomPASDWSlice, FastPASDWCiderKernel
-from ciderpress.gpaw.fast_fft import CiderGGA, CiderMGGA, add_gradient_correction
+from ciderpress.gpaw.fast_fft import (
+    CIDERPW_GRAD_MODE_FORCE,
+    CIDERPW_GRAD_MODE_NONE,
+    CIDERPW_GRAD_MODE_STRESS,
+    CiderGGA,
+    CiderMGGA,
+    add_gradient_correction,
+)
 from ciderpress.gpaw.nldf_interface import pwutil as libpwutil
 
 
@@ -92,7 +99,7 @@ class _FastPASDW_MPRoutines:
                 )
         self.timer.stop()
 
-    def write_augfeat_to_rbuf(self, s, pot=False, get_force=False):
+    def write_augfeat_to_rbuf(self, s, pot=False):
         self.timer.start("PAW TO GRID")
         if self.atom_slices_s is None:
             self._setup_atom_slices()
@@ -226,7 +233,7 @@ class _FastPASDW_MPRoutines:
         self.timer.stop()
 
     def interpolate_rbuf_onto_atoms_grad(self, s, pot=False):
-        self.timer.start("GRID TO PAW")
+        self.timer.start("GRID TO PAW GRAD")
         if self.atom_slices_s is None:
             self._setup_atom_slices()
 
@@ -287,17 +294,82 @@ class _FastPASDW_MPRoutines:
                     )
         self.timer.stop()
 
+    def interpolate_rbuf_onto_atoms_stress(self, s, pot=False):
+        self.timer.start("GRID TO PAW GRAD")
+        if self.atom_slices_s is None:
+            self._setup_atom_slices()
+
+        if pot:
+            atom_slices = self.atom_slices_s
+            global_slices = self.global_slices_s
+        else:
+            atom_slices = self.atom_slices_a
+            global_slices = self.global_slices_a
+
+        shapes = [
+            (atom_slices[a].num_funcs, self._plan.nalpha)
+            for a in range(len(self.setups))
+        ]
+
+        rank_a = self.atom_partition.rank_a
+        comm = self.atom_partition.comm
+        coefs_a_vviq = {}
+        for a in range(len(self.setups)):
+            atom_slice: FastAtomPASDWSlice = atom_slices[a]
+            if atom_slice.rad_g.size > 0:
+                funcs_vvig = atom_slice.get_stress_funcs()
+                funcs_gq = np.empty((funcs_vvig.shape[-1], self._plan.nalpha))
+                self.fft_obj.set_grid2paw(
+                    funcs_gq,
+                    atom_slice.indset,
+                )
+                coefs_vviq = np.dot(funcs_vvig, funcs_gq)
+                coefs_vviq[:] *= atom_slice.dv
+            else:
+                coefs_vviq = np.zeros((3, 3) + shapes[a])
+            coefs_a_vviq[a] = coefs_vviq
+        for a in range(len(self.setups)):
+            comm.sum(coefs_a_vviq[a], rank_a[a])
+        for a in range(len(self.setups)):
+            coefs_vviq = coefs_a_vviq[a]
+            if rank_a[a] == comm.rank:
+                assert coefs_vviq is not None
+                for u in range(3):
+                    for v in range(3):
+                        if self.pasdw_ovlp_fit:
+                            self._save_v_avsiq[a][u, v, s] = global_slices[
+                                a
+                            ].sinv_pf.T.dot(coefs_vviq[u, v])
+                        else:
+                            self._save_v_avsiq[a][u, v, s] = coefs_vviq[u, v]
+                if self.pasdw_ovlp_fit:
+                    sl = global_slices[a]
+                    X_vvii = sl.get_ovlp_deriv(
+                        sl.get_funcs(), sl.get_grads(), stress=True
+                    )
+                    coefs_iq = np.linalg.solve(sl.sinv_pf.T, self.c_asiq[a][s])
+                    self._save_v_avsiq[a][:, :, s] += np.einsum(
+                        "uvij,iq->uvjq", X_vvii, coefs_iq
+                    )
+        self.timer.stop()
+
     def set_fft_work(self, s, pot=False):
         self.write_augfeat_to_rbuf(s, pot=pot)
 
-    def get_fft_work(self, s, pot=False, get_grad_terms=False):
+    def get_fft_work(self, s, pot=False, grad_mode=CIDERPW_GRAD_MODE_NONE):
         self.interpolate_rbuf_onto_atoms(s, pot=pot)
-        if get_grad_terms:
+        if grad_mode == CIDERPW_GRAD_MODE_FORCE:
             if s == 0:
                 self._save_v_avsiq = {}
                 for a, c_siq in self.c_asiq.items():
                     self._save_v_avsiq[a] = np.zeros((3,) + c_siq.shape)
             self.interpolate_rbuf_onto_atoms_grad(s, pot=pot)
+        elif grad_mode == CIDERPW_GRAD_MODE_STRESS:
+            if s == 0:
+                self._save_v_avsiq = {}
+                for a, c_siq in self.c_asiq.items():
+                    self._save_v_avsiq[a] = np.zeros((3, 3) + c_siq.shape)
+            self.interpolate_rbuf_onto_atoms_stress(s, pot=pot)
 
     def _set_paw_terms(self):
         self.timer.start("PAW TERMS")
@@ -311,14 +383,21 @@ class _FastPASDW_MPRoutines:
         self.D_asp = D_asp
         self.timer.stop()
 
-    def _calculate_paw_energy_and_potential(self):
+    def _calculate_paw_energy_and_potential(self, grad_mode=CIDERPW_GRAD_MODE_NONE):
         self.timer.start("PAW ENERGY")
+        if grad_mode == CIDERPW_GRAD_MODE_STRESS:
+            ctmp_asiq = {a: c_siq.copy() for a, c_siq in self.c_asiq.items()}
         self.c_asiq, deltaE, deltaV = self.paw_kernel.calculate_paw_feat_corrections(
             self.setups, self.D_asp, D_asiq=self.c_asiq, df_asgLq=self.df_asgLq
         )
         self.E_a_tmp = deltaE
         self.deltaV = deltaV
         self.timer.stop()
+        if grad_mode == CIDERPW_GRAD_MODE_STRESS:
+            tot = 0
+            for a, ctmp_siq in ctmp_asiq.items():
+                tot += np.einsum("siq,siq->", self.c_asiq[a], ctmp_siq)
+            return tot
 
     def _get_dH_asp(self):
         self.timer.start("PAW POTENTIAL")
@@ -400,27 +479,7 @@ class CiderGGAPASDW(_FastPASDW_MPRoutines, CiderGGA):
         _FastPASDW_MPRoutines.add_forces(self, F_av)
 
     def stress_tensor_contribution(self, n_sg):
-        raise NotImplementedError
-        nspins = len(n_sg)
-        stress_vv = super(CiderGGAPASDW, self).stress_tensor_contribution(n_sg)
-        tmp_vv = np.zeros((3, 3))
-        for s in range(nspins):
-            tmp_vv += self.construct_grad_terms(
-                self.dedtheta_sag[s],
-                self.c_sabi[s],
-                aug=False,
-                stress=True,
-            )
-            tmp_vv += self.construct_grad_terms(
-                self.Freal_sag[s],
-                self.dedq_sabi[s],
-                aug=True,
-                stress=True,
-            )
-        self.world.sum(tmp_vv)
-        stress_vv[:] += tmp_vv
-        self.gd.comm.broadcast(stress_vv, 0)
-        return stress_vv
+        return CiderGGA.stress_tensor_contribution(self, n_sg)
 
     def set_positions(self, spos_ac):
         self.spos_ac = spos_ac
@@ -431,6 +490,7 @@ class CiderGGAPASDW(_FastPASDW_MPRoutines, CiderGGA):
         self._hamiltonian = hamiltonian
         self.timer = wfs.timer
         self.world = wfs.world
+        self._plan = None
         self.setups = None
         self.gdfft = None
         self.pwfft = None
@@ -443,7 +503,7 @@ class CiderGGAPASDW(_FastPASDW_MPRoutines, CiderGGA):
         taut_sg, dedtaut_sg, taut_sG = self._get_taut(n_sg)
         _e, rho_sxg, dedrho_sxg = self._get_cider_inputs(n_sg, taut_sg)
         e_g[:] = 0.0
-        fs = self.calc_cider(_e, rho_sxg, dedrho_sxg, compute_force=True)
+        fs = self.calc_cider(_e, rho_sxg, dedrho_sxg, grad_mode=CIDERPW_GRAD_MODE_FORCE)
         for a, f in fs.items():
             Ftmp_av[a] = f
         self.world.sum(Ftmp_av, 0)
@@ -514,6 +574,7 @@ class CiderMGGAPASDW(_FastPASDW_MPRoutines, CiderMGGA):
         self.atom_slices_s = None
 
     def initialize(self, density, hamiltonian, wfs):
+        # TODO remove unneeded items here
         MGGA.initialize(self, density, hamiltonian, wfs)
         self.dens = density
         self._hamiltonian = hamiltonian
@@ -523,6 +584,7 @@ class CiderMGGAPASDW(_FastPASDW_MPRoutines, CiderMGGA):
         self.atom_slices_s = None
         self.gdfft = None
         self.pwfft = None
+        self._plan = None
         self.rbuf_ag = None
         self.kbuf_ak = None
         self.theta_ak = None
@@ -585,9 +647,67 @@ class CiderMGGAPASDW(_FastPASDW_MPRoutines, CiderMGGA):
         taut_sg, dedtaut_sg, taut_sG = self._get_taut(n_sg)
         _e, rho_sxg, dedrho_sxg = self._get_cider_inputs(n_sg, taut_sg)
         e_g[:] = 0.0
-        fs = self.calc_cider(_e, rho_sxg, dedrho_sxg, compute_force=True)
+        fs = self.calc_cider(_e, rho_sxg, dedrho_sxg, grad_mode=CIDERPW_GRAD_MODE_FORCE)
         for a, f in fs.items():
             Ftmp_av[a] = f
         self.world.sum(Ftmp_av, 0)
         if self.world.rank == 0:
             F_av[:] += Ftmp_av
+
+    def stress_tensor_contribution(self, n_sg):
+        e_g = np.zeros(n_sg.shape[1:])
+        stress1_vv = np.zeros((3, 3))
+        taut_sg, dedtaut_sg, taut_sG = self._get_taut(n_sg)
+        _e, rho_sxg, dedrho_sxg = self._get_cider_inputs(n_sg, taut_sg)
+        tmp_dedrho_sxg = np.zeros((len(n_sg), rho_sxg.shape[1]) + e_g.shape)
+        e_g[:] = 0.0
+        fs = self.calc_cider(
+            _e, rho_sxg, dedrho_sxg, grad_mode=CIDERPW_GRAD_MODE_STRESS
+        )
+        stress1_vv[:] += 0.5 * (fs + fs.T)
+        self.world.sum(stress1_vv, 0)
+
+        self._add_from_cider_grid(e_g[None, :], _e[None, :])
+        for s in range(len(n_sg)):
+            self._add_from_cider_grid(tmp_dedrho_sxg[s], dedrho_sxg[s])
+        dedrho_sxg = tmp_dedrho_sxg
+        tmp_rho_sxg = np.zeros_like(tmp_dedrho_sxg)
+        for s in range(len(n_sg)):
+            self._add_from_cider_grid(tmp_rho_sxg[s], rho_sxg[s])
+        rho_sxg = tmp_rho_sxg
+
+        def integrate(a1_g, a2_g=None):
+            return self.gd.integrate(a1_g, a2_g, global_integral=False)
+
+        P = integrate(e_g)
+        nspin = n_sg.shape[0]
+        for s in range(nspin):
+            for x in range(5):
+                P -= integrate(dedrho_sxg[s, x], rho_sxg[s, x])
+
+        dedtaut_sg[:] = tmp_dedrho_sxg[:, 4]
+        tau_svvG = self.wfs.calculate_kinetic_energy_density_crossterms()
+
+        stress_vv = P * np.eye(3)
+        tau_cross_g = self.gd.empty()
+        for s in range(nspin):
+            for v1 in range(3):
+                for v2 in range(3):
+                    stress_vv[v1, v2] -= integrate(
+                        rho_sxg[s, v1 + 1], dedrho_sxg[s, v2 + 1]
+                    )
+                    self.distribute_and_interpolate(tau_svvG[s, v1, v2], tau_cross_g)
+                    stress_vv[v1, v2] -= integrate(tau_cross_g, dedtaut_sg[s])
+
+        self.dedtaut_sG = self.wfs.gd.empty(self.wfs.nspins)
+        for s in range(self.wfs.nspins):
+            self.restrict_and_collect(dedtaut_sg[s], self.dedtaut_sG[s])
+
+        stress_vv = 0.5 * (stress_vv + stress_vv.T)
+
+        self.gd.comm.sum(stress_vv)
+
+        stress_vv += stress1_vv
+
+        self.gd.comm.broadcast(stress_vv, 0)
+        return stress_vv

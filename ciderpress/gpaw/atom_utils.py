@@ -1283,6 +1283,11 @@ class AtomPASDWSlice:
             )
         return funcs_vig
 
+    def get_stress_funcs(self, pfunc=True):
+        funcs_vig = self.get_grads(pfunc=pfunc)
+        r_vg = self.rad_g * self.rhat_gv.T
+        return r_vg[:, None, None, :] * funcs_vig
+
     @property
     def num_funcs(self):
         return len(self.psetup.nlist_i)

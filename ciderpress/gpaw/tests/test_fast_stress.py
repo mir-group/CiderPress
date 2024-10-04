@@ -4,11 +4,10 @@ import numpy as np
 from ase.build import bulk
 from ase.parallel import parprint
 from gpaw import GPAW, PW, Mixer
-from gpaw.mpi import world
 
 from ciderpress.gpaw.calculator import get_cider_functional
 
-USE_STORED_REF = True
+USE_STORED_REF = False
 
 
 def _run_pw_si_stress(xc, use_pp=False, s_numerical=None):
@@ -21,7 +20,7 @@ def _run_pw_si_stress(xc, use_pp=False, s_numerical=None):
         xc=xc,
         kpts=(k, k, k),
         convergence={"energy": 1e-8},
-        parallel={"domain": min(2, world.size)},
+        parallel={"augment_grids": True},
         setups="sg15" if use_pp else "paw",
         txt="si.txt",
     )
@@ -61,12 +60,13 @@ def run_pw_si_stress(xc, use_pp=False, s_numerical=None):
 def get_xc(fname, use_paw=True):
     return get_cider_functional(
         fname,
-        qmax=120,
+        qmax=300,
         lambd=1.8,
         xmix=0.25,
         pasdw_ovlp_fit=False,
         pasdw_store_funcs=True,
         use_paw=use_paw,
+        fast=True,
     )
 
 

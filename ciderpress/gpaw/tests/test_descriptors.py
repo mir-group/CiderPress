@@ -153,6 +153,10 @@ def run_fd_deriv_test(xc, use_pp=False, spinpol=False):
         setups="sg15" if use_pp else "paw",
         txt="si.txt",
     )
+    si.set_cell(
+        np.dot(si.cell, [[1.02, 0, 0.03], [0, 0.99, -0.02], [0.2, -0.01, 1.03]]),
+        scale_atoms=True,
+    )
 
     etot = si.get_potential_energy()
     gap, vbm, cbm, dev, dec, pvbm, pcbm = get_homo_lumo_fd_(si.calc, delta=1e-6)
@@ -183,6 +187,10 @@ def run_vxc_test(xc0, xc1, spinpol=False, use_pp=False, safe=True):
         setups="sg15" if use_pp else "paw",
         txt="si.txt",
     )
+    # si.set_cell(
+    #     np.dot(si.cell, [[1.02, 0, 0.03], [0, 0.99, -0.02], [0.2, -0.01, 1.03]]),
+    #     scale_atoms=True,
+    # )
     delta = 1e-5
     si.get_potential_energy()
     gap, p_vbm, p_cbm = bandgap(si.calc)
@@ -225,7 +233,7 @@ def run_vxc_test(xc0, xc1, spinpol=False, use_pp=False, safe=True):
         prec = 6
     else:
         prec = 7
-    assert_almost_equal(eigdiff_vbm, fd_eigdiff_vbm / wt, prec)
+    assert_almost_equal(eigdiff_vbm.real, fd_eigdiff_vbm / wt, prec)
 
 
 def run_nscf_eigval_test(xc0, xc1, spinpol=False, use_pp=False, safe=True):
@@ -250,6 +258,10 @@ def run_nscf_eigval_test(xc0, xc1, spinpol=False, use_pp=False, safe=True):
         txt="si.txt",
     )
     delta = 1e-4
+    # si.set_cell(
+    #    np.dot(si.cell, [[1.02, 0, 0.03], [0, 0.99, -0.02], [0.2, -0.01, 1.03]]),
+    #    scale_atoms=True,
+    # )
     si.get_potential_energy()
     gap, p_vbm, p_cbm = bandgap(si.calc)
     run_constant_occ_calculation_(si.calc)
@@ -597,15 +609,12 @@ class TestDescriptors(unittest.TestCase):
 
     def test_vxc(self):
         for use_pp in [True, False]:
-            xc = get_xc(
-                "functionals/CIDER23X_NL_GGA.yaml", use_paw=not use_pp, force_nl=True
-            )
+            xc = get_xc("functionals/CIDER23X_NL_GGA.yaml", use_paw=not use_pp)
             run_vxc_test("PBE", xc, spinpol=False, use_pp=use_pp, safe=not use_pp)
             run_vxc_test("PBE", xc, spinpol=True, use_pp=use_pp, safe=not use_pp)
             xc = get_xc(
                 "functionals/CIDER23X_NL_MGGA_DTR.yaml",
                 use_paw=not use_pp,
-                force_nl=True,
             )
             run_vxc_test("PBE", xc, spinpol=False, use_pp=use_pp, safe=not use_pp)
             run_vxc_test("PBE", xc, spinpol=True, use_pp=use_pp, safe=not use_pp)
