@@ -2104,7 +2104,6 @@ class NLDFSplinePlan(NLDFAuxiliaryPlan):
             w_kap.ctypes.data_as(ctypes.c_void_p),
             ctypes.c_int(ngrids),
             ctypes.c_int(nalpha),
-            ctypes.c_int(w_kap.shape[0]),
             ctypes.c_double(self.lambd),
         )
         return p, dp
