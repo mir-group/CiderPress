@@ -323,11 +323,19 @@ class LibCiderPW:
         return bound_inds[:3], bound_inds[3:]
 
     def get_recip_size(self):
-        pwutil.ciderpw_get_recip_size.restype = ctypes.c_int
-        return int(pwutil.ciderpw_get_recip_size(self._ptr))
+        pwutil.ciderpw_get_recip_size.restype = ctypes.c_size_t
+        return np.uintp(pwutil.ciderpw_get_recip_size(self._ptr))
+
+    def get_real_size(self):
+        pwutil.ciderpw_get_real_size.restype = ctypes.c_size_t
+        return np.uintp(pwutil.ciderpw_get_real_size(self._ptr))
+
+    def get_work_size(self):
+        pwutil.ciderpw_get_work_size.restype = ctypes.c_size_t
+        return np.uintp(pwutil.ciderpw_get_work_size(self._ptr))
 
     def copy_work_array(self):
-        arr = np.empty(self.get_recip_size() * self.nalpha, dtype=np.complex128)
+        arr = np.empty(self.get_work_size() * self.nalpha, dtype=np.complex128)
         pwutil.ciderpw_copy_work_array(self._ptr, arr.ctypes.data_as(ctypes.c_void_p))
         return arr
 

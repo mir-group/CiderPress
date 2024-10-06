@@ -160,9 +160,17 @@ void ciderpw_get_bound_inds(ciderpw_data data, int *bound_inds) {
     bound_inds[5] = bound_inds[2] + data->cell.Nlocal[2];
 }
 
-int ciderpw_get_recip_size(ciderpw_data data) {
+size_t ciderpw_get_recip_size(ciderpw_data data) {
     return data->icell.Nlocal[0] * data->icell.Nlocal[1] *
            data->icell.Nlocal[2];
+}
+
+size_t ciderpw_get_real_size(ciderpw_data data) {
+    return data->cell.Nlocal[0] * data->cell.Nlocal[1] * data->gLDA;
+}
+
+size_t ciderpw_get_work_size(ciderpw_data data) {
+    return data->work_array_size;
 }
 
 double *ciderpw_get_work_pointer(ciderpw_data data) {
@@ -383,12 +391,11 @@ void ciderpw_convolution_bwd(ciderpw_data data) {
 }
 
 void ciderpw_g2k_v2(ciderpw_data data, double complex *arr) {
-    int nalpha = data->kernel.work_size;
-    for (int index = 0; index < data->nk * nalpha; index++) {
+    for (size_t index = 0; index < data->work_array_size; index++) {
         data->work_ska[index] = arr[index];
     }
     CIDERPW_G2K(data);
-    for (int index = 0; index < data->nk * nalpha; index++) {
+    for (size_t index = 0; index < data->work_array_size; index++) {
         arr[index] = data->work_ska[index];
     }
 }
@@ -474,19 +481,11 @@ void ciderpw_set_work(ciderpw_data data, double *fun_g, double *p_gq) {
 }
 
 void ciderpw_zero_work(ciderpw_data data) {
-    int N0, N1, N2;
-    double complex *work_ga = data->work_ska;
-    int ind, a;
-    for (N0 = 0; N0 < data->icell.Nlocal[0]; N0++) {
-        for (N1 = 0; N1 < data->icell.Nlocal[1]; N1++) {
-            for (N2 = 0; N2 < data->icell.Nlocal[2]; N2++) {
-                for (a = 0; a < data->kernel.nalpha; a++) {
-                    ind = N2 * data->kernel.nalpha + a;
-                    work_ga[ind] = 0.0;
-                }
-            }
-            work_ga += data->kLDA * data->kernel.work_size;
-        }
+    double *work_ga = (double *)data->work_ska;
+    int nalpha = data->kernel.work_size;
+    size_t size = nalpha * MAX(data->nk * 2, ciderpw_get_real_size(data));
+    for (size_t ind = 0; ind < size; ind++) {
+        work_ga[ind] = 0.0;
     }
 }
 
@@ -564,9 +563,24 @@ void ciderpw_set_atom_info(ciderpw_data data, double *funcs_ga, int64_t *locs_g,
     }
 }
 
-void ciderpw_copy_work_array(ciderpw_data data, double complex *out) {
+void ciderpw_copy_work_array_real(ciderpw_data data, double *out) {
     int nalpha = data->kernel.work_size;
-    for (int index = 0; index < data->nk * nalpha; index++) {
+    double *work = (double *)data->work_ska;
+    size_t ng = ciderpw_get_real_size(data);
+    for (size_t index = 0; index < ng * nalpha; index++) {
+        out[index] = work[index];
+    }
+}
+
+void ciderpw_copy_work_array_recip(ciderpw_data data, double complex *out) {
+    int nalpha = data->kernel.work_size;
+    for (size_t index = 0; index < data->nk * nalpha; index++) {
+        out[index] = data->work_ska[index];
+    }
+}
+
+void ciderpw_copy_work_array(ciderpw_data data, double complex *out) {
+    for (size_t index = 0; index < data->work_array_size; index++) {
         out[index] = data->work_ska[index];
     }
 }

@@ -117,6 +117,7 @@ void ciderpw_init_mpi(ciderpw_data data, MPI_Comm mpi_comm, int nalpha,
 
     assert(fftw_alloc_size % data->kernel.work_size == 0);
     data->work_ska = fftw_alloc_complex(fftw_alloc_size);
+    data->work_array_size = fftw_alloc_size;
 
     if (data->fft_type == CIDERPW_R2C) {
         data->plan_g2k = fftw_mpi_plan_many_dft_r2c(
