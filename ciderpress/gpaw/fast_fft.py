@@ -264,7 +264,6 @@ class _FastCiderBase:
             fs = None
         for s in range(plan.nspin):
             self.timer.start("Feature potential")
-            self.fft_obj.reset_work()
             if grad_mode == CIDERPW_GRAD_MODE_STRESS:
                 self.fft_obj.fftv2(self._theta_s_gq[s])
             self.fft_obj.reset_work()
@@ -357,7 +356,6 @@ class _FastCiderBase:
         feat_sig, dfeat_sjg, arg_sg, darg_sg, fun_sg, dfun_sg, p_gq, dp_gq = res
         # TODO version i features
         feat_sig[:] *= plan.nspin
-
         self.timer.start("eval xc")
         if e_g.size > 0:
             if tau_sg is None:  # GGA
