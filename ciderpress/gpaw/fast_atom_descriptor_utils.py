@@ -368,6 +368,7 @@ class PASDWCiderFeatureKernel(FastPASDWCiderKernel):
                     self.bas_exp_fit,
                     self.plan.alpha_norms,
                     encut0,
+                    grid_nlm=setup.cider_contribs.nlm,
                 )
                 setup.pa_setup = PAugSetup.from_setup(setup)
 

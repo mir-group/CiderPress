@@ -72,6 +72,41 @@ def get_ag_indices(fft_obj, gd, shape, spos_c, rmax, buffer=0, get_global_disps=
     return local_indices, local_fdisps
 
 
+PSETUP_LIST1 = ([0, 2, 1, 2], [0, 0, 1, 2])
+PSETUP_LIST2 = ([0, 2, 4, 1, 3, 2, 4, 3, 4], [0, 0, 0, 1, 1, 2, 2, 3, 4])
+PSETUP_LIST3 = (
+    [0, 2, 4, 6, 1, 3, 5, 2, 4, 6, 3, 5, 4, 6],
+    [0, 0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 4, 4],
+)
+PSETUP_LIST4 = (
+    [0, 2, 4, 6, 8, 1, 3, 5, 7, 2, 4, 6, 8, 3, 5, 7, 4, 6, 8],
+    [0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 4, 4, 4],
+)
+
+
+def get_psetup_func_counts(Z, big=False):
+    if Z > 36:
+        if big:
+            return PSETUP_LIST4
+        else:
+            return PSETUP_LIST3
+    elif Z > 18:
+        if big:
+            return PSETUP_LIST3
+        else:
+            return PSETUP_LIST2
+    elif Z > 2:
+        if big:
+            return PSETUP_LIST3
+        else:
+            return PSETUP_LIST2
+    else:
+        if big:
+            return PSETUP_LIST2
+        else:
+            return PSETUP_LIST1
+
+
 class FastAtomPASDWSlice(AtomPASDWSlice):
     def __init__(self, *args, **kwargs):
         super(FastAtomPASDWSlice, self).__init__(*args, **kwargs)
@@ -149,30 +184,31 @@ class _PAWCiderContribs:
         self.w_g = (xcc.rgd.dv_g[:, None] * weight_n).ravel()
         self.r_g = xcc.rgd.r_g
         self.xcc = xcc
-        self.grids_indexer = AtomicGridsIndexer.make_single_atom_indexer(
-            Y_nL[:, : xcc.Lmax], self.r_g
-        )
-        self.nlm = xcc.Lmax
+        # TODO might want more contrib over grids_indexer nlm,
+        # currently it is just controlled by size of Y_nL in GPAW.
+        self.grids_indexer = AtomicGridsIndexer.make_single_atom_indexer(Y_nL, self.r_g)
         self.grids_indexer.set_weights(self.w_g)
         self._paw_algo = paw_algo
         from gpaw.utilities.timing import Timer
 
         self.timer = Timer()
 
+    @property
+    def nlm(self):
+        return self.grids_indexer.nlm
+
     @classmethod
     def from_plan(cls, plan, gplan, cider_kernel, Z, xcc, paw_algo, beta=1.8):
-        lmax = int(np.sqrt(xcc.Lmax + 1e-8)) - 1
+        lmax = int(np.sqrt(Y_nL.shape[1] + 1e-8)) - 1
         rmax = np.max(xcc.rgd.r_g)
-        # TODO tune this and adjust size
-        # min_exps = 0.5 / (rmax * rmax) * np.ones(lp1)
+        # TODO tune this to find optimal basis size
         min_exps = 0.125 / (rmax * rmax) * np.ones(4)
-        max_exps = get_hgbs_max_exps(Z)
+        max_exps = get_hgbs_max_exps(Z)[:4]
         etb = get_etb_from_expnt_range(
             lmax, beta, min_exps, max_exps, 0.0, 1e99, lower_fac=1.0, upper_fac=4.0
         )
         inputs_to_atco = get_gamma_lists_from_etb_list([etb])
         atco = ATCBasis(*inputs_to_atco)
-        # TODO need to define w_g
         return cls(plan, cider_kernel, atco, xcc, gplan, paw_algo)
 
     @property
@@ -509,6 +545,7 @@ class PAWCiderContribsRecip(_PAWCiderContribs):
         shape = (nspin, nx, nlm, nq)
         out_sxLq = np.zeros(shape)
         y = Y_nL[:, :nlm]
+        # TODO make the indexers once in advance and store them
         in_indexer = AtomicGridsIndexer.make_single_atom_indexer(y, in_g)
         out_indexer = AtomicGridsIndexer.make_single_atom_indexer(y, out_g)
         assert in_sxLq.flags.c_contiguous
@@ -1109,6 +1146,7 @@ class FastPASDWCiderKernel:
                     self.bas_exp_fit,
                     self.plan.alpha_norms,
                     encut0,
+                    grid_nlm=setup.cider_contribs.nlm,
                 )
                 setup.pa_setup = PAugSetup.from_setup(setup)
 
@@ -1360,6 +1398,7 @@ class PASDWData:
         alphas_ae=None,
         alpha_norms=None,
         pmax=None,
+        grid_nlm=None,
     ):
         self.nn = pfuncs_ng.shape[0]
         self.ng = pfuncs_ng.shape[1]
@@ -1367,6 +1406,10 @@ class PASDWData:
         self.ni = lmlist_i.shape[0]
         self.nj = len(nlist_j)
         self.lmax = np.max(llist_j)
+        if grid_nlm is not None:
+            lmax = int(np.sqrt(grid_nlm) + 1e-8) - 1
+            assert lmax >= self.lmax
+            self.lmax = lmax
         self.Z = Z
 
         self.pfuncs_ng = pfuncs_ng
@@ -1394,6 +1437,7 @@ class PASDWData:
         self.alpha_norms = alpha_norms
         self.pmax = pmax
         self.nalpha = len(self.alphas)
+        self._grid_nlm = grid_nlm
 
 
 class PAugSetup(PASDWData):
@@ -1469,34 +1513,24 @@ class PAugSetup(PASDWData):
         interp_r_g = interp_rgd.r_g
         ng = rgd.r_g.size
 
-        if setup.Z > 1000:
-            nlist_j = [0, 2, 4, 6, 8, 1, 3, 5, 7, 2, 4, 6, 8, 3, 5, 7, 4, 6, 8]
-            llist_j = [0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 4, 4, 4]
-            nbas_lst = [5, 4, 4, 3, 3]
-            nbas_loc = np.append([0], np.cumsum(nbas_lst)).astype(np.int32)
-            lmlist_i = []
-            jlist_i = []
-        elif setup.Z > 18:
-            nlist_j = [0, 2, 4, 6, 1, 3, 5, 2, 4, 6, 3, 5, 4, 6]
-            llist_j = [0, 0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 4, 4]
-            nbas_lst = [4, 3, 3, 2, 2]
-            nbas_loc = np.append([0], np.cumsum(nbas_lst)).astype(np.int32)
-            lmlist_i = []
-            jlist_i = []
-        elif setup.Z > 0:
-            nlist_j = [0, 2, 4, 1, 3, 2, 4, 3, 4]
-            llist_j = [0, 0, 0, 1, 1, 2, 2, 3, 4]
-            nbas_lst = [3, 2, 2, 1, 1]
-            nbas_loc = np.append([0], np.cumsum(nbas_lst)).astype(np.int32)
-            lmlist_i = []
-            jlist_i = []
-        else:
-            nlist_j = [0, 2, 1, 2]
-            llist_j = [0, 0, 1, 2]
-            nbas_lst = [2, 1, 1]
-            nbas_loc = np.append([0], np.cumsum(nbas_lst)).astype(np.int32)
-            lmlist_i = []
-            jlist_i = []
+        nlist_j, llist_j = get_psetup_func_counts(setup.Z)
+        lp1 = np.max(llist_j) + 1
+        nbas_lst = [0] * lp1
+        for l in llist_j:
+            nbas_lst[l] += 1
+        nbas_loc = np.append([0], np.cumsum(nbas_lst)).astype(np.int32)
+        lmlist_i = []
+        jlist_i = []
+        i = 0
+        for j, n in enumerate(nlist_j):
+            l = llist_j[j]
+            for m in range(2 * l + 1):
+                lm = l * l + m
+                lmlist_i.append(lm)
+                jlist_i.append(j)
+                i += 1
+        lmlist_i = np.array(lmlist_i, dtype=np.int32)
+        jlist_i = np.array(jlist_i, dtype=np.int32)
 
         nn = np.max(nlist_j) + 1
 
@@ -1508,17 +1542,6 @@ class PAugSetup(PASDWData):
             pfuncs_ntp[n, :, :] = spline(
                 np.arange(interp_r_g.size).astype(np.float64), pfunc_t
             )
-
-        i = 0
-        for j, n in enumerate(nlist_j):
-            l = llist_j[j]
-            for m in range(2 * l + 1):
-                lm = l * l + m
-                lmlist_i.append(lm)
-                jlist_i.append(j)
-                i += 1
-        lmlist_i = np.array(lmlist_i, dtype=np.int32)
-        jlist_i = np.array(jlist_i, dtype=np.int32)
 
         psetup = cls(
             pfuncs_ng,
@@ -1542,7 +1565,7 @@ class PAugSetup(PASDWData):
 
 
 class RadialFunctionCollection:
-    def __init__(self, iloc_l, funcs_ig, r_g, dv_g):
+    def __init__(self, iloc_l, funcs_ig, r_g, dv_g, lmax=None):
         self.iloc_l = iloc_l
         self.funcs_ig = np.ascontiguousarray(funcs_ig)
         self.ovlps_l = None
@@ -1551,6 +1574,9 @@ class RadialFunctionCollection:
         self.nv = None
         self.atco: ATCBasis = None
         self.lmax = len(iloc_l) - 2
+        if lmax is not None:
+            assert lmax >= self.lmax
+            self.lmax = lmax
         self.r_g = r_g
         self.dv_g = dv_g
 
@@ -1569,6 +1595,8 @@ class RadialFunctionCollection:
         uloc_l = [0]
         vloc_l = [0]
         self.nv = 0
+        # Check there is large enough l for basis projection
+        assert np.max(bas[:, ANG_OF]) >= self.iloc_l.size - 2
         for l in range(self.iloc_l.size - 1):
             cond = bas[:, ANG_OF] == l
             exps_j = env[bas[cond, PTR_EXP]]
@@ -1748,32 +1776,29 @@ class RadialFunctionCollection:
 
 class _PSmoothSetupBase(PASDWData):
     @classmethod
-    def from_setup_and_atco(cls, setup, atco, alphas, alpha_norms, pmax):
+    def from_setup_and_atco(cls, setup, atco, alphas, alpha_norms, pmax, grid_nlm):
         rgd = setup.xc_correction.rgd
         rcut_feat = np.max(setup.rcut_j)
         rcut_func = rcut_feat * 1.00
 
-        if setup.Z > 100:
-            nlist_j = [0, 2, 4, 6, 1, 3, 5, 2, 4, 6, 3, 5, 4, 6]
-            llist_j = [0, 0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 4, 4]
-            nbas_lst = [4, 3, 3, 2, 2]
-            nbas_loc = np.append([0], np.cumsum(nbas_lst)).astype(np.int32)
-            lmlist_i = []
-            jlist_i = []
-        elif setup.Z > 0:
-            nlist_j = [0, 2, 4, 1, 3, 2, 4, 3, 4]
-            llist_j = [0, 0, 0, 1, 1, 2, 2, 3, 4]
-            nbas_lst = [3, 2, 2, 1, 1]
-            nbas_loc = np.append([0], np.cumsum(nbas_lst)).astype(np.int32)
-            lmlist_i = []
-            jlist_i = []
-        else:
-            nlist_j = [0, 2, 1, 2]
-            llist_j = [0, 0, 1, 2]
-            nbas_lst = [2, 1, 1]
-            nbas_loc = np.append([0], np.cumsum(nbas_lst)).astype(np.int32)
-            lmlist_i = []
-            jlist_i = []
+        nlist_j, llist_j = get_psetup_func_counts(setup.Z)
+        lp1 = int(np.sqrt(grid_nlm + 1e-8))
+        nbas_lst = [0] * lp1
+        for l in llist_j:
+            nbas_lst[l] += 1
+        nbas_loc = np.append([0], np.cumsum(nbas_lst)).astype(np.int32)
+        lmlist_i = []
+        jlist_i = []
+        i = 0
+        for j, n in enumerate(nlist_j):
+            l = llist_j[j]
+            for m in range(2 * l + 1):
+                lm = l * l + m
+                lmlist_i.append(lm)
+                jlist_i.append(j)
+                i += 1
+        lmlist_i = np.array(lmlist_i, dtype=np.int32)
+        jlist_i = np.array(jlist_i, dtype=np.int32)
 
         nt = 100
         interp_rgd = EquidistantRadialGridDescriptor(h=rcut_func / (nt - 1), N=nt)
@@ -1794,17 +1819,6 @@ class _PSmoothSetupBase(PASDWData):
                 np.arange(interp_r_g.size).astype(np.float64), pfuncs_nt[n]
             )
 
-        i = 0
-        for j, n in enumerate(nlist_j):
-            l = llist_j[j]
-            for m in range(2 * l + 1):
-                lm = l * l + m
-                lmlist_i.append(lm)
-                jlist_i.append(j)
-                i += 1
-        lmlist_i = np.array(lmlist_i, dtype=np.int32)
-        jlist_i = np.array(jlist_i, dtype=np.int32)
-
         psetup = cls(
             pfuncs_ng,
             pfuncs_ntp,
@@ -1823,6 +1837,7 @@ class _PSmoothSetupBase(PASDWData):
             alphas_ae=alphas,
             alpha_norms=alpha_norms,
             pmax=pmax,
+            grid_nlm=grid_nlm,
         )
 
         psetup._initialize(atco)
@@ -1945,7 +1960,10 @@ class PSmoothSetupV1(_PSmoothSetupBase):
                     for i0, i1 in zip(i0s.tolist(), i1s.tolist()):
                         self.exact_ovlp_pf[i0, i1] = ovlp
         self.ffuncs_jg = ffuncs_jg
-        self.jcol = RadialFunctionCollection(self.nbas_loc, ffuncs_jg, rgd.r_g, dv_g)
+        rfc_lmax = int(np.sqrt(self._grid_nlm + 1e-8)) - 1
+        self.jcol = RadialFunctionCollection(
+            self.nbas_loc, ffuncs_jg, rgd.r_g, dv_g, lmax=rfc_lmax
+        )
         self.w_b = np.ones(self.alphas_ae.size) / self.alpha_norms**2
         delta_l_pg = self._get_betas(self.slrgd, atco)
         delta_l_pg2 = self._get_betas(self.sbt_rgd, atco)
@@ -1953,7 +1971,7 @@ class PSmoothSetupV1(_PSmoothSetupBase):
         jloc_l = np.cumsum(jloc_l)
         delta_pg = np.concatenate(delta_l_pg, axis=0)
         self.pcol = RadialFunctionCollection(
-            jloc_l, delta_pg, self.slrgd.r_g, get_dv(self.slrgd)
+            jloc_l, delta_pg, self.slrgd.r_g, get_dv(self.slrgd), lmax=rfc_lmax
         )
         self.pcol.ovlp_with_atco(atco)
         self.jcol.ovlp_with_atco(atco)
@@ -2105,7 +2123,8 @@ class PSmoothSetupV2(_PSmoothSetupBase):
         jloc_l = [0] + [delta_pg.shape[0] for delta_pg in delta_l_pg]
         jloc_l = np.cumsum(jloc_l)
         delta_pg = np.concatenate(delta_l_pg, axis=0)
+        rfc_lmax = int(np.sqrt(self._grid_nlm + 1e-8)) - 1
         self.pcol = RadialFunctionCollection(
-            jloc_l, delta_pg, self.slrgd.r_g, get_dv(self.slrgd)
+            jloc_l, delta_pg, self.slrgd.r_g, get_dv(self.slrgd), lmax=rfc_lmax
         )
         self.pcol.ovlp_with_atco(atco)
