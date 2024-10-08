@@ -19,7 +19,7 @@ We recommend creating a conda environment from scratch for setting up CiderPress
 - An installation of GPAW compiled with LibXC and FFTW (if you want to run periodic DFT calculations)
 - Intel Math Kernel Library
 - The Python package requirements in `requirements.txt`
-- Fortran, C, and C++ compilers with OpenMP support.
+- C and C++ compilers with OpenMP support.
 One of the requirements in `requirements.txt` is the Intel Math Kernel Library. This module is particularly important because the CiderPress C extensions need to link to it and make use of the MKL DFTI library. Please make sure that either your MKL headers and shared libraries are in the `include` and `lib` directories of your Python environment, respectively, or that they are  in your `C_INCLUDE_PATH` and `LIBRARY_PATH`/`LD_LIBRARY_PATH`, respectively.
 
 ### Easy Installation with Conda, Micromamba, etc.
@@ -34,17 +34,17 @@ conda activate <my_env>
 Python 3.9-3.11 (not 3.12) are supported. In later versions, we will tryo to move away from deprecated `distutils` tools so that we can support Python 3.12.
 
 2. Install dependencies (three options).
-**Option 1**: (Preferred option for multi-node jobs) If you provide your own MPI, C compiler, and Fortran compiler, you can install all the other dependencies using `nocomp_env.yml`:
+**Option 1**: (Preferred option for multi-node jobs) If you provide your own MPI and C compiler compiler, you can install all the other dependencies using `nocomp_env.yml`:
 ```bash
 conda env update --file <CiderPressLite>/nocomp_env.yaml
 ```
-**Option 2**: The simplest way to do install everything is to use `full_env.yml`, which also installs the mpicc, gcc, g++, and gfortran compilers. Note that this approach will likely not work if you need to run MPI jobs on a cluster, as the conda openmpi will not be linked to the scheduler properly.
+**Option 2**: The simplest way to do install everything is to use `full_env.yml`, which also installs the mpicc, gcc, and g++ compilers. Note that this approach will likely not work if you need to run MPI jobs on a cluster, as the conda openmpi will not be linked to the scheduler properly.
 ```bash
 conda env update --file <CiderPressLite>/full_env.yaml
 ```
 **Option 3**: As one more option, you can install components more manually. Start with the compilers and libxc. You can also use your own compilers, but this step helps ensure that everything is compatible. Note that all these compilers (plus libxc) must be installed via conda in one step, or else there will be compiler and library compatibility issues.
 ```bash
-conda install openmpi-mpicc gfortran libxc conda-forge::fftw gxx gcc
+conda install openmpi-mpicc libxc conda-forge::fftw gxx gcc
 ```
 You may exclude `openmpi-mpicc`, `fftw`, and `libxc` if you will not be using the GPAW interface. Next, Install MKL
 ```bash
@@ -56,7 +56,7 @@ cd <CiderPressLite>
 pip install -r requirements.txt
 ```
 
-3. Build C and Fortran extensions and install CiderPress
+3. Build C extensions and install CiderPress
 ```bash
 python setup.py build install
 ```

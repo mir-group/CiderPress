@@ -171,7 +171,7 @@ class AtomicGridsIndexer:
 
     def set_padding(self, padding):
         """Padding is how much bigger target grid is than the grid
-        construct from all_coords[idx]"""
+        constructed from all_coords[idx]"""
         self.padding = padding
 
     def set_weights(self, weights):
@@ -198,7 +198,7 @@ class AtomicGridsIndexer:
         """
         return self.idx_map
 
-    def empty_rlmq(self, nalpha=1):
+    def empty_rlmq(self, nalpha=1, nspin=None):
         """
         Get an empty array for storying theta_rlmq.
 
@@ -208,9 +208,13 @@ class AtomicGridsIndexer:
         Returns:
             np.ndarray with shape (nrad, nlm, nalpha)
         """
-        return np.empty((self.nrad, self.nlm, nalpha), order="C", dtype=np.float64)
+        if nspin is None:
+            shape = (self.nrad, self.nlm, nalpha)
+        else:
+            shape = (nspin, self.nrad, self.nlm, nalpha)
+        return np.empty(shape, order="C", dtype=np.float64)
 
-    def empty_gq(self, nalpha=1):
+    def empty_gq(self, nalpha=1, nspin=None):
         """
         Get an empty array for storing theta_gq.
 
@@ -220,11 +224,19 @@ class AtomicGridsIndexer:
         Returns:
             np.ndarray with shape (ngrids, nalpha)
         """
-        return np.empty((self.ngrids, nalpha), dtype=np.float64)
+        if nspin is None:
+            shape = (self.ngrids, nalpha)
+        else:
+            shape = (nspin, self.ngrids, nalpha)
+        return np.empty(shape, dtype=np.float64)
 
     def reduce_angc_ylm_(self, theta_rlmq, theta_gq, a2y=True, offset=None):
         """
         Project a function between angular coordinates and spherical harmonics.
+        NOTE that this is an in-place operation (with the output being
+        theta_rlmq if a2y=True and theta_gq if a2y=False), but the data
+        in the output array does not need to be initialized, as it is
+        overwritten on output, not added to.
 
         Args:
             theta_rlmq (np.ndarray): Shape (len(rad_arr), nlm, nalpha)
@@ -241,6 +253,8 @@ class AtomicGridsIndexer:
         assert theta_rlmq.shape == (self.nrad, self.nlm, nalpha)
         assert theta_gq.flags.c_contiguous
         assert theta_gq.shape == (self.all_weights.size, stride)
+        assert theta_rlmq.dtype == np.float64
+        assert theta_gq.dtype == np.float64
         assert nalpha + offset <= stride
         if a2y:
             fn = libcider.reduce_angc_to_ylm
@@ -259,3 +273,16 @@ class AtomicGridsIndexer:
             ctypes.c_int(stride),
             ctypes.c_int(offset),
         )
+
+    @classmethod
+    def make_single_atom_indexer(cls, Y_nL, r_g):
+        nn, nlm = Y_nL.shape
+        lmax = int(np.sqrt(nlm + 1e-8)) - 1
+        ng = r_g.size
+        rad_arr = np.ascontiguousarray(r_g.astype(np.float64))
+        ar_loc = np.zeros(ng, dtype=np.int32, order="C")
+        ra_loc = np.asarray([0, ng], dtype=np.int32, order="C")
+        rad_loc = np.ascontiguousarray((nn * np.arange(0, ng + 1)).astype(np.int32))
+        ylm = np.ascontiguousarray(Y_nL.astype(np.float64))
+        ylm_loc = np.zeros((ng,), dtype=np.int32)
+        return cls(1, lmax, rad_arr, ar_loc, ra_loc, rad_loc, ylm, ylm_loc)

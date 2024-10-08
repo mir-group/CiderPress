@@ -1,0 +1,1 @@
+GPAW_USE_NEW_PLANS = True

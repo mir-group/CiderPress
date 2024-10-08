@@ -18,6 +18,8 @@
 # Author: Kyle Bystrom <kylebystrom@gmail.com>
 #
 
+import ctypes
+
 import numpy as np
 import yaml
 from interpolation.splines.eval_cubic_numba import (
@@ -26,6 +28,16 @@ from interpolation.splines.eval_cubic_numba import (
     vec_eval_cubic_splines_G_3,
     vec_eval_cubic_splines_G_4,
 )
+
+from ciderpress.lib import load_library
+from ciderpress.models.kernels import (
+    DiffConstantKernel,
+    DiffProduct,
+    DiffRBF,
+    SubsetRBF,
+)
+
+libcider = load_library("libmcider.so")
 
 
 def get_vec_eval(grid, coeffs, X, N):
@@ -92,7 +104,7 @@ class KernelEvalBase:
     def N1(self):
         raise NotImplementedError
 
-    def get_descriptors(self, X0T):
+    def get_descriptors(self, X0T, force_polarize=False):
         """
         Compute and return transformed descriptor matrix X1.
 
@@ -105,8 +117,11 @@ class KernelEvalBase:
             X1 (Nsamp, N1)
         """
         nspin, N0, Nsamp = X0T.shape
+        if force_polarize and self.mode == "POL" and nspin == 1:
+            X0T = np.concatenate([X0T, X0T], axis=0)
+            nspin = 2
         N1 = self.N1
-        if self.mode == "SEP":
+        if self.mode == "SEP" or self.mode == "POL":
             X1 = np.zeros((nspin, Nsamp, N1))
             for s in range(nspin):
                 self.feature_list.fill_vals_(X1[s].T, X0T[s])
@@ -117,6 +132,8 @@ class KernelEvalBase:
             self.feature_list.fill_vals_(X1.T, X0T_sum)
         else:
             raise NotImplementedError
+        if force_polarize and self.mode == "POL":
+            return X1.reshape(nspin, Nsamp, N1)
         return X1
 
     def get_descriptors_with_mul(self, X0T, multiplier):
@@ -133,7 +150,7 @@ class KernelEvalBase:
         """
         nspin, N0, Nsamp = X0T.shape
         N1 = self.N1
-        if self.mode == "SEP":
+        if self.mode == "SEP" or self.mode == "POL":
             X1 = np.zeros((nspin, Nsamp, N1))
             for s in range(nspin):
                 self.feature_list.fill_vals_(X1[s].T, X0T[s])
@@ -158,6 +175,11 @@ class KernelEvalBase:
                 ms.append(m / nspin)
                 dms.append(dm / nspin)
             return np.stack(ms), np.concatenate(dms, axis=0)
+        elif self.mode == "NPOL" or self.mode == "POL":
+            ms = []
+            dms = []
+            m, dm = base_func(X0T)
+            return m, dm
         else:
             raise NotImplementedError
 
@@ -167,7 +189,7 @@ class KernelEvalBase:
     def additive_baseline(self, X0T):
         return self._baseline(X0T, self._add_basefunc)
 
-    def apply_descriptor_grad(self, X0T, dfdX1):
+    def apply_descriptor_grad(self, X0T, dfdX1, force_polarize=False):
         """
 
         Args:
@@ -181,7 +203,9 @@ class KernelEvalBase:
         """
         nspin, N0, Nsamp = X0T.shape
         N1 = self.N1
-        if self.mode == "SEP":
+        if force_polarize and dfdX1.shape[0] == 2 and nspin == 1:
+            dfdX1 = dfdX1[:1]
+        if self.mode == "SEP" or self.mode == "POL":
             dfdX0T = np.zeros_like(X0T)
             dfdX1 = dfdX1.reshape(nspin, Nsamp, N1)
             for s in range(nspin):
@@ -216,7 +240,12 @@ class KernelEvalBase:
         if add_base:
             res += a
         if dfdX0T is not None:
-            dres = dfdX0T * m[:, np.newaxis] + f[:, np.newaxis] * dm
+            if self.mode == "SEP":
+                dres = dfdX0T * m[:, np.newaxis] + f[:, np.newaxis] * dm
+            elif self.mode == "NPOL" or self.mode == "POL":
+                dres = dfdX0T * m + f * dm
+            else:
+                raise NotImplementedError
             if add_base:
                 dres += da
             return res, dres
@@ -254,6 +283,96 @@ class KernelEvaluator(FuncEvaluator, XCEvalSerializable):
             res[i0:i1] += k.dot(self.alpha)
             dres[i0:i1] += np.einsum("gcn,c->gn", dk, self.alpha)
         return res, dres
+
+
+class RBFEvaluator(FuncEvaluator, XCEvalSerializable):
+    _fn = libcider.evaluate_se_kernel
+
+    def __init__(self, kernel, X1ctrl, alpha):
+        if isinstance(kernel, DiffProduct):
+            assert isinstance(kernel.k1, DiffConstantKernel)
+            scale = kernel.k1.constant_value
+            kernel = kernel.k2
+        else:
+            assert isinstance(kernel, DiffRBF)
+            scale = 1.0
+        if isinstance(kernel, SubsetRBF):
+            if isinstance(kernel.indexes, slice):
+                i = kernel.indexes
+                start = i.start
+                step = i.step if i.step is not None else 1
+                stop = (
+                    i.stop
+                    if i.stop is not None
+                    else (len(kernel.length_scale) + i.start) // step
+                )
+                indexes = [i for i in range(start, stop, step)]
+            indexes = np.array(indexes, dtype=np.int32)
+        else:
+            indexes = np.arange(len(kernel.length_scale), dtype=np.int32)
+        self._X1ctrl = np.ascontiguousarray(X1ctrl)
+        self._alpha = np.ascontiguousarray(alpha * scale)
+        self._exps = np.ascontiguousarray(0.5 / kernel.length_scale**2)
+        self._nctrl, self._nfeat = self._X1ctrl.shape[-2:]
+        self._indexes = np.ascontiguousarray(indexes)
+
+    def __call__(self, X1, res=None, dres=None):
+        X1 = np.ascontiguousarray(X1[..., self._indexes])
+        if res is None:
+            res = np.zeros(X1.shape[0])
+        elif res.shape != (X1.shape[-2],):
+            raise ValueError
+        if dres is None:
+            dres = np.zeros(X1.shape)
+        elif dres.shape != X1.shape:
+            print(X1.shape, dres.shape)
+            raise ValueError
+        n = X1.shape[-2]
+        for arr in [res, dres, X1]:
+            assert arr.flags.c_contiguous
+        self._fn(
+            res.ctypes.data_as(ctypes.c_void_p),
+            dres.ctypes.data_as(ctypes.c_void_p),
+            X1.ctypes.data_as(ctypes.c_void_p),
+            self._X1ctrl.ctypes.data_as(ctypes.c_void_p),
+            self._alpha.ctypes.data_as(ctypes.c_void_p),
+            self._exps.ctypes.data_as(ctypes.c_void_p),
+            ctypes.c_int(n),
+            ctypes.c_int(self._nctrl),
+            ctypes.c_int(self._nfeat),
+        )
+        return res, dres
+
+
+class AntisymRBFEvaluator(RBFEvaluator):
+    _fn = libcider.evaluate_se_kernel_antisym
+
+    def __init__(self, kernel, X1ctrl, alpha):
+        super(AntisymRBFEvaluator, self).__init__(kernel, X1ctrl, alpha)
+        if isinstance(kernel, DiffProduct):
+            assert isinstance(kernel.k1, DiffConstantKernel)
+            kernel.k1.constant_value
+            kernel = kernel.k2
+        else:
+            assert isinstance(kernel, DiffRBF)
+        self._indexes = np.arange(len(kernel.length_scale) + 1, dtype=np.int32)
+
+    def __call__(self, X1, res=None, dres=None):
+        assert X1.ndim == 2 or (X1.ndim == 3 and X1.shape[0] == 1)
+        return super(AntisymRBFEvaluator, self).__call__(X1, res, dres)
+
+
+class SpinRBFEvaluator(RBFEvaluator):
+    _fn = libcider.evaluate_se_kernel_spin
+
+    def __init__(self, kernel, X1ctrl, alpha):
+        super(SpinRBFEvaluator, self).__init__(kernel, X1ctrl, alpha)
+        if isinstance(kernel, DiffProduct):
+            self._alpha *= kernel.k1.constant_value
+
+    def __call__(self, X1, res=None, dres=None):
+        assert X1.ndim == 3 and X1.shape[0] == 2
+        return super(SpinRBFEvaluator, self).__call__(X1, res, dres)
 
 
 class SplineSetEvaluator(FuncEvaluator, XCEvalSerializable):
@@ -414,15 +533,15 @@ class MappedDFTKernel(KernelEvalBase, XCEvalSerializable):
         return self.feature_list.nfeat
 
     def __call__(self, X0T, add_base=True, rhocut=0):
-        X1 = self.get_descriptors(X0T)
-        Nsamp_internal = X1.shape[0]
+        X1 = self.get_descriptors(X0T, force_polarize=True)
+        Nsamp_internal = X1.shape[-2]
         f = np.zeros(Nsamp_internal)
-        df = np.zeros((Nsamp_internal, self.N1))
+        df = np.zeros_like(X1)
         for feval in self.fevals:
             feval(X1, f, df)
         if self.mode == "SEP":
             f = f.reshape(X0T.shape[0], -1)
-        dfdX0T = self.apply_descriptor_grad(X0T, df)
+        dfdX0T = self.apply_descriptor_grad(X0T, df, force_polarize=True)
         res, dres = self.apply_baseline(X0T, f, dfdX0T)
         if rhocut > 0:
             if self.mode == "SEP":
@@ -448,51 +567,6 @@ class MappedDFTKernel(KernelEvalBase, XCEvalSerializable):
     @classmethod
     def from_dict(cls, d):
         raise NotImplementedError
-
-
-class MappedFunctional:
-    def __init__(self, mapped_kernels, desc_params, libxc_baseline=None):
-        self.kernels = mapped_kernels
-        self.desc_params = desc_params
-        self.libxc_baseline = libxc_baseline
-
-    @property
-    def desc_version(self):
-        return self.desc_params.version[0]
-
-    @property
-    def vvmul(self):
-        return self.desc_params.vvmul
-
-    @property
-    def a0(self):
-        return self.desc_params.a0
-
-    @property
-    def fac_mul(self):
-        return self.desc_params.fac_mul
-
-    @property
-    def amin(self):
-        return self.desc_params.amin
-
-    @property
-    def feature_list(self):
-        # TODO misleading because this is X functional only
-        return self.kernels[0].feature_list
-
-    def set_baseline_mode(self, mode):
-        # TODO baseline can be GPAW or PySCF mode.
-        # Need to implement for more complicated XC.
-        raise NotImplementedError
-
-    def __call__(self, X0T, rhocut=0):
-        res, dres = 0, 0
-        for kernel in self.kernels:
-            tmp, dtmp = kernel(X0T, rhocut=rhocut)
-            res += tmp
-            dres += dtmp
-        return res, dres
 
 
 class ModelWithNormalizer:

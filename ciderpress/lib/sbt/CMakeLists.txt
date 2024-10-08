@@ -8,4 +8,6 @@ set_target_properties(sbt PROPERTIES
   COMPILE_FLAGS ${OpenMP_C_FLAGS}
   LINK_FLAGS ${OpenMP_C_FLAGS})
 
-target_link_libraries(sbt ${BLAS_LIBRARIES})
+# target_link_libraries(sbt ${BLAS_LIBRARIES})
+target_link_libraries(sbt ${MKL_LIBRARIES})
+target_include_directories(sbt PRIVATE ${MKL_INCLUDE_DIR})

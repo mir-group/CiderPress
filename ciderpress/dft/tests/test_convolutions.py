@@ -40,7 +40,7 @@ from ciderpress.pyscf.nldf_convolutions import (
 class TestC(unittest.TestCase):
     def test_initialize_atc(self):
         mol = gto.M(atom="H 0 0 0; F 0 0 0.9", basis="def2-tzvpd")
-        basis = aug_etb_for_cider(mol)[0]
+        basis = aug_etb_for_cider(mol)
         mol = gto.M(atom="H 0 0 0; F 0 0 0.9", basis=basis)
         dat = get_gamma_lists_from_mol(mol)
         atco = ATCBasis(*dat)
@@ -59,8 +59,7 @@ class TestC(unittest.TestCase):
         mol = gto.M(atom="H 0 0 0; F 0 0 0.9", basis="def2-tzvpd")
         # NOTE slightly larger beta for numerical stability
         # TODO Can we do something to get the better stability for beta=1.6
-        # NOTE this unit test works with beta=1.6 on laptop but not Github CI.
-        basis = aug_etb_for_cider(mol, beta=1.7)[0]
+        basis = aug_etb_for_cider(mol, beta=1.7)
         mol = gto.M(atom="H 0 0 0; F 0 0 0.9", basis=basis)
         dat = get_gamma_lists_from_mol(mol)
         atco_inp = ATCBasis(*dat)
@@ -151,7 +150,7 @@ class TestC(unittest.TestCase):
     def test_convert_rad2orb_(self):
         atom = "Ne"
         mol = gto.M(atom=atom, basis="def2-tzvpd")
-        basis = aug_etb_for_cider(mol, lmax=10, beta=2.8)[0]
+        basis = aug_etb_for_cider(mol, lmax=10, beta=2.8)
         mol = gto.M(atom=atom, basis=basis)
         lmax = np.max(mol._bas[:, ANG_OF])
         nlm = (lmax + 1) * (lmax + 1)

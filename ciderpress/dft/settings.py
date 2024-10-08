@@ -32,6 +32,7 @@ from ciderpress.dft.feat_normalizer import (
 
 LDA_FACTOR = -3.0 / 4.0 * (3.0 / np.pi) ** (1.0 / 3)
 CFC = (3.0 / 10) * (3 * np.pi**2) ** (2.0 / 3)
+ALPHA_TOL = 1e-10
 
 
 def _check_l1_dots(l1_dots, nl1):
@@ -932,7 +933,7 @@ ALLOWED_RHO_DAMPS = ["none", "exponential", "asymptotic_const"]
 
 """
 Uniform-scaling powers (USPs) descibe how features scale as the
-density is scaled by n_lambda(r) = lambda^3 n(lambd r). If the
+density is scaled by n_lambda(r) = lambda^3 n(lambda r). If the
 USP of a functional F is u, then
 F[n_lambda](r) = lambda^u F[n](lambda r)
 """
@@ -1011,19 +1012,20 @@ class NLDFSettings(BaseSettings):
         else:
             return "MGGA"
 
-    @staticmethod
-    def _check_params(params, spec="se"):
+    def _check_params(self, params, spec="se"):
         try:
             assert isinstance(params, list)
             for num in params:
                 assert isinstance(num, (float, int))
             assert params[0] > 0
             assert params[1] >= 0
-            assert params[2] >= 0
+            if self.sl_level == "MGGA":
+                assert params[2] >= 0
+            n = 3 if self.sl_level == "MGGA" else 2
             if spec == "se_erf_rinv":
-                assert len(params) == 4
+                assert len(params) == n + 1
             else:
-                assert len(params) == 3
+                assert len(params) == n
         except AssertionError:
             raise ValueError("Unsupported feature params")
 
@@ -1153,7 +1155,10 @@ class NLDFSettingsVI(NLDFSettings):
         l0ueg = []
         l1ueg = [0] * len(self.l1_feat_dots)
         a0 = self.theta_params[0]
-        t0 = self.theta_params[2]
+        if self.sl_level == "MGGA":
+            t0 = self.theta_params[2]
+        else:
+            t0 = self.theta_params[1]
         rho_mult = self._ueg_rho_mult(rho)
         for spec in self.l0_feat_specs:
             # 'se', 'se_r2', 'se_apr2', 'se_ap', 'se_ap2r2', 'se_lapl'
@@ -1181,7 +1186,10 @@ class NLDFSettingsVI(NLDFSettings):
         usps = self.get_feat_usps()[self.nfeat - nvi :]
         uegs = self.ueg_vector()[self.nfeat - nvi :]
         a0 = self.theta_params[0]
-        tau_mul = self.theta_params[2]
+        if self.sl_level == "MGGA":
+            tau_mul = self.theta_params[2]
+        else:
+            tau_mul = self.theta_params[1]
         norms = []
         for i in range(nvi):
             usp = usps[i]
@@ -1274,11 +1282,17 @@ class NLDFSettingsVJ(NLDFSettings):
     def ueg_vector(self, rho=1.0):
         ueg_feats = []
         a0t = self.theta_params[0]
-        t0t = self.theta_params[2]
+        if self.sl_level == "MGGA":
+            t0t = self.theta_params[2]
+        else:
+            t0t = self.theta_params[1]
         rho_mult = self._ueg_rho_mult(rho)
         for spec, params in zip(self.feat_specs, self.feat_params):
             a0i = params[0]
-            t0i = params[2]
+            if self.sl_level == "MGGA":
+                t0i = params[2]
+            else:
+                t0i = params[1]
             a0 = a0i + a0t
             t0 = t0i + t0t
             expnt = _get_ueg_expnt(a0, t0, rho)
@@ -1291,7 +1305,7 @@ class NLDFSettingsVJ(NLDFSettings):
             elif spec == "se_a2r4":
                 integral *= 3.75 * (expnt2 / expnt) ** 2
             elif spec == "se_erf_rinv":
-                expnt3 = expnt2 * params[3]
+                expnt3 = expnt2 * params[-1]
                 integral *= np.sqrt(expnt / (expnt + expnt3))
             else:
                 raise ValueError
@@ -1303,7 +1317,10 @@ class NLDFSettingsVJ(NLDFSettings):
         uegs = self.ueg_vector()[:nvj]
         usps = self.get_feat_usps()[:nvj]
         a0 = self.theta_params[0]
-        tau_mul = self.theta_params[2]
+        if self.sl_level == "MGGA":
+            tau_mul = self.theta_params[2]
+        else:
+            tau_mul = self.theta_params[1]
         norms = []
         for i in range(nvj):
             if usps[i] == 0:
@@ -1497,12 +1514,19 @@ class NLDFSettingsVK(NLDFSettings):
 
     def ueg_vector(self, rho=1.0):
         a0t = self.theta_params[0]
-        t0t = self.theta_params[2]
+        if self.sl_level == "MGGA":
+            t0t = self.theta_params[2]
+        else:
+            t0t = self.theta_params[1]
         rho_mult = self._ueg_rho_mult(rho)
         expnt_theta = _get_ueg_expnt(a0t, t0t, rho)
         ueg_feats = []
         for spec, params in zip(self.feat_specs, self.feat_params):
-            expnt = _get_ueg_expnt(params[0], params[2], rho)
+            if self.sl_level == "MGGA":
+                t0i = params[2]
+            else:
+                t0i = params[1]
+            expnt = _get_ueg_expnt(params[0], t0i, rho)
             # integral part
             integral = (np.pi / expnt) ** 1.5
             # damping part
@@ -1515,7 +1539,7 @@ class NLDFSettingsVK(NLDFSettings):
             elif spec == "se_a2r4":
                 integral *= 3.75
             elif spec == "se_erf_rinv":
-                expnt3 = expnt * params[3]
+                expnt3 = expnt * params[-1]
                 integral *= np.sqrt(expnt / (expnt + expnt3))
             else:
                 raise ValueError
@@ -1523,7 +1547,25 @@ class NLDFSettingsVK(NLDFSettings):
         return np.asarray(ueg_feats, dtype=np.float64)
 
     def get_reasonable_normalizer(self):
-        raise NotImplementedError
+        nvk = self.num_feat_param_sets
+        uegs = self.ueg_vector()
+        usps = self.get_feat_usps()
+        norms = []
+        for i in range(nvk):
+            if usps[i] == 0:
+                norms.append(ConstantNormalizer(2.0 / uegs[i]))
+            else:
+                a0 = self.theta_params[0]
+                if self.sl_level == "MGGA":
+                    tau_mul = self.theta_params[2]
+                else:
+                    tau_mul = self.theta_params[1]
+                norms.append(
+                    get_normalizer_from_exponent_params(
+                        0.0, -0.5 * usps[i], a0, tau_mul
+                    )
+                )
+        return norms
 
 
 class SemilocalSettings(BaseSettings):
@@ -1719,41 +1761,53 @@ def get_single_orbital_tau(rho, mag_grad):
 
 
 def get_s2(rho, sigma):
+    # TODO should this cutoff not be needed if everything else is stable?
+    # rho = np.maximum(1e-10, rho)
+    cond = rho < ALPHA_TOL
     b = 2 * (3 * np.pi * np.pi) ** (1.0 / 3)
     s = np.sqrt(sigma) / (b * rho ** (4.0 / 3) + 1e-16)
+    s[cond] = 0.0
     return s * s
 
 
 def ds2(rho, sigma):
     # s = |nabla n| / (b * n)
+    # TODO should this cutoff not be needed if everything else is stable?
+    cond = rho < ALPHA_TOL
+    rho = np.maximum(ALPHA_TOL, rho)
     b = 2 * (3 * np.pi * np.pi) ** (1.0 / 3)
     s = np.sqrt(sigma) / (b * rho ** (4.0 / 3) + 1e-16)
     s2 = s**2
-    return -8.0 * s2 / (3 * rho + 1e-16), 1 / (b * rho ** (4.0 / 3) + 1e-16) ** 2
-
-
-ALPHA_TOL = 1e-10
+    res = -8.0 * s2 / (3 * rho + 1e-16), 1 / (b * rho ** (4.0 / 3) + 1e-16) ** 2
+    res[0][cond] = 0.0
+    res[1][cond] = 0.0
+    return res
 
 
 def get_alpha(rho, sigma, tau):
-    rho = rho + ALPHA_TOL
+    cond = rho < ALPHA_TOL
+    rho = np.maximum(ALPHA_TOL, rho)
     tau0 = get_uniform_tau(rho)
     tauw = get_single_orbital_tau(rho, np.sqrt(sigma))
     # TODO this numerical stability trick is a bit of a hack.
     # Should make spline support small negative alpha
     # instead, for the sake of clean code and better stability.
-    return np.maximum((tau - tauw), 0) / tau0
+    alpha = np.maximum((tau - tauw), 0) / tau0
+    alpha[cond] = 0
+    return alpha
+    # return np.maximum((tau - tauw), 0) / tau0
 
 
 def dalpha(rho, sigma, tau):
-    rho = rho + ALPHA_TOL
+    cond = rho < ALPHA_TOL
+    rho = np.maximum(ALPHA_TOL, rho)
     tau0 = get_uniform_tau(rho)
     tauw = sigma / (8 * rho)
     dwdn, dwds = -sigma / (8 * rho * rho), 1 / (8 * rho)
     dadn = 5.0 * (tauw - tau) / (3 * tau0 * rho) - dwdn / tau0
     dadsigma = -dwds / tau0
     dadtau = 1 / tau0
-    cond = (tau - tauw) / tau0 < -0.1
+    # cond = (tau - tauw) / tau0 < -0.1
     dadn[cond] = 0
     dadsigma[cond] = 0
     dadtau[cond] = 0

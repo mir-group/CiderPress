@@ -3,6 +3,7 @@
 build/
 functionals/
 *__pycache__*
+*.egg-info*
 *.out
 *.err
 *.npy

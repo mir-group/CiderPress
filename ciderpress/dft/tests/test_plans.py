@@ -23,7 +23,12 @@ import unittest
 import numpy as np
 from numpy.testing import assert_allclose, assert_almost_equal, assert_equal
 
-from ciderpress.dft.plans import NLDFGaussianPlan, NLDFSplinePlan, SemilocalPlan
+from ciderpress.dft.plans import (
+    NLDFGaussianPlan,
+    NLDFSplinePlan,
+    SemilocalPlan,
+    SemilocalPlan2,
+)
 from ciderpress.dft.settings import (
     CFC,
     NLDFSettingsVI,
@@ -72,6 +77,11 @@ class TestSemilocalPlan(unittest.TestCase):
         cls.sprho = 0.5 * np.stack([rho_data, rho_data])
         cls.gga_rho = rho_data[None, :4, :]
         cls.gga_sprho = 0.5 * np.stack([rho_data[:4], rho_data[:4]])
+        np.random.seed(42)
+        cls.occd = np.random.normal(size=cls.rho.shape)
+        cls.spoccd = np.random.normal(size=cls.sprho.shape)
+        cls.gga_occd = np.random.normal(size=cls.gga_rho.shape)
+        cls.gga_spoccd = np.random.normal(size=cls.gga_sprho.shape)
 
         cls.npa = SemilocalSettings(mode="npa")
         cls.nst = SemilocalSettings(mode="nst")
@@ -80,12 +90,20 @@ class TestSemilocalPlan(unittest.TestCase):
 
     def check_settings(self, settings):
         plan = SemilocalPlan(settings, 1)
+        plan2 = SemilocalPlan2(settings, 1)
         if settings.level == "MGGA":
             rho = self.rho
+            drho = self.occd
         else:
             rho = self.gga_rho
+            drho = self.gga_occd
         rho = rho.copy()
         feat = plan.get_feat(rho)
+        sigma = np.einsum("sxg,sxg->sg", rho[:, 1:4], rho[:, 1:4])
+        tau = rho[:, 4] if settings.level == "MGGA" else None
+        dtau = drho[:, 4] if settings.level == "MGGA" else None
+        feat2 = plan2.get_feat(rho[:, 0], sigma, tau)
+        assert_allclose(feat, feat2, atol=1e-14)
 
         def get_e_and_vfeat(feat):
             energy = (1 + (feat**2).sum(axis=1)) ** 0.5
@@ -98,6 +116,22 @@ class TestSemilocalPlan(unittest.TestCase):
         assert_allclose(vxc2, vxc1, atol=1e-14)
         assert_allclose(vxc3, vxc1, atol=1e-14)
 
+        vfeat = get_e_and_vfeat(feat2)[1]
+        shape = rho[:, 0].shape
+        vrho, vsigma, vtau = np.zeros(shape), np.zeros(shape), np.zeros(shape)
+        plan2.get_vxc(vfeat, rho[:, 0], vrho, sigma, vsigma, tau, vtau)
+        assert_allclose(vrho, vxc1[:, 0], atol=1e-14)
+        assert_allclose(2 * vsigma[:, None] * rho[:, 1:4], vxc1[:, 1:4], atol=1e-14)
+        if plan.level == "MGGA":
+            assert_allclose(vtau, vxc1[:, 4], atol=1e-14)
+        featb, occd = plan.get_occd(rho, drho)
+        dsigma = 2 * np.einsum("sxg,sxg->sg", rho[:, 1:4], drho[:, 1:4])
+        feat2b, occd2 = plan2.get_occd(rho[:, 0], drho[:, 0], sigma, dsigma, tau, dtau)
+        assert_allclose(occd, occd2, atol=1e-14)
+        assert_allclose(featb, feat, atol=1e-14)
+        assert_allclose(feat2b, feat2, atol=1e-14)
+        assert_allclose((vfeat * occd2).sum(1), (vxc1 * drho).sum(1))
+
         delta = 1e-5
         for i in range(rho.shape[1]):
             rho[:, i] += 0.5 * delta
@@ -107,21 +141,30 @@ class TestSemilocalPlan(unittest.TestCase):
             f = plan.get_feat(rho)
             em = get_e_and_vfeat(f)[0]
             rho[:, i] += 0.5 * delta
-            assert_allclose(vxc1[:, i], (ep - em) / delta, rtol=1e-8, atol=1e-8)
+            diff = (ep - em) / delta
+            assert_allclose(vxc1[:, i], diff, rtol=1e-8, atol=1e-8)
 
         nsp_feat = feat
         plan = SemilocalPlan(settings, 2)
+        plan2 = SemilocalPlan2(settings, 2)
         if settings.level == "MGGA":
             rho = self.sprho
+            drho = self.spoccd
         else:
             rho = self.gga_sprho
+            drho = self.gga_spoccd
         rho = rho.copy()
         feat = plan.get_feat(rho)
+        sigma = np.einsum("sxg,sxg->sg", rho[:, 1:4], rho[:, 1:4])
+        tau = rho[:, 4] if settings.level == "MGGA" else None
+        dtau = drho[:, 4] if settings.level == "MGGA" else None
+        feat2 = plan2.get_feat(rho[:, 0], sigma, tau)
 
         assert feat.shape[0] == 2
         assert feat.shape[1:] == nsp_feat.shape[1:]
         assert_allclose(feat[0], nsp_feat[0], atol=1e-14)
         assert_allclose(feat[1], nsp_feat[0], atol=1e-14)
+        assert_allclose(feat, feat2, atol=1e-14)
 
         vfeat = get_e_and_vfeat(feat)[1]
         vxc1 = plan.get_vxc(rho, vfeat, vxc=None)
@@ -130,6 +173,22 @@ class TestSemilocalPlan(unittest.TestCase):
         assert_allclose(vxc2, vxc1, atol=1e-14)
         assert_allclose(vxc3, vxc1, atol=1e-14)
 
+        vfeat = get_e_and_vfeat(feat2)[1]
+        shape = rho[:, 0].shape
+        vrho, vsigma, vtau = np.zeros(shape), np.zeros(shape), np.zeros(shape)
+        plan2.get_vxc(vfeat, rho[:, 0], vrho, sigma, vsigma, tau, vtau)
+        assert_allclose(vrho, vxc1[:, 0], atol=1e-14)
+        assert_allclose(2 * vsigma[:, None] * rho[:, 1:4], vxc1[:, 1:4], atol=1e-14)
+        if plan.level == "MGGA":
+            assert_allclose(vtau, vxc1[:, 4], atol=1e-14)
+        featb, occd = plan.get_occd(rho, drho)
+        dsigma = 2 * np.einsum("sxg,sxg->sg", rho[:, 1:4], drho[:, 1:4])
+        feat2b, occd2 = plan2.get_occd(rho[:, 0], drho[:, 0], sigma, dsigma, tau, dtau)
+        assert_allclose(featb, feat, atol=1e-14)
+        assert_allclose(occd, occd2, atol=1e-14)
+        assert_allclose(feat2b, feat2, atol=1e-14)
+        assert_allclose((vfeat * occd2).sum(1), (vxc1 * drho).sum(1), atol=1e-14)
+
         delta = 1e-5
         for i in range(rho.shape[1]):
             rho[:, i] += 0.5 * delta
@@ -139,7 +198,8 @@ class TestSemilocalPlan(unittest.TestCase):
             f = plan.get_feat(rho)
             em = get_e_and_vfeat(f)[0]
             rho[:, i] += 0.5 * delta
-            assert_allclose(vxc1[:, i], (ep - em) / delta, rtol=1e-8, atol=1e-8)
+            diff = (ep - em) / delta
+            assert_allclose(vxc1[:, i], diff, rtol=1e-8, atol=1e-8)
 
     def test_settings(self):
         self.check_settings(self.npa)

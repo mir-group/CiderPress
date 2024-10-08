@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools >= 61.0", "wheel", "cmake"]
+build-backend = "setuptools.build_meta"
+
+["project"]
+name = "ciderpress"
+dynamic = ["version"]
+description = "CiderPress: DFT Calculations with Machine-Learned XC Functionals"
+readme = "README.md"
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  'Intended Audience :: Science/Research',
+  'Intended Audience :: Developers',
+  'Programming Language :: C',
+  'Programming Language :: Python',
+  'Topic :: Scientific/Engineering',
+  'Operating System :: POSIX',
+  'Operating System :: Unix',
+]
+
+maintainers = [{ name = "Kyle Bystrom", email = "kylebystrom@gmail.com" }]
+
+authors = [{ name = "Kyle Bystrom", email = "kylebystrom@gmail.com" }]
+
+dependencies = [
+  "ase>=3.22.0",
+  "h5py>=3.6.0",
+  "interpolation>=2.2.7",
+  "numba>=0.60",
+  "numpy>=2.0",
+  "pyscf>=2.6",
+  "pytest",
+  "pyyaml",
+  "scikit-learn>=1.0.1",
+  "scipy>=1.14",
+  "sympy",
+]
+
+[project.urls]
+Repository = "https://github.com/mir-group/CiderPress"

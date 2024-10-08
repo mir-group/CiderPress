@@ -56,6 +56,7 @@ def get_dim(x, length_scale, density=6, buff=0.0, bound=None, max_ngrid=None):
 
 def project_kernel_onto_grid(alpha, k0s, dims):
     N = len(dims)
+    dims = [(float(dim[0]), float(dim[1]), int(dim[2])) for dim in dims]
     if N == 0:
         raise ValueError("Kernel is constant!")
     elif N == 1:
