@@ -43,7 +43,7 @@ from ciderpress.gpaw.interp_paw import (
 
 USE_GAUSSIAN_PAW_CONV = False
 DEFAULT_CIDER_PAW_ALGO = "v1"
-USE_GAUSSIAN_SBT = False
+USE_GAUSSIAN_SBT = True
 # if USE_GAUSSIAN_PAW_CONV is True, USE_GAUSSIAN_SBT must be True
 USE_GAUSSIAN_SBT = USE_GAUSSIAN_SBT or USE_GAUSSIAN_PAW_CONV
 
@@ -2148,17 +2148,13 @@ class PSmoothSetupV1(_PSmoothSetupBase):
             c_and_l = cho_factor(p_l_ii[l])
             self.p_cl_l_ii.append(c_and_l)
 
-    def get_c_and_df(self, y_svq, yy_svq):
-        assert yy_svq.shape == y_svq.shape
-        if not USE_GAUSSIAN_PAW_CONV:
-            y_svq = self.k2orb(y_svq)
-            if USE_GAUSSIAN_SBT:
-                yy_svq = self.k2orb(yy_svq)
-            else:
-                yy_svq[:] *= get_dvk(self.sbt_rgd)[:, None, None]
-        else:
+    def _c_and_df_loop_orb(self, y_svq, yy_svq):
+        if USE_GAUSSIAN_PAW_CONV:
             y_svq = np.ascontiguousarray(y_svq)
             yy_svq = np.ascontiguousarray(yy_svq)
+        else:
+            y_svq = self.k2orb(y_svq)
+            yy_svq = self.k2orb(yy_svq)
         nspin, nv, nb = y_svq.shape
         assert nv == self.pcol.nv
         na = self.alphas.size
@@ -2166,8 +2162,7 @@ class PSmoothSetupV1(_PSmoothSetupBase):
         df_sub = np.zeros((nspin, self.pcol.nu, nb))
         for s in range(nspin):
             all_b1_ub = self.pcol.convert(y_svq[s], fwd=False)
-            if USE_GAUSSIAN_SBT:
-                all_b2_ia = self.jcol.convert(yy_svq[s], fwd=False)
+            all_b2_ia = self.jcol.convert(yy_svq[s], fwd=False)
             for l in range(self.lmax + 1):
                 nm = 2 * l + 1
                 for m in range(nm):
@@ -2176,16 +2171,7 @@ class PSmoothSetupV1(_PSmoothSetupBase):
                     b1 = all_b1_ub[slice1]
                     uloc_l = self.jcol.uloc_l
                     slice2 = slice(uloc_l[l] + m, uloc_l[l + 1] + m, nm)
-                    if USE_GAUSSIAN_SBT:
-                        b2 = all_b2_ia[slice2]
-                    else:
-                        jl = self.nbas_loc[l]
-                        ju = self.nbas_loc[l + 1]
-                        b2 = np.einsum(
-                            "jk,kq->jq",
-                            self.pfuncs_jk[jl:ju],
-                            yy_svq[s, :, l * l + m, :],
-                        )
+                    b2 = all_b2_ia[slice2]
                     b = self.cat_b_vecs(b1, b2)
                     x = cho_solve(self.p_cl_l_ii[l], b)
                     n1 = b1.size
@@ -2193,16 +2179,51 @@ class PSmoothSetupV1(_PSmoothSetupBase):
                     c_sia[s, slice2] += x[n1:].reshape(-1, na)
         return c_sia, self.pcol.basis2grid_spin(df_sub)
 
-    def get_vy_and_vyy(self, vc_sia, vdf_sgLq):
-        vdf_sub = self.pcol.grid2basis_spin(np.ascontiguousarray(vdf_sgLq))
+    def _c_and_df_loop_recip(self, y_svq, yy_skLq):
+        y_svq = self.k2orb(y_svq)
+        yy_skLq[:] *= get_dvk(self.sbt_rgd)[:, None, None]
+        nspin, nv, nb = y_svq.shape
+        assert nv == self.pcol.nv
+        na = self.alphas.size
+        c_sia = np.zeros((nspin, self.ni, na))
+        df_sub = np.zeros((nspin, self.pcol.nu, nb))
+        for s in range(nspin):
+            all_b1_ub = self.pcol.convert(y_svq[s], fwd=False)
+            for l in range(self.lmax + 1):
+                nm = 2 * l + 1
+                for m in range(nm):
+                    uloc_l = self.pcol.uloc_l
+                    slice1 = slice(uloc_l[l] + m, uloc_l[l + 1] + m, nm)
+                    b1 = all_b1_ub[slice1]
+                    uloc_l = self.jcol.uloc_l
+                    slice2 = slice(uloc_l[l] + m, uloc_l[l + 1] + m, nm)
+                    jl = self.nbas_loc[l]
+                    ju = self.nbas_loc[l + 1]
+                    b2 = np.einsum(
+                        "jk,kq->jq",
+                        self.pfuncs_jk[jl:ju],
+                        yy_skLq[s, :, l * l + m, :],
+                    )
+                    b = self.cat_b_vecs(b1, b2)
+                    x = cho_solve(self.p_cl_l_ii[l], b)
+                    n1 = b1.size
+                    df_sub[s, slice1] += x[:n1].reshape(-1, nb)
+                    c_sia[s, slice2] += x[n1:].reshape(-1, na)
+        return c_sia, self.pcol.basis2grid_spin(df_sub)
+
+    def get_c_and_df(self, y_svq, yy_svq):
+        assert yy_svq.shape == y_svq.shape
+        if not USE_GAUSSIAN_PAW_CONV and not USE_GAUSSIAN_SBT:
+            return self._c_and_df_loop_recip(y_svq, yy_svq)
+        else:
+            return self._c_and_df_loop_orb(y_svq, yy_svq)
+
+    def _vy_and_vyy_loop_orb(self, vc_sia, vdf_sub):
         nspin, ni, na = vc_sia.shape
         nb = vdf_sub.shape[-1]
         assert ni == self.ni
         vy_svq = np.zeros((nspin, self.pcol.nv, nb))
-        if USE_GAUSSIAN_SBT:
-            vyy_svq = np.zeros((nspin, self.pcol.nv, na))
-        else:
-            vyy_svq = np.zeros((nspin, self.sbt_rgd.r_g.size, self._grid_nlm, na))
+        vyy_svq = np.zeros((nspin, self.pcol.nv, na))
         for s in range(nspin):
             all_vb1_ub = np.zeros((self.pcol.nu, nb))
             all_vb2_ia = np.zeros((ni, na))
@@ -2219,22 +2240,50 @@ class PSmoothSetupV1(_PSmoothSetupBase):
                     b = cho_solve(self.p_cl_l_ii[l], x)
                     n1 = x1.size
                     all_vb1_ub[slice1] += b[:n1].reshape(-1, nb)
-                    if USE_GAUSSIAN_SBT:
-                        all_vb2_ia[slice2] += b[n1:].reshape(-1, na)
-                    else:
-                        jl = self.nbas_loc[l]
-                        ju = self.nbas_loc[l + 1]
-                        vyy_svq[s, :, l * l + m, :] += np.einsum(
-                            "jk,jq->kq", self.pfuncs_jk[jl:ju], b[n1:].reshape(-1, na)
-                        )
+                    all_vb2_ia[slice2] += b[n1:].reshape(-1, na)
             vy_svq[s] = self.pcol.convert(all_vb1_ub, fwd=True)
-            if USE_GAUSSIAN_SBT:
-                vyy_svq[s] = self.jcol.convert(all_vb2_ia, fwd=True)
+            vyy_svq[s] = self.jcol.convert(all_vb2_ia, fwd=True)
         if not USE_GAUSSIAN_PAW_CONV:
             vy_svq = self.orb2k(vy_svq)
-            if USE_GAUSSIAN_SBT:
-                vyy_svq = self.orb2k(vyy_svq)
+            vyy_svq = self.orb2k(vyy_svq)
         return vy_svq, vyy_svq
+
+    def _vy_and_vyy_loop_recip(self, vc_sia, vdf_sub):
+        nspin, ni, na = vc_sia.shape
+        nb = vdf_sub.shape[-1]
+        assert ni == self.ni
+        vy_svq = np.zeros((nspin, self.pcol.nv, nb))
+        vyy_skLq = np.zeros((nspin, self.sbt_rgd.r_g.size, self._grid_nlm, na))
+        for s in range(nspin):
+            all_vb1_ub = np.zeros((self.pcol.nu, nb))
+            for l in range(self.lmax + 1):
+                nm = 2 * l + 1
+                for m in range(nm):
+                    uloc_l = self.pcol.uloc_l
+                    slice1 = slice(uloc_l[l] + m, uloc_l[l + 1] + m, nm)
+                    x1 = vdf_sub[s, slice1].ravel()
+                    uloc_l = self.jcol.uloc_l
+                    slice2 = slice(uloc_l[l] + m, uloc_l[l + 1] + m, nm)
+                    x2 = vc_sia[s, slice2].ravel()
+                    x = self.cat_b_vecs(x1, x2)
+                    b = cho_solve(self.p_cl_l_ii[l], x)
+                    n1 = x1.size
+                    all_vb1_ub[slice1] += b[:n1].reshape(-1, nb)
+                    jl = self.nbas_loc[l]
+                    ju = self.nbas_loc[l + 1]
+                    vyy_skLq[s, :, l * l + m, :] += np.einsum(
+                        "jk,jq->kq", self.pfuncs_jk[jl:ju], b[n1:].reshape(-1, na)
+                    )
+            vy_svq[s] = self.pcol.convert(all_vb1_ub, fwd=True)
+        vy_svq = self.orb2k(vy_svq)
+        return vy_svq, vyy_skLq
+
+    def get_vy_and_vyy(self, vc_sia, vdf_sgLq):
+        vdf_sub = self.pcol.grid2basis_spin(np.ascontiguousarray(vdf_sgLq))
+        if not USE_GAUSSIAN_PAW_CONV and not USE_GAUSSIAN_SBT:
+            return self._vy_and_vyy_loop_recip(vc_sia, vdf_sub)
+        else:
+            return self._vy_and_vyy_loop_orb(vc_sia, vdf_sub)
 
     def cat_b_vecs(self, b1, b2):
         return np.append(b1.flatten(), b2.flatten())

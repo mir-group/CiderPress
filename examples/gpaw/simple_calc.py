@@ -51,5 +51,11 @@ atoms.calc = CiderGPAW(
     mixer=Mixer(0.7, 8, 50),
     spinpol=True,
 )
+import numpy as np
+
+atoms.set_cell(
+    np.dot(atoms.cell, [[1.02, 0, 0.03], [0, 0.99, -0.02], [0.2, -0.01, 1.03]]),
+    scale_atoms=True,
+)
 
 etot = atoms.get_potential_energy()  # run the calculation
