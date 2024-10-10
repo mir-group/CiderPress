@@ -428,18 +428,9 @@ class _PAWCiderContribs:
         dy1_sxq = dy_sxq[..., :na] * psetup.w_b
         dy2_sxq = dy_sxq[..., na:]
         yy_sxq = self.perform_fitting_convolution_bwd(dy1_sxq)
-        # dy1_suq = self.x2u(dy1_sxq)
-        # dy2_suq = self.x2u(dy2_sxq)
-        # yy_suq = self.x2u(yy_sxq)
 
         df_sgLq = np.zeros_like(dx_sgLq)
-        c_siq, df_sgLq[..., :na] = psetup.get_c_and_df(
-            # np.ascontiguousarray(dy1_suq),
-            # np.ascontiguousarray(yy_suq),
-            dy1_sxq,
-            yy_sxq,
-        )
-        # df_sgLq[..., na:] = psetup.get_df_only(np.ascontiguousarray(dy2_suq))
+        c_siq, df_sgLq[..., :na] = psetup.get_c_and_df(dy1_sxq, yy_sxq)
         df_sgLq[..., na:] = psetup.get_df_only(dy2_sxq)
         xt_sgLq[..., :na] += (
             psetup.coef_to_real(c_siq) * get_dv(psetup.slrgd)[:, None, None]
@@ -455,17 +446,12 @@ class _PAWCiderContribs:
         vfr_sxq = self.grid2aux(vfr_sgLq)
         vxt_sxq = self.perform_convolution_bwd(vfr_sxq)
         vxt_sgLq = self.aux2grid(vxt_sxq)
-        # vdy2_suq = psetup.get_vdf_only(np.ascontiguousarray(vdf_sgLq[..., na:]))
         vdy2_sxq = psetup.get_vdf_only(np.ascontiguousarray(vdf_sgLq[..., na:]))
         vc_siq[:] += psetup.real_to_coef(
             vxt_sgLq[..., :na] * get_dv(psetup.slrgd)[:, None, None]
         )
-        # vdy1_suq, vyy_suq = psetup.get_vy_and_vyy(vc_siq, vdf_sgLq[..., :na])
         vdy1_sxq, vyy_sxq = psetup.get_vy_and_vyy(vc_siq, vdf_sgLq[..., :na])
 
-        # vyy_sxq = self.u2x(vyy_suq)
-        # vdy1_sxq = self.u2x(vdy1_suq)
-        # vdy2_sxq = self.u2x(vdy2_suq)
         vdy1_sxq[:] += self.perform_fitting_convolution_fwd(vyy_sxq)
         vdy_sxq = np.concatenate([vdy1_sxq * psetup.w_b, vdy2_sxq], axis=-1)
         vdx_sxq = self.perform_convolution_bwd(vdy_sxq)
@@ -488,23 +474,17 @@ class _PAWCiderContribs:
         xt_sxq = self.grid2aux(xt_sgLq)
         yt_sxq = self.perform_convolution_fwd(xt_sxq)
         fr_sgLq = self.aux2grid(yt_sxq)
-
         dx_sxq = self.grid2aux(dx_sgLq)
         dy_sxq = self.perform_convolution_fwd(dx_sxq)
-        # df_sgLq = psetup.get_df_only(self.x2u(dy_sxq))
         df_sgLq = psetup.get_df_only(dy_sxq)
-
         return fr_sgLq, df_sgLq, c_siq
 
     def calculate_vx_terms_v2(self, vfr_sgLq, vdf_sgLq, vc_siq, psetup):
         na = psetup.alphas.size
         self.sbt_rgd = psetup.sbt_rgd
-        # vdy_suq = psetup.get_vdf_only(np.ascontiguousarray(vdf_sgLq))
         vdy_sxq = psetup.get_vdf_only(np.ascontiguousarray(vdf_sgLq))
-        # vdx_sxq = self.perform_convolution_bwd(self.u2x(vdy_suq))
         vdx_sxq = self.perform_convolution_bwd(vdy_sxq)
         vdx_sgLq = self.aux2grid(vdx_sxq)
-
         vyt_sxq = self.grid2aux(vfr_sgLq)
         vxt_sxq = self.perform_convolution_bwd(vyt_sxq)
         vxt_sgLq = self.aux2grid(vxt_sxq)
@@ -514,7 +494,6 @@ class _PAWCiderContribs:
             use_ffuncs=False,
         )
         vdx_sgLq[..., :na] += psetup.coef_to_real(vc_siq, use_ffuncs=True)
-
         return vxt_sgLq, vdx_sgLq
 
     def calculate_y_terms(self, xt_sgLq, dx_sgLq, psetup):

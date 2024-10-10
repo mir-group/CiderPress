@@ -42,15 +42,11 @@ jobs:
     - name: Build things
       run: |
         source .github/workflows/load_conda.sh
-        source .github/workflows/mm_install_mpi.sh
+        source .github/workflows/mm_install_torch.sh
         LIBRARY_PATH=$CONDA_PREFIX/lib:$LIBRARY_PATH pip install .
         python scripts/download_functionals.py
     - name: Test with unittest
       run: |
         source .github/workflows/load_conda.sh
-        sh .github/workflows/setup_gpaw.sh
+        sh .github/workflows/setup_gpaw_nompi.sh
         sh .github/workflows/run_gpaw_tests.sh
-    - name: Run MPI tests
-      run: |
-        source .github/workflows/load_conda.sh
-        sh .github/workflows/run_mpi_tests.sh

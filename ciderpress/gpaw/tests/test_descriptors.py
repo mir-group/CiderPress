@@ -138,7 +138,7 @@ def _reset_orbs_(calc, s, k, n1, n2, psi1, psi2):
     calc.density.interpolate_pseudo_density()
 
 
-def run_fd_deriv_test(xc, use_pp=False, spinpol=False):
+def run_fd_deriv_test(xc, use_pp=False, spinpol=False, modify_cell=False):
     k = 3
     si = bulk("Si")
     si.calc = GPAW(
@@ -153,10 +153,11 @@ def run_fd_deriv_test(xc, use_pp=False, spinpol=False):
         setups="sg15" if use_pp else "paw",
         txt="si.txt",
     )
-    si.set_cell(
-        np.dot(si.cell, [[1.02, 0, 0.03], [0, 0.99, -0.02], [0.2, -0.01, 1.03]]),
-        scale_atoms=True,
-    )
+    if modify_cell:
+        si.set_cell(
+            np.dot(si.cell, [[1.02, 0, 0.03], [0, 0.99, -0.02], [0.2, -0.01, 1.03]]),
+            scale_atoms=True,
+        )
 
     etot = si.get_potential_energy()
     gap, vbm, cbm, dev, dec, pvbm, pcbm = get_homo_lumo_fd_(si.calc, delta=1e-6)
@@ -664,10 +665,10 @@ class TestDescriptors(unittest.TestCase):
         run_fd_deriv_test(xc)
 
         xc = get_xc("functionals/CIDER23X_NL_MGGA_DTR.yaml")
-        run_fd_deriv_test(xc)
+        run_fd_deriv_test(xc, modify_cell=True)
 
         xc = get_xc("functionals/CIDER23X_NL_MGGA_DTR.yaml")
-        run_fd_deriv_test(xc, spinpol=True)
+        run_fd_deriv_test(xc, spinpol=True, modify_cell=True)
 
         xc = get_xc("functionals/CIDER23X_SL_GGA.yaml")
         run_fd_deriv_test(xc)

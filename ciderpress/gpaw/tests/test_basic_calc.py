@@ -8,6 +8,30 @@ from numpy.testing import assert_almost_equal
 from ciderpress.gpaw.calculator import CiderGPAW, get_cider_functional
 
 USE_FAST_GPAW = True
+NKPT = 4
+if NKPT == 12 and not USE_FAST_GPAW:
+    REFERENCE_ENERGIES = {
+        "CIDER23X_SL_GGA": -12.868728302199766,
+        "CIDER23X_NL_GGA": -13.045337504398542,
+        "CIDER23X_SL_MGGA": -12.267997644473239,
+        "CIDER23X_NL_MGGA_DTR": -12.537128965314368,
+    }
+elif NKPT == 4 and not USE_FAST_GPAW:
+    REFERENCE_ENERGIES = {
+        "CIDER23X_SL_GGA": -12.86629098779017,
+        "CIDER23X_NL_GGA": -13.042463859210965,
+        "CIDER23X_SL_MGGA": -12.265893307629785,
+        "CIDER23X_NL_MGGA_DTR": -12.535482440595896,
+    }
+elif NKPT == 4 and USE_FAST_GPAW:
+    REFERENCE_ENERGIES = {
+        "CIDER23X_SL_GGA": -12.866290987790224,
+        "CIDER23X_NL_GGA": -13.046009774395415,
+        "CIDER23X_SL_MGGA": -12.265893307629582,
+        "CIDER23X_NL_MGGA_DTR": -12.530206623535573,
+    }
+else:
+    raise ValueError("Reference values not available")
 
 
 def run_calc(xc, spinpol, setups="paw"):
@@ -30,7 +54,7 @@ def run_calc(xc, spinpol, setups="paw"):
         mode=PW(520),  # plane-wave mode with 520 eV cutoff.
         txt="-",  # output file, '-' for stdout
         occupations={"name": "fermi-dirac", "width": 0.01},
-        kpts={"size": (4, 4, 4), "gamma": True},  # kpt mesh parameters
+        kpts={"size": (NKPT, NKPT, NKPT), "gamma": False},  # kpt mesh parameters
         convergence={"energy": 1e-7},  # convergence energy in eV/electron
         spinpol=spinpol,
         setups=setups,
@@ -40,7 +64,9 @@ def run_calc(xc, spinpol, setups="paw"):
     return etot
 
 
-def generate_test(xcname, e_ref):
+def generate_test(xcname):
+    e_ref = REFERENCE_ENERGIES[xcname]
+
     def run_test(self):
         with np.errstate(all="ignore"):
             e_rks = run_calc(xcname, False)
@@ -53,13 +79,13 @@ def generate_test(xcname, e_ref):
 
 class TestEnergy(unittest.TestCase):
 
-    test_sl_gga = generate_test("CIDER23X_SL_GGA", -12.868728302199766)
+    test_sl_gga = generate_test("CIDER23X_SL_GGA")
 
-    test_nl_gga = generate_test("CIDER23X_NL_GGA", -13.045337504398542)
+    test_nl_gga = generate_test("CIDER23X_NL_GGA")
 
-    test_sl_mgga = generate_test("CIDER23X_SL_MGGA", -12.267997644473239)
+    test_sl_mgga = generate_test("CIDER23X_SL_MGGA")
 
-    test_nl_mgga = generate_test("CIDER23X_NL_MGGA_DTR", -12.537128965314368)
+    test_nl_mgga = generate_test("CIDER23X_NL_MGGA_DTR")
 
 
 if __name__ == "__main__":

@@ -545,29 +545,6 @@ class CiderMGGAPASDW(_FastPASDW_MPRoutines, CiderMGGA):
         MGGA.add_forces(self, F_av)
         _FastPASDW_MPRoutines.add_forces(self, F_av)
 
-    def stress_tensor_contribution(self, n_sg):
-        raise NotImplementedError
-        nspins = len(n_sg)
-        stress_vv = super(CiderMGGAPASDW, self).stress_tensor_contribution(n_sg)
-        tmp_vv = np.zeros((3, 3))
-        for s in range(nspins):
-            tmp_vv += self.construct_grad_terms(
-                self.dedtheta_sag[s],
-                self.c_sabi[s],
-                aug=False,
-                stress=True,
-            )
-            tmp_vv += self.construct_grad_terms(
-                self.Freal_sag[s],
-                self.dedq_sabi[s],
-                aug=True,
-                stress=True,
-            )
-        self.world.sum(tmp_vv)
-        stress_vv[:] += tmp_vv
-        self.gd.comm.broadcast(stress_vv, 0)
-        return stress_vv
-
     def set_positions(self, spos_ac):
         MGGA.set_positions(self, spos_ac)
         self.spos_ac = spos_ac

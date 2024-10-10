@@ -611,3 +611,6 @@ class CiderMGGA(_FastCiderBase, MGGA):
             "Forces not implemented for CIDER MGGA with NCPP. "
             "Please use PAW setups to get forces."
         )
+
+    def stress_tensor_contribution(self, n_sg):
+        raise NotImplementedError("MGGA stress requires PAW setups")

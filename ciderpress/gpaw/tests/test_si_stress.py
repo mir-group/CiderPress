@@ -64,7 +64,7 @@ def get_xc(fname, use_paw=True):
         qmax=120,
         lambd=1.8,
         xmix=0.25,
-        pasdw_ovlp_fit=False,
+        pasdw_ovlp_fit=True,
         pasdw_store_funcs=True,
         use_paw=use_paw,
     )
