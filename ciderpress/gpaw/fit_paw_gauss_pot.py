@@ -232,45 +232,6 @@ def get_phi_iabg(phi_iabk, ls, rgd):
     return phi_iabg
 
 
-NBAS_LST = [3, 2, 2, 1, 1]
-NAO_LST = [3 * 1, 2 * 3, 2 * 5, 1 * 7, 1 * 9]
-NBAS_LOC = np.append([0], np.cumsum(NBAS_LST)).astype(np.int32)
-
-
-def get_phi_ovlp_direct(phi_iabg, rgd, rcut, l, nbas_loc=NBAS_LOC, w_b=None):
-    # dv = 4 * np.pi * rgd.dr_g * rgd.r_g**2
-    dv = rgd.dr_g * rgd.r_g**2
-    if w_b is None:
-        w_b = np.ones(phi_iabg.shape[-2])
-    phicut_iabg = phi_iabg[nbas_loc[l] : nbas_loc[l + 1]] * np.sqrt(dv)
-    phicut_iabg = phicut_iabg[..., rgd.r_g > rcut]
-    return np.einsum("iacg,jbcg,c->iajb", phicut_iabg, phicut_iabg, w_b)
-
-
-def get_phi_solve_direct(phi_iabg, phi_iajb, l, nbas_loc=NBAS_LOC, w_b=None):
-    reg = 1e-9
-    phi_iabg = phi_iabg[nbas_loc[l] : nbas_loc[l + 1]]
-    n_i, n_a = phi_iabg.shape[:2]
-    n_ia = n_i * n_a
-    return np.linalg.solve(
-        phi_iajb.reshape(n_ia, n_ia) + reg * np.identity(n_ia),
-        phi_iabg.reshape(n_ia, -1),
-    ).reshape(*(phi_iabg.shape))
-
-
-def get_phi_ovlp_f(phi_iabg, f_Lbg, rgd, l, rcut, nbas_loc=NBAS_LOC, w_b=None):
-    # TODO will need L channel on f_bg and construct separate ia
-    # matrix for each L
-    # dv = 4 * np.pi * rgd.dr_g * rgd.r_g**2
-    if w_b is None:
-        w_b = np.ones(phi_iabg.shape[-2])
-    dv = rgd.dr_g * rgd.r_g**2
-    f_bg = f_Lbg[l * l : (l + 1) * (l + 1)] * dv
-    phicut_iabg = phi_iabg[nbas_loc[l] : nbas_loc[l + 1], ..., rgd.r_g > rcut]
-    fcut_bg = f_bg[..., rgd.r_g > rcut]
-    return np.einsum("iabg,mbg,b->ima", phicut_iabg, fcut_bg, w_b)
-
-
 def get_dv(rgd):
     return rgd.dr_g * rgd.r_g**2
 

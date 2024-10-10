@@ -29,7 +29,7 @@ xc = get_cider_functional(
     pasdw_store_funcs=False,
     # pasdw_ovlp_fit=True (default) uses overlap fitting to improve precision
     # of PAW correction terms of features.
-    pasdw_ovlp_fit=True,
+    pasdw_ovlp_fit=False,
     fast=True,
 )
 
