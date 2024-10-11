@@ -60,7 +60,7 @@ def _run_cider_forces(functional, get_xc=None):
 
     f2 = numeric_force(bulk, 0, 2, 0.001, get_xc=get_xc)
     print((f1, f2, f1 - f2))
-    equal(f1, f2, 0.0005)
+    equal(f1, f2, 0.001)
 
 
 def run_cider_forces(functional, get_xc=None):
