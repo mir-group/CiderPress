@@ -68,6 +68,13 @@ def get_ffunc3(n, r, R):
     return y
 
 
+def get_poly(n, r, R):
+    x = r / R
+    xn = x**n
+    xn[x > 1] = 0.0
+    return xn
+
+
 def get_ffunc4_real(n, r, R):
     A = np.array(
         [[1, 0, 0, 0], [0, 1, 0, 0], [1, 1, 1, 1], [0, 1, 2, 3]], dtype=np.float64
@@ -225,45 +232,6 @@ def get_phi_iabg(phi_iabk, ls, rgd):
     return phi_iabg
 
 
-NBAS_LST = [3, 2, 2, 1, 1]
-NAO_LST = [3 * 1, 2 * 3, 2 * 5, 1 * 7, 1 * 9]
-NBAS_LOC = np.append([0], np.cumsum(NBAS_LST)).astype(np.int32)
-
-
-def get_phi_ovlp_direct(phi_iabg, rgd, rcut, l, nbas_loc=NBAS_LOC, w_b=None):
-    # dv = 4 * np.pi * rgd.dr_g * rgd.r_g**2
-    dv = rgd.dr_g * rgd.r_g**2
-    if w_b is None:
-        w_b = np.ones(phi_iabg.shape[-2])
-    phicut_iabg = phi_iabg[nbas_loc[l] : nbas_loc[l + 1]] * np.sqrt(dv)
-    phicut_iabg = phicut_iabg[..., rgd.r_g > rcut]
-    return np.einsum("iacg,jbcg,c->iajb", phicut_iabg, phicut_iabg, w_b)
-
-
-def get_phi_solve_direct(phi_iabg, phi_iajb, l, nbas_loc=NBAS_LOC, w_b=None):
-    reg = 1e-9
-    phi_iabg = phi_iabg[nbas_loc[l] : nbas_loc[l + 1]]
-    n_i, n_a = phi_iabg.shape[:2]
-    n_ia = n_i * n_a
-    return np.linalg.solve(
-        phi_iajb.reshape(n_ia, n_ia) + reg * np.identity(n_ia),
-        phi_iabg.reshape(n_ia, -1),
-    ).reshape(*(phi_iabg.shape))
-
-
-def get_phi_ovlp_f(phi_iabg, f_Lbg, rgd, l, rcut, nbas_loc=NBAS_LOC, w_b=None):
-    # TODO will need L channel on f_bg and construct separate ia
-    # matrix for each L
-    # dv = 4 * np.pi * rgd.dr_g * rgd.r_g**2
-    if w_b is None:
-        w_b = np.ones(phi_iabg.shape[-2])
-    dv = rgd.dr_g * rgd.r_g**2
-    f_bg = f_Lbg[l * l : (l + 1) * (l + 1)] * dv
-    phicut_iabg = phi_iabg[nbas_loc[l] : nbas_loc[l + 1], ..., rgd.r_g > rcut]
-    fcut_bg = f_bg[..., rgd.r_g > rcut]
-    return np.einsum("iabg,mbg,b->ima", phicut_iabg, fcut_bg, w_b)
-
-
 def get_dv(rgd):
     return rgd.dr_g * rgd.r_g**2
 
@@ -277,6 +245,16 @@ def get_p11_matrix(delta_lpg, rgd, reg=0):
     p11_lii = np.einsum("lpg,lqg,g->lpq", delta_lpg, delta_lpg, dv_g)
     p11_lii += reg * np.identity(p11_lii.shape[-1])
     return p11_lii
+
+
+def get_p11_matrix_v2(delta_l_pg, rgd, reg=0):
+    dv_g = get_dv(rgd)
+    p11_l_ii = []
+    for l, delta_pg in enumerate(delta_l_pg):
+        mat = np.einsum("pg,qg,g->pq", delta_pg, delta_pg, dv_g)
+        mat[:] += reg * np.identity(mat.shape[-1])
+        p11_l_ii.append(mat)
+    return p11_l_ii
 
 
 def get_p12_p21_matrix(delta_lpg, phi_jabg, rgd, llist_j, w_b):
@@ -293,6 +271,20 @@ def get_p12_p21_matrix(delta_lpg, phi_jabg, rgd, llist_j, w_b):
     return p12_pbja, p12_pbja.transpose(2, 3, 0, 1)
 
 
+def get_p12_p21_matrix_v2(delta_l_pg, phi_jabg, rgd, w_b, nbas_loc):
+    dv_g = get_dv(rgd)
+    p12_vbja = []
+    p21_javb = []
+    lp1 = len(delta_l_pg)
+    for l in range(lp1):
+        j0, j1 = nbas_loc[l], nbas_loc[l + 1]
+        mat = np.einsum("vg,jabg,g->javb", delta_l_pg[l], phi_jabg[j0:j1], dv_g)
+        mat[:] *= w_b
+        p21_javb.append(mat)
+        p12_vbja.append(mat.transpose(2, 3, 0, 1))
+    return p12_vbja, p21_javb
+
+
 def get_p22_matrix(phi_iabg, rgd, rcut, l, w_b, nbas_loc, reg=0, cut_func=False):
     dv_g = get_dv(rgd)
     phicut_iabg = phi_iabg[nbas_loc[l] : nbas_loc[l + 1]] * np.sqrt(dv_g)
@@ -306,8 +298,12 @@ def get_p22_matrix(phi_iabg, rgd, rcut, l, w_b, nbas_loc, reg=0, cut_func=False)
         phicut_iabg *= np.sqrt(fcut)
     p22_jaja = np.einsum("iacg,jbcg,c->iajb", phicut_iabg, phicut_iabg, w_b)
     nj, na = p22_jaja.shape[:2]
-    p22_ii = p22_jaja.reshape(nj * na, nj * na)
-    p22_ii += reg * np.identity(nj * na)  # TODO make sure this adds to p22_jaja
+    p22_ii = p22_jaja.view()
+    p22_ii.shape = (nj * na, nj * na)
+    # TODO this is closed to previous regularization, but not
+    # necessarily the optimal regularization
+    reg = reg / np.tile(w_b, nj)
+    p22_ii[:] += reg * np.identity(nj * na)
     return p22_jaja
 
 
@@ -332,6 +328,31 @@ def construct_full_p_matrices(p11_lpp, p12_pbja, p21_japb, p22_ljaja, w_b, nbas_
         pl_ii[:N1, :N1] = p11_ii
         pl_ii[:N1, N1:] = p12cut_pbja.reshape(N1, N2)
         pl_ii[N1:, :N1] = p21cut_japb.reshape(N2, N1)
+        pl_ii[N1:, N1:] = p22_jaja.reshape(N2, N2)
+        p_l_ii.append(pl_ii)
+    return p_l_ii
+
+
+def construct_full_p_matrices_v2(p11_l_vv, p12_l_vbja, p21_l_javb, p22_l_jaja, w_b):
+    lp1 = len(p11_l_vv)
+    p_l_ii = []
+    for l in range(lp1):
+        nv = p11_l_vv[l].shape[0]
+        nb = w_b.size
+        N1 = nv * nb
+        p11_pbpb = np.zeros((nv, nb, nv, nb))
+        for b in range(nb):
+            p11_pbpb[:, b, :, b] = p11_l_vv[l] * w_b[b]
+        p11_ii = p11_pbpb.reshape(N1, N1)
+        p12_vbja = p12_l_vbja[l]
+        p21_javb = p21_l_javb[l]
+        p22_jaja = p22_l_jaja[l]
+        N2 = p22_jaja.shape[0] * p22_jaja.shape[1]
+        N = N1 + N2
+        pl_ii = np.zeros((N, N))
+        pl_ii[:N1, :N1] = p11_ii
+        pl_ii[:N1, N1:] = p12_vbja.reshape(N1, N2)
+        pl_ii[N1:, :N1] = p21_javb.reshape(N2, N1)
         pl_ii[N1:, N1:] = p22_jaja.reshape(N2, N2)
         p_l_ii.append(pl_ii)
     return p_l_ii
@@ -362,7 +383,40 @@ def get_delta_lpg(betas, rcut, rgd, thr=6, lmax=4):
         L = cholesky(ovlp, lower=True)
         basis = np.linalg.solve(L, funcs)
         delta_lpg[l] = basis * r_g**l
-    # print('DELTA NORM', np.einsum('lpg,lqg,g->lpq', delta_lpg, delta_lpg, dv_g))
+    return delta_lpg
+
+
+def get_delta_lpg_v2(betas_lb, rcut, rgd, pmin, pmax):
+    r_g = rgd.r_g
+    dv_g = get_dv(rgd)
+    lp1 = len(betas_lb)
+    delta_lpg = []
+    for l in range(lp1):
+        cond = np.logical_and(
+            betas_lb[l] > pmin,
+            betas_lb[l] < pmax,
+        )
+        betas = betas_lb[l][cond]
+        fcut = (0.5 * np.pi / betas) ** 0.75 * gauss_and_derivs(betas, rcut)
+        funcs = (0.5 * np.pi / betas[:, None]) ** 0.75 * np.exp(
+            -betas[:, None] * r_g * r_g
+        )
+        rd_g = rgd.r_g - rcut
+        poly = (
+            fcut[0, :, None]
+            + rd_g * fcut[1, :, None]
+            + rd_g**2 * fcut[2, :, None] / 2
+            + rd_g**3 * fcut[3, :, None] / 6
+        )
+        dpoly = fcut[1] - rcut * fcut[2] + rcut**2 * fcut[3] / 2
+        poly += dpoly[:, None] / (4 * rcut**3) * rd_g**4
+        funcs = funcs - poly
+        funcs[:, rgd.r_g > rcut] = 0
+        funcs_tmp = funcs * r_g**l * np.sqrt(dv_g)
+        ovlp = np.einsum("ig,jg->ij", funcs_tmp, funcs_tmp)
+        L = cholesky(ovlp, lower=True)
+        basis = np.linalg.solve(L, funcs)
+        delta_lpg.append(basis * r_g**l)
     return delta_lpg
 
 

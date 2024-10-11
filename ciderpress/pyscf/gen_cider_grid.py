@@ -63,7 +63,14 @@ class CiderGrids(Grids):
         self.grids_indexer = None
 
     def gen_atomic_grids(
-        self, mol, atom_grid=None, radi_method=None, level=None, prune=None, **kwargs
+        self,
+        mol,
+        atom_grid=None,
+        radi_method=None,
+        level=None,
+        prune=None,
+        build_indexer=False,
+        **kwargs
     ):
         """
         Same as gen_atomic_grids for PySCF grids, except it also
@@ -89,9 +96,10 @@ class CiderGrids(Grids):
         ) = gen_atomic_grids_cider(
             mol, atom_grid, self.radi_method, level, prune, **kwargs
         )
-        self.grids_indexer = AtomicGridsIndexer.from_tabs(
-            mol, self.lmax, rad_loc_tab, ylm_loc_tab, rad_tab, ylm_tab
-        )
+        if build_indexer:
+            self.grids_indexer = AtomicGridsIndexer.from_tabs(
+                mol, self.lmax, rad_loc_tab, ylm_loc_tab, rad_tab, ylm_tab
+            )
         return atom_grids_tab
 
     def build(self, mol=None, with_non0tab=False, sort_grids=True, **kwargs):
@@ -105,7 +113,13 @@ class CiderGrids(Grids):
         if self.verbose >= logger.WARN:
             self.check_sanity()
         atom_grids_tab = self.gen_atomic_grids(
-            mol, self.atom_grid, self.radi_method, self.level, self.prune, **kwargs
+            mol,
+            self.atom_grid,
+            self.radi_method,
+            self.level,
+            self.prune,
+            build_indexer=True,
+            **kwargs
         )
         # TODO cleaner version of this way of calling VXCgen_grid_lko
         # tmp = libdft.VXCgen_grid

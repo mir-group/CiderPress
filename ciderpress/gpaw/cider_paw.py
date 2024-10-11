@@ -21,325 +21,19 @@
 import joblib
 import numpy as np
 import yaml
-from gpaw.calculator import GPAW
-from gpaw.xc.libxc import LibXC
 from gpaw.xc.mgga import MGGA
 
-from ciderpress.dft.futil import sph_nlxc_mod as fnlxc
-from ciderpress.dft.xc_evaluator import MappedFunctional
-from ciderpress.dft.xc_models import NormGPFunctional
+from ciderpress.dft import pwutil
 from ciderpress.gpaw.atom_utils import AtomPASDWSlice, PASDWCiderKernel
 from ciderpress.gpaw.cider_fft import (
+    ADict,
     CiderGGA,
     CiderGGAHybridKernel,
-    CiderGGAHybridKernelPBEPot,
     CiderMGGA,
     CiderMGGAHybridKernel,
     LDict,
 )
 from ciderpress.gpaw.interp_paw import DiffGGA, DiffMGGA
-
-
-class CiderGPAW(GPAW):
-    """
-    This class is equivalent to the GPAW calculator object
-    provded in the gpaw pacakage, except that it is able to load
-    and save CIDER calculations. The GPAW object can run CIDER but
-    not save/load CIDER calculations.
-
-    One can also provide CIDER XC functional in dictionary format,
-    but this is not advised since one also has to explicitly provide
-    by the mlfunc_data parameter, which is the str of the yaml file
-    representing the mlfunc object.
-    """
-
-    def __init__(
-        self,
-        restart=None,
-        *,
-        label=None,
-        timer=None,
-        communicator=None,
-        txt="?",
-        parallel=None,
-        **kwargs
-    ):
-        if isinstance(kwargs.get("xc"), dict) and "_cider_type" in kwargs["xc"]:
-            if "mlfunc_data" not in kwargs:
-                raise ValueError("Must provide mlfunc_data for CIDER.")
-            self._mlfunc_data = kwargs.pop("mlfunc_data")
-        super(CiderGPAW, self).__init__(
-            restart=restart,
-            label=label,
-            timer=timer,
-            communicator=communicator,
-            txt=txt,
-            parallel=parallel,
-            **kwargs,
-        )
-
-    def _write(self, writer, mode):
-
-        writer = super(CiderGPAW, self)._write(writer, mode)
-        if hasattr(self.hamiltonian.xc, "get_mlfunc_data"):
-            mlfunc_data = self.hamiltonian.xc.get_mlfunc_data()
-            writer.child("mlfunc").write(mlfunc_data=mlfunc_data)
-        return writer
-
-    def initialize(self, atoms=None, reading=False):
-        xc = self.parameters.xc
-        if isinstance(xc, dict) and "_cider_type" in xc:
-            is_cider = "Cider" in xc["_cider_type"]
-            if is_cider:
-                if reading:
-                    self._mlfunc_data = self.reader.mlfunc.get("mlfunc_data")
-                xc["mlfunc"] = self._mlfunc_data
-            self.parameters.xc = cider_functional_from_dict(xc)
-            if is_cider:
-                del self._mlfunc_data
-        GPAW.initialize(self, atoms, reading)
-
-
-def get_cider_functional(
-    mlfunc,
-    mlfunc_format=None,
-    slx="GGA_X_PBE",
-    slc="GGA_C_PBE",
-    xmix=0.25,
-    use_paw=True,
-    pasdw_ovlp_fit=True,
-    pasdw_store_funcs=False,
-    Nalpha=None,
-    qmax=300,
-    lambd=1.8,
-    debug=False,
-    no_paw_atom_kernel=False,
-    _force_nonlocal=False,
-):
-    """
-    Initialize a CIDER surrogate hybrid exchange function of the form
-    E_xc = E_x^sl * (1 - xmix) + E_c^sl + xmix * E_x^CIDER
-    where E_x^sl is given by the slx parameter, E_c^sl is given by the slc
-    parameter, and E_x^CIDER is the ML exchange energy contains in mlfunc.
-
-    NOTE: Do not use CIDER with ultrasoft pseudopotentials (PAW only).
-    At your own risk, you can use CIDER with norm-conserving pseudopotentials,
-    but correctness is not guaranteed because the nonlocal features will
-    not be correct due to the lack of core electrons.
-
-    NOTE: If the mlfunc is determined to be semi-local, all the
-    internal settings are ignored, and a simpler, more efficient
-    class is returned to evaluate the semi-local functional.
-
-    Args:
-        mlfunc (NormGPFunctional, str): An ML functional object or a str
-            corresponding to the file name of a yaml or joblib file
-            containing it.
-        mlfunc_format (str, None): 'joblib' or 'yaml', specifies the format
-            of mlfunc if it is a string corresponding to a file name.
-            If unspecified, infer from file extension and raise error
-            if file type cannot be determined.
-        slx (str, GGA_X_PBE): libxc code str for semi-local X functional
-        slc (str, GGA_C_PBE): libxc code str for semi-local C functional
-        xmix (float, 0.25): Mixing parameter for CIDER exchnange.
-        use_paw (bool, True): Whether to compute PAW corrections. This
-            should be True unless you plan to use norm-conserving
-            pseudopotentials (NCPPs). Note, the use of NCPPs is allowed
-            but not advised, as large errors might arise due to the use
-            of incorrect nonlocal features.
-
-    The following parameters are only used if use_paw is True. They
-    control internal behavior of the PASDW algorithm used to
-    evaluate the nonlocal density features in CIDER, but users might
-    want to set them to address numerical stability or memory/performance
-    tradeoff issues.
-
-    PASDW args:
-        pasdw_ovlp_fit (bool, True): Whether to use overlap fitting to
-            attempt to improve numerical precision of PASDW projections.
-            Default to True. Impact of this parameter should be minor.
-        pasdw_store_funcs (bool, False): Whether to store projector
-            functions used in the PASDW routine. Defaults to False
-            because this can be memory intensive, but if you have the
-            space, the computational cost of the atomic corrections
-            can be greatly reduced by setting to True.
-
-    The following additional arguments can be set but are considered
-    internal parameters and should usually be kept as their defaults,
-    which should be reasonable for most cases.
-
-    Internal args:
-        Nalpha (int, None):
-            Number of interpolation points for the nonlocal feature kernel.
-            If None, set automatically based on lambd, qmax, and qmin.
-        qmax (float, 300):
-            Maximum value of q to use for kernel interpolation on FFT grid.
-            Default should be fine for most cases.
-        * qmin (not currently a parameter, set automatically):
-            Mininum value of q to use for kernel interpolation.
-            Currently, qmin is set automatically based
-            on the minimum regularlized value of the kernel exponent.
-        lambd (float, 1.8):
-            Density of interpolation points. q_alpha=q_0 * lambd**alpha.
-            Smaller lambd is more expensive and more precise.
-
-    The following options are for debugging only. Do not set them unless
-    you want to test numerical stability issues, as the energies will
-    not be variational. Only supported for GGA-type functionals.
-
-    Debug args:
-        debug (bool, False): Use CIDER energy and semi-local XC potential.
-        no_paw_atom_kernel: Use CIDER energy and semi-local XC potential
-            for PAW corrections, and CIDER energy/potential on FFT grid.
-        _force_nonlocal (bool, False): Use nonlocal kernel even if nonlocal
-            features are not required. For debugging use.
-
-    Returns:
-        A _CiderBase object (specific class depends on the parameters
-        provided above, specifically on whether use_paw is True,
-        whether the functional is GGA or MGGA form, and whether the
-        functional is semi-local or nonlocal.)
-    """
-
-    if isinstance(mlfunc, str):
-        if mlfunc_format is None:
-            if mlfunc.endswith(".yaml"):
-                mlfunc_format = "yaml"
-            elif mlfunc.endswith(".joblib"):
-                mlfunc_format = "joblib"
-            else:
-                raise ValueError("Unsupported file format")
-        if mlfunc_format == "yaml":
-            mlfunc = NormGPFunctional.load(mlfunc)
-        elif mlfunc_format == "joblib":
-            mlfunc = joblib.load(mlfunc)
-        else:
-            raise ValueError("Unsupported file format")
-    if not isinstance(mlfunc, (NormGPFunctional, MappedFunctional)):
-        raise ValueError("mlfunc must be NormGPFunctional")
-
-    if mlfunc.desc_version == "b":
-        if mlfunc.feature_list.nfeat == 2 and not _force_nonlocal:
-            # functional is semi-local MGGA
-            cider_kernel = SLCiderMGGAHybridWrapper(mlfunc, xmix, slx, slc)
-            return SLCiderMGGA(cider_kernel)
-        if debug:
-            raise NotImplementedError
-        else:
-            cider_kernel = CiderMGGAHybridKernel(mlfunc, xmix, slx, slc)
-        if use_paw:
-            cls = CiderMGGAPASDW
-        else:
-            cls = CiderMGGA
-    elif mlfunc.desc_version == "d":
-        if mlfunc.feature_list.nfeat == 1 and not _force_nonlocal:
-            # functional is semi-local GGA
-            cider_kernel = SLCiderGGAHybridWrapper(mlfunc, xmix, slx, slc)
-            return SLCiderGGA(cider_kernel)
-        if debug:
-            cider_kernel = CiderGGAHybridKernelPBEPot(mlfunc, xmix, slx, slc)
-        else:
-            cider_kernel = CiderGGAHybridKernel(mlfunc, xmix, slx, slc)
-        if use_paw:
-            cls = CiderGGAPASDW
-        else:
-            cls = CiderGGA
-    else:
-        msg = "Only implemented for b and d version, found {}"
-        raise ValueError(msg.format(mlfunc.desc_version))
-
-    const_list = _get_const_list(mlfunc)
-    nexp = 4
-
-    if use_paw:
-        xc = cls(
-            cider_kernel,
-            nexp,
-            const_list,
-            Nalpha=Nalpha,
-            lambd=lambd,
-            encut=qmax,
-            pasdw_ovlp_fit=pasdw_ovlp_fit,
-            pasdw_store_funcs=pasdw_store_funcs,
-        )
-    else:
-        xc = cls(cider_kernel, nexp, const_list, Nalpha=Nalpha, lambd=lambd, encut=qmax)
-
-    if no_paw_atom_kernel:
-        if mlfunc.desc_version == "b":
-            raise NotImplementedError
-        xc.debug_kernel = CiderGGAHybridKernelPBEPot(mlfunc, xmix, slx, slc)
-
-    return xc
-
-
-def cider_functional_from_dict(d):
-    """
-    This is a function for reading CIDER functionals (and also
-    standard functionals using the DiffPAW approach) from a dictionary
-    that can be stored in a .gpw file. This is primarily a helper function
-    for internal use, as it just reads the functional type and calls
-    the from_dict() function of the respective class.
-
-    Args:
-        d: XC data
-
-    Returns:
-        XC Functional object for use in GPAW.
-    """
-    cider_type = d.pop("_cider_type")
-    if cider_type == "CiderGGAPASDW":
-        cls = CiderGGAPASDW
-        kcls = CiderGGAHybridKernel
-    elif cider_type == "CiderMGGAPASDW":
-        cls = CiderMGGAPASDW
-        kcls = CiderMGGAHybridKernel
-    elif cider_type == "CiderGGA":
-        cls = CiderGGA
-        kcls = CiderGGAHybridKernel
-    elif cider_type == "CiderMGGA":
-        cls = CiderMGGA
-        kcls = CiderMGGAHybridKernel
-    elif cider_type == "SLCiderGGA":
-        cls = SLCiderGGA
-        kcls = SLCiderGGAHybridWrapper
-    elif cider_type == "SLCiderMGGA":
-        cls = SLCiderMGGA
-        kcls = SLCiderMGGAHybridWrapper
-    elif cider_type == "DiffGGA":
-        cls = DiffGGA
-        kcls = None
-    elif cider_type == "DiffMGGA":
-        cls = DiffMGGA
-        kcls = None
-    else:
-        raise ValueError("Unsupported functional type")
-
-    if "Cider" in cider_type:
-        mlfunc_dict = yaml.load(d["mlfunc"], Loader=yaml.CLoader)
-        mlfunc = NormGPFunctional.from_dict(mlfunc_dict)
-        const_list = _get_const_list(mlfunc)
-        nexp = 4
-        # kernel_params should be xmix, slx, slc
-        cider_kernel = kcls(mlfunc, **(d["kernel_params"]))
-        if "SLCider" in cider_type:
-            xc = cls(cider_kernel)
-        else:
-            # xc_params should have Nalpha, lambd, encut.
-            # For PAW, it should also have pasdw_ovlp_fit, pasdw_store_funcs.
-            xc = cls(cider_kernel, nexp, const_list, **(d["xc_params"]))
-    else:
-        xc = cls(LibXC(d["name"]))
-
-    return xc
-
-
-def _get_const_list(mlfunc):
-    consts = np.array([0.00, mlfunc.a0, mlfunc.fac_mul, mlfunc.amin])
-    const_list = np.stack(
-        [0.5 * consts, 1.0 * consts, 2.0 * consts, consts * mlfunc.vvmul]
-    )
-    return const_list
 
 
 class _CiderPASDW_MPRoutines:
@@ -356,10 +50,12 @@ class _CiderPASDW_MPRoutines:
         return self.atomdist.to_work(self.dens.D_asp)
 
     def initialize_paw_kernel(self, cider_kernel_inp, Nalpha_atom, encut_atom):
+        if self._plan is None:
+            bas_exp_fit = np.ones(1)
+        else:
+            bas_exp_fit = self._plan.alphas
         self.paw_kernel = PASDWCiderKernel(
             cider_kernel_inp,
-            self.nexp,
-            self.consts,
             Nalpha_atom,
             self.lambd,
             encut_atom,
@@ -368,7 +64,7 @@ class _CiderPASDW_MPRoutines:
             self.Nalpha,
             self.cut_xcgrid,
             gd=self.gd,
-            bas_exp_fit=self.bas_exp,
+            bas_exp_fit=bas_exp_fit,
             is_mgga=(self.type == "MGGA"),
         )
         self.paw_kernel.initialize(
@@ -398,7 +94,6 @@ class _CiderPASDW_MPRoutines:
                 self.spos_ac[a],
                 self.setups[a].pasdw_setup,
                 rmax=self.setups[a].pasdw_setup.rcut_func,
-                order="C",
                 sphere=True,
                 ovlp_fit=self.pasdw_ovlp_fit,
                 store_funcs=self.pasdw_store_funcs,
@@ -410,7 +105,6 @@ class _CiderPASDW_MPRoutines:
                 self.spos_ac[a],
                 self.setups[a].paonly_setup,
                 rmax=self.setups[a].paonly_setup.rcut_func,
-                order="C",
                 sphere=True,
                 ovlp_fit=self.pasdw_ovlp_fit,
                 store_funcs=self.pasdw_store_funcs,
@@ -420,19 +114,21 @@ class _CiderPASDW_MPRoutines:
     def _setup_extra_buffers(self):
         self.Freal_sag = LDict()
         self.dedtheta_sag = LDict()
-        for s in range(self.nspin):
-            self.Freal_sag[s] = LDict()
-            self.dedtheta_sag[s] = LDict()
+        x = (len(self.alphas),)
+        inds = self.alphas
+        if self.gdfft is not None:
+            for s in range(self.nspin):
+                self.Freal_sag[s] = ADict(inds, self.gdfft.empty(n=x))
+                self.dedtheta_sag[s] = ADict(inds, self.gdfft.empty(n=x))
+        else:
+            for s in range(self.nspin):
+                self.Freal_sag[s] = None
+                self.dedtheta_sag[s] = None
         self.Freal_sag.lock()
         self.dedtheta_sag.lock()
-        for s in range(self.nspin):
-            for a in self.alphas:
-                self.Freal_sag[s][a] = self.gdfft.empty()
-                self.dedtheta_sag[s][a] = self.gdfft.empty()
-            self.Freal_sag[s].lock()
-            self.dedtheta_sag[s].lock()
 
     def initialize_more_things(self):
+        self._setup_plan()
         self.setups = self._hamiltonian.setups
         self.atomdist = self._hamiltonian.atomdist
         self.atom_partition = self.get_D_asp().partition
@@ -449,7 +145,7 @@ class _CiderPASDW_MPRoutines:
 
         if self.verbose:
             print("CIDER: density array size:", self.gd.get_size_of_global_array())
-            print("CIDER: zero-padded array size:", self.shape)
+            print("CIDER: zero-padded array size:", self._shape)
 
         cider_kernel_inp = (
             self.cider_kernel
@@ -458,12 +154,10 @@ class _CiderPASDW_MPRoutines:
         )
 
         self.initialize_paw_kernel(cider_kernel_inp, Nalpha_atom, encut_atom)
-
         self._setup_kgrid()
         self._setup_cd_xd_ranks()
         self._setup_6d_integral_buffer()
         self._setup_extra_buffers()
-
         self.par_cider.setup_atom_comm_data(self.atom_partition.rank_a, self.setups)
 
         if not (
@@ -511,7 +205,6 @@ class _CiderPASDW_MPRoutines:
         self._hamiltonian = hamiltonian
         self.timer = wfs.timer
         self.world = wfs.world
-        self.get_alphas()
         self.setups = None
         self.gdfft = None
         self.pwfft = None
@@ -548,14 +241,14 @@ class _CiderPASDW_MPRoutines:
             feat_g = self.gdfft.zeros(global_array=True)
             for a in self.aalist:
                 atom_slice = atom_slices[a]
-                funcs_gi = atom_slice.get_funcs()
+                funcs_ig = atom_slice.get_funcs()
                 coefs_bi = coefs_abi[a]
                 if atom_slice.sinv_pf is not None:
                     coefs_bi = coefs_bi.dot(atom_slice.sinv_pf.T)
-                fnlxc.pasdw_reduce_i(
+                pwutil.pasdw_reduce_i(
                     coefs_bi[0],
-                    funcs_gi,
-                    feat_g.T,
+                    funcs_ig,
+                    feat_g,
                     atom_slice.indset,
                 )
             self.gdfft.comm.sum(feat_g, root=0)
@@ -563,16 +256,16 @@ class _CiderPASDW_MPRoutines:
         elif len(self.aalist) == len(self.setups):  # For small systems w/o atom par
             for a in self.aalist:
                 atom_slice = atom_slices[a]
-                funcs_gi = atom_slice.get_funcs()
+                funcs_ig = atom_slice.get_funcs()
                 coefs_bi = coefs_abi[a]
                 if atom_slice.sinv_pf is not None:
                     coefs_bi = coefs_bi.dot(atom_slice.sinv_pf.T)
                 for ib, b in enumerate(self.alphas):
                     assert self.rbuf_ag[b].flags.c_contiguous
-                    fnlxc.pasdw_reduce_i(
+                    pwutil.pasdw_reduce_i(
                         coefs_bi[ib],
-                        funcs_gi,
-                        self.rbuf_ag[b].T,
+                        funcs_ig,
+                        self.rbuf_ag[b],
                         atom_slice.indset,
                     )
         else:
@@ -601,13 +294,13 @@ class _CiderPASDW_MPRoutines:
             feat_g = self.gdfft.collect(self.rbuf_ag[self.alphas[0]], broadcast=True)
             for a in self.aalist:
                 atom_slice = atom_slices[a]
-                funcs_gi = atom_slice.get_funcs()
-                ni = funcs_gi.shape[1]
+                funcs_ig = atom_slice.get_funcs()
+                ni = funcs_ig.shape[0]
                 coefs_bi = np.zeros((1, ni))
-                fnlxc.pasdw_reduce_g(
+                pwutil.pasdw_reduce_g(
                     coefs_bi[0],
-                    funcs_gi,
-                    feat_g.T,
+                    funcs_ig,
+                    feat_g,
                     atom_slice.indset,
                 )
                 coefs_bi *= self.gd.dv
@@ -617,14 +310,14 @@ class _CiderPASDW_MPRoutines:
         elif len(self.aalist) == len(self.setups):  # For small systems w/o atom par
             for a in self.aalist:
                 atom_slice = atom_slices[a]
-                funcs_gi = atom_slice.get_funcs()
-                ni = funcs_gi.shape[1]
+                funcs_ig = atom_slice.get_funcs()
+                ni = funcs_ig.shape[0]
                 coefs_bi = np.zeros((Nalpha_r, ni))
                 for ib, b in enumerate(self.alphas):
-                    fnlxc.pasdw_reduce_g(
+                    pwutil.pasdw_reduce_g(
                         coefs_bi[ib],
-                        funcs_gi,
-                        self.rbuf_ag[b].T,
+                        funcs_ig,
+                        self.rbuf_ag[b],
                         atom_slice.indset,
                     )
                 coefs_bi *= self.gd.dv
@@ -676,117 +369,119 @@ class _CiderPASDW_MPRoutines:
             feat_g = self.gdfft.collect(c_ag[self.alphas[0]], broadcast=True)
             for a in self.aalist:
                 atom_slice = atom_slices[a]
-                grads_vgi = atom_slice.get_grads()
-                ni = grads_vgi.shape[-1]
+                grads_vig = atom_slice.get_grads()
+                ni = grads_vig.shape[1]
                 coefs_bi = coefs_abi[a]
                 has_ofit = atom_slice.sinv_pf is not None
                 if stress or has_ofit:
-                    funcs_gi = atom_slice.get_funcs()
+                    funcs_ig = atom_slice.get_funcs()
                 if has_ofit:
                     coefs_bi = coefs_bi.dot(atom_slice.sinv_pf.T)
                     X_xii = atom_slice.get_ovlp_deriv(
-                        funcs_gi, grads_vgi, stress=stress
+                        funcs_ig, grads_vig, stress=stress
                     )
                     ft_xbi = np.einsum("bi,...ji->...bj", coefs_bi, X_xii)
-                    ft_xbg = np.einsum("...bi,gi->...bg", ft_xbi, funcs_gi)
+                    ft_xbg = np.einsum("...bi,gi->...bg", ft_xbi, funcs_ig)
                     ft_xbg *= self.gd.dv
                 # NOTE account for dv here
-                intb_vg = grads_vgi.dot(self.gd.dv * coefs_bi[0])
+                intb_vg = grads_vig.transpose(0, 2, 1).dot(self.gd.dv * coefs_bi[0])
                 if stress:
                     if aug:
                         tmp_i = np.zeros(ni)
-                        fnlxc.pasdw_reduce_g(
+                        pwutil.pasdw_reduce_g(
                             tmp_i,
-                            funcs_gi,
-                            feat_g.T,
+                            funcs_ig,
+                            feat_g,
                             atom_slice.indset,
                         )
                         P += self.gd.dv * tmp_i.dot(coefs_bi[0])
                     for v in range(3):
                         dx_g = atom_slice.rad_g * atom_slice.rhat_gv[:, v]
-                        fnlxc.pasdw_reduce_g(
+                        pwutil.pasdw_reduce_g(
                             stress_vv[v],
-                            (dx_g * intb_vg).T,
-                            feat_g.T,
+                            (dx_g * intb_vg),
+                            feat_g,
                             atom_slice.indset,
                         )
                         if has_ofit:
-                            fnlxc.pasdw_reduce_g(
+                            pwutil.pasdw_reduce_g(
                                 stress_vv[v],
-                                ft_xbg[v, :, 0].T,
-                                feat_g.T,
+                                ft_xbg[v, :, 0],
+                                feat_g,
                                 atom_slice.indset,
                             )
                 else:
-                    fnlxc.pasdw_reduce_g(
+                    pwutil.pasdw_reduce_g(
                         F_av[a],
-                        intb_vg.T,
-                        feat_g.T,
+                        intb_vg,
+                        feat_g,
                         atom_slice.indset,
                     )
                     if has_ofit:
-                        fnlxc.pasdw_reduce_g(
+                        pwutil.pasdw_reduce_g(
                             F_av[a],
-                            ft_xbg[:, 0].T,
-                            feat_g.T,
+                            ft_xbg[:, 0],
+                            feat_g,
                             atom_slice.indset,
                         )
         elif len(self.aalist) == len(self.setups):  # For small systems w/o atom par
             for a in self.aalist:
                 atom_slice = atom_slices[a]
-                grads_vgi = atom_slice.get_grads()
-                ni = grads_vgi.shape[-1]
+                grads_vig = atom_slice.get_grads()
+                ni = grads_vig.shape[1]
                 coefs_bi = coefs_abi[a]
                 has_ofit = atom_slice.sinv_pf is not None
                 if stress or has_ofit:
-                    funcs_gi = atom_slice.get_funcs()
+                    funcs_ig = atom_slice.get_funcs()
                 if has_ofit:
                     coefs_bi = coefs_bi.dot(atom_slice.sinv_pf.T)
                     X_xii = atom_slice.get_ovlp_deriv(
-                        funcs_gi, grads_vgi, stress=stress
+                        funcs_ig, grads_vig, stress=stress
                     )
                     ft_xbi = np.einsum("bi,...ji->...bj", coefs_bi, X_xii)
-                    ft_xbg = np.einsum("...bi,gi->...bg", ft_xbi, funcs_gi)
+                    ft_xbg = np.einsum("...bi,gi->...bg", ft_xbi, funcs_ig.T)
                     ft_xbg *= self.gd.dv
                 for ib, b in enumerate(self.alphas):
-                    intb_vg = grads_vgi.dot(self.gd.dv * coefs_bi[ib])
+                    intb_vg = grads_vig.transpose(0, 2, 1).dot(
+                        self.gd.dv * coefs_bi[ib]
+                    )
                     if stress:
                         if aug:
                             tmp_i = np.zeros(ni)
-                            fnlxc.pasdw_reduce_g(
+                            pwutil.pasdw_reduce_g(
                                 tmp_i,
-                                funcs_gi,
-                                c_ag[b].T,
+                                funcs_ig,
+                                c_ag[b],
                                 atom_slice.indset,
                             )
                             P += self.gd.dv * tmp_i.dot(coefs_bi[ib])
                         for v in range(3):
                             dx_g = atom_slice.rad_g * atom_slice.rhat_gv[:, v]
-                            fnlxc.pasdw_reduce_g(
+                            pwutil.pasdw_reduce_g(
                                 stress_vv[v],
-                                (dx_g * intb_vg).T,
-                                c_ag[b].T,
+                                (dx_g * intb_vg),
+                                c_ag[b],
                                 atom_slice.indset,
                             )
                             if has_ofit:
-                                fnlxc.pasdw_reduce_g(
+                                pwutil.pasdw_reduce_g(
                                     stress_vv[v],
-                                    ft_xbg[v, :, ib].T,
-                                    c_ag[b].T,
+                                    np.ascontiguousarray(ft_xbg[v, :, ib]),
+                                    c_ag[b],
                                     atom_slice.indset,
                                 )
                     else:
-                        fnlxc.pasdw_reduce_g(
+                        pwutil.pasdw_reduce_g(
                             F_av[a],
-                            intb_vg.T,
-                            c_ag[b].T,
+                            intb_vg,
+                            c_ag[b],
                             atom_slice.indset,
                         )
                         if has_ofit:
-                            fnlxc.pasdw_reduce_g(
+                            pwutil.pasdw_reduce_g(
                                 F_av[a],
-                                ft_xbg[:, ib].T,
-                                c_ag[b].T,
+                                np.ascontiguousarray(ft_xbg[:, ib]),
+                                c_ag[b],
                                 atom_slice.indset,
                             )
                         # inds = tuple((atom_slice.indset-1).astype(int).tolist())
@@ -843,21 +538,18 @@ class _CiderPASDW_MPRoutines:
 
         self.timer.start("initialization")
         nspin = nt_sg.shape[0]
-        nexp = self.nexp
         self.nspin = nspin
         if (self.setups is None) or (self.atom_slices is None):
             self.initialize_more_things()
-            self.construct_cubic_splines()
         setups = self.setups
         D_asp = self.get_D_asp()
         if not (D_asp.partition.rank_a == self.atom_partition.rank_a).all():
             raise ValueError("rank_a mismatch")
         self.timer.stop()
 
-        ascale, ascale_derivs = self.get_ascale_and_derivs(nt_sg, sigma_xg, tau_sg)
-        cider_nt_sg = self.domain_world2cider(nt_sg)
-        if cider_nt_sg is None:
-            cider_nt_sg = {s: None for s in range(nspin)}
+        cider_nt_sg, ascale, ascale_derivs = self._get_conv_terms(
+            nt_sg, sigma_xg, tau_sg
+        )
 
         self.timer.start("CIDER PAW")
         c_sabi, df_asbLg = self.paw_kernel.calculate_paw_feat_corrections(setups, D_asp)
@@ -871,18 +563,10 @@ class _CiderPASDW_MPRoutines:
         if compute_stress and nspin > 1:
             self.theta_sak_tmp = {s: {} for s in range(nspin)}
         for s in range(nspin):
-            (
-                feat[s],
-                dfeat[s],
-                p_iag[s],
-                q_ag[s],
-                dq_ag[s],
-                D_sabi[s],
-            ) = self.calculate_6d_integral_fwd(
-                cider_nt_sg[s],
-                ascale[s],
-                c_abi=c_sabi[s],
+            res = self.calculate_6d_integral_fwd(
+                cider_nt_sg[s], ascale[s], c_abi=c_sabi[s]
             )
+            feat[s], dfeat[s], p_iag[s], q_ag[s], dq_ag[s], D_sabi[s] = res
             for a in self.alphas:
                 self.Freal_sag[s][a][:] = self.rbuf_ag[a]
                 if compute_stress and nspin > 1:
@@ -906,7 +590,7 @@ class _CiderPASDW_MPRoutines:
             )
 
         vfeat[cond0] = 0
-        vexp = np.empty([nspin, nexp] + list(nt_sg[0].shape))
+        vexp = np.empty([nspin, self._plan.num_vj + 1] + list(nt_sg[0].shape))
         for s in range(nspin):
             vexp[s, :-1] = vfeat[s] * dfeat[s]
             vexp[s, -1] = 0.0
@@ -958,12 +642,10 @@ class CiderGGAPASDW(_CiderPASDW_MPRoutines, CiderGGA):
     or from_joblib.
     """
 
-    def __init__(self, cider_kernel, nexp, consts, **kwargs):
+    def __init__(self, cider_kernel, **kwargs):
         CiderGGA.__init__(
             self,
             cider_kernel,
-            nexp,
-            consts,
             **kwargs,
         )
         defaults_list = {
@@ -1023,14 +705,12 @@ class CiderGGAPASDW(_CiderPASDW_MPRoutines, CiderGGA):
     def from_mlfunc(
         cls,
         mlfunc,
-        slx="GGA_X_PBE",
-        slc="GGA_C_PBE",
+        xkernel="GGA_X_PBE",
+        ckernel="GGA_C_PBE",
         Nalpha=None,
         encut=80,
         lambd=1.85,
-        xmix=0.25,
-        debug=False,
-        no_paw_atom_kernel=False,
+        xmix=1.00,
         **kwargs
     ):
 
@@ -1039,41 +719,23 @@ class CiderGGAPASDW(_CiderPASDW_MPRoutines, CiderGGA):
                 "Only implemented for d version, found {}".format(mlfunc.desc_version)
             )
 
-        if debug:
-            cider_kernel = CiderGGAHybridKernelPBEPot(mlfunc, xmix, slx, slc)
-        else:
-            cider_kernel = CiderGGAHybridKernel(mlfunc, xmix, slx, slc)
-
-        consts = np.array([0.00, mlfunc.a0, mlfunc.fac_mul, mlfunc.amin])
-        const_list = np.stack(
-            [0.5 * consts, 1.0 * consts, 2.0 * consts, consts * mlfunc.vvmul]
-        )
-        nexp = 4
-
+        cider_kernel = CiderGGAHybridKernel(mlfunc, xmix, xkernel, ckernel)
         xc = cls(
             cider_kernel,
-            nexp,
-            const_list,
             Nalpha=Nalpha,
             lambd=lambd,
             encut=encut,
             xmix=xmix,
             **kwargs,
         )
-
-        if no_paw_atom_kernel:
-            xc.debug_kernel = CiderGGAHybridKernelPBEPot(mlfunc, xmix, slx, slc)
-
         return xc
 
 
 class CiderMGGAPASDW(_CiderPASDW_MPRoutines, CiderMGGA):
-    def __init__(self, cider_kernel, nexp, consts, **kwargs):
+    def __init__(self, cider_kernel, **kwargs):
         CiderMGGA.__init__(
             self,
             cider_kernel,
-            nexp,
-            consts,
             **kwargs,
         )
         defaults_list = {
@@ -1166,7 +828,6 @@ class CiderMGGAPASDW(_CiderPASDW_MPRoutines, CiderMGGA):
         self._hamiltonian = hamiltonian
         self.timer = wfs.timer
         self.world = wfs.world
-        self.get_alphas()
         self.setups = None
         self.atom_slices = None
         self.gdfft = None
@@ -1179,13 +840,12 @@ class CiderMGGAPASDW(_CiderPASDW_MPRoutines, CiderMGGA):
     def from_mlfunc(
         cls,
         mlfunc,
-        slx="GGA_X_PBE",
-        slc="GGA_C_PBE",
+        xkernel="GGA_X_PBE",
+        ckernel="GGA_C_PBE",
         Nalpha=None,
         encut=300,
         lambd=1.8,
-        xmix=0.25,
-        debug=False,
+        xmix=1.00,
         no_paw_atom_kernel=False,
         **kwargs
     ):
@@ -1195,21 +855,10 @@ class CiderMGGAPASDW(_CiderPASDW_MPRoutines, CiderMGGA):
                 "Only implemented for d version, found {}".format(mlfunc.desc_version)
             )
 
-        if debug:
-            raise NotImplementedError
-        else:
-            cider_kernel = CiderMGGAHybridKernel(mlfunc, xmix, slx, slc)
-
-        consts = np.array([0.00, mlfunc.a0, mlfunc.fac_mul, mlfunc.amin])
-        const_list = np.stack(
-            [0.5 * consts, 1.0 * consts, 2.0 * consts, consts * mlfunc.vvmul]
-        )
-        nexp = 4
+        cider_kernel = CiderMGGAHybridKernel(mlfunc, xmix, xkernel, ckernel)
 
         xc = cls(
             cider_kernel,
-            nexp,
-            const_list,
             Nalpha=Nalpha,
             lambd=lambd,
             encut=encut,
@@ -1274,7 +923,7 @@ class _SLCiderBase:
         }
 
     def get_mlfunc_data(self):
-        return yaml.dump(self.kernel.mlfunc.to_dict(), Dumper=yaml.CDumper)
+        return yaml.dump(self.kernel.mlfunc, Dumper=yaml.CDumper)
 
     @classmethod
     def from_joblib(cls, fname, **kwargs):
@@ -1282,12 +931,12 @@ class _SLCiderBase:
         return cls.from_mlfunc(mlfunc, **kwargs)
 
     @staticmethod
-    def from_mlfunc(mlfunc, xmix=0.25, slx="GGA_X_PBE", slc="GGA_C_PBE"):
+    def from_mlfunc(mlfunc, xmix=1.00, xkernel="GGA_X_PBE", ckernel="GGA_C_PBE"):
         if mlfunc.desc_version == "b":
-            cider_kernel = SLCiderMGGAHybridWrapper(mlfunc, xmix, slx, slc)
+            cider_kernel = SLCiderMGGAHybridWrapper(mlfunc, xmix, xkernel, ckernel)
             cls = SLCiderMGGA
         elif mlfunc.desc_version == "d":
-            cider_kernel = SLCiderGGAHybridWrapper(mlfunc, xmix, slx, slc)
+            cider_kernel = SLCiderGGAHybridWrapper(mlfunc, xmix, xkernel, ckernel)
             cls = SLCiderGGA
         else:
             raise ValueError(

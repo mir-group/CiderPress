@@ -26,7 +26,14 @@ from gpaw.pw.density import ReciprocalSpaceDensity
 from gpaw.sphere.lebedev import Y_nL, weight_n
 from gpaw.xc.gga import calculate_sigma
 
-from ciderpress.gpaw.atom_analysis_utils import (
+from ciderpress.dft.settings import (
+    FeatureSettings,
+    FracLaplSettings,
+    NLDFSettings,
+    SDMXBaseSettings,
+    SemilocalSettings,
+)
+from ciderpress.gpaw.atom_descriptor_utils import (
     calculate_paw_cider_features_p1,
     calculate_paw_cider_features_p2,
     calculate_paw_cider_features_p2_noderiv,
@@ -43,6 +50,139 @@ from ciderpress.gpaw.cider_paw import (
     CiderMGGAHybridKernel,
     CiderMGGAPASDW,
 )
+
+
+class XCShell:
+    def __init__(self, settings):
+        if isinstance(settings, SemilocalSettings):
+            self.settings = FeatureSettings(sl_settings=settings)
+        elif isinstance(settings, NLDFSettings):
+            if settings.sl_level == "MGGA":
+                sl_settings = SemilocalSettings("npa")
+            else:
+                sl_settings = SemilocalSettings("np")
+            self.settings = FeatureSettings(
+                sl_settings=sl_settings,
+                nldf_settings=settings,
+            )
+        elif isinstance(settings, FracLaplSettings):
+            self.settings = FeatureSettings(
+                sl_settings=SemilocalSettings("npa"),
+                nlof_settings=settings,
+            )
+        elif isinstance(settings, SDMXBaseSettings):
+            self.settings = FeatureSettings(
+                sl_settings=SemilocalSettings("npa"),
+                sdmx_settings=settings,
+            )
+        else:
+            raise ValueError("Unsupported settings")
+
+
+def get_features(
+    calc,
+    settings,
+    p_i=None,
+    use_paw=True,
+    screen_dens=True,
+    **kwargs,
+):
+    """
+    Compute grid weights, feature vectors, and (optionally)
+    feature vector derivatives with respect to orbital
+    occupation.
+
+    Args:
+        calc: a converged GPAW calculation
+        p_i (optional): A list of (s, k, n) indexes for orbitals
+            for which to differentiate features with respect to
+            occupation
+        use_paw (bool, True): Whether to use PAW corrections.
+        version (str, 'b'): Descriptor version b, d, or l.
+            l stands for local.
+
+    Returns:
+        if p_i is None:
+            weights, features
+        else:
+            weights, features, [list of feature derivatives]
+    """
+    if isinstance(settings, str):
+        if settings != "l":
+            raise ValueError("Settings must be Settings object or letter l")
+        kcls = CiderMGGAHybridKernel
+        cls = FeatSLPAW if use_paw else FeatSL
+        # TODO this part is messy/unncessary, should refactor to avoid
+        cider_kernel = kcls(
+            XCShell(SemilocalSettings("nst")), 0, "GGA_X_PBE", "GGA_C_PBE"
+        )
+    elif isinstance(settings, SemilocalSettings):
+        if settings.level == "MGGA":
+            kcls = CiderMGGAHybridKernel
+            cls = FeatSLPAW if use_paw else FeatSL
+        else:
+            kcls = CiderGGAHybridKernel
+            cls = FeatSLPAW if use_paw else FeatSL
+        # TODO this part is messy/unncessary, should refactor to avoid
+        cider_kernel = kcls(None, 0, "GGA_X_PBE", "GGA_C_PBE")
+    elif isinstance(settings, NLDFSettings):
+        if settings.sl_level == "MGGA":
+            kcls = CiderMGGAHybridKernel
+            cls = FeatMGGAPAW if use_paw else FeatMGGA
+        else:
+            kcls = CiderGGAHybridKernel
+            cls = FeatGGAPAW if use_paw else FeatGGA
+        cider_kernel = kcls(XCShell(settings), 0, "GGA_X_PBE", "GGA_C_PBE")
+    elif isinstance(settings, FracLaplSettings):
+        raise NotImplementedError(
+            "Fractional Laplacian-based orbital descriptors have not yet been implemented for GPAW."
+        )
+    elif isinstance(settings, SDMXBaseSettings):
+        raise NotImplementedError(
+            "SDMX descriptors have not yet been implemented for GPAW."
+        )
+    else:
+        raise ValueError("Unsupported settings")
+    # TOD clean this up a bit
+    kwargs["xmix"] = 0.0
+    kwargs["encut"] = kwargs.get("qmax") or kwargs.get("encut") or 300
+    kwargs["lambd"] = kwargs.get("lambd") or 1.8
+    empty_xc = cls(
+        cider_kernel,
+        pasdw_ovlp_fit=True,
+        pasdw_store_funcs=False,
+        **kwargs,
+    )
+    empty_xc.set_grid_descriptor(calc.density.finegd)
+    empty_xc.initialize(calc.density, calc.hamiltonian, calc.wfs)
+    empty_xc.set_positions(calc.spos_ac)
+    if calc.density.nt_sg is None:
+        calc.density.interpolate_pseudo_density()
+    if empty_xc.orbital_dependent:
+        calc.converge_wave_functions()
+    if p_i is None:
+        res = get_features_and_weights(calc, empty_xc, screen_dens=screen_dens)
+    else:
+        if use_paw:
+            DD_aop = get_empty_atomic_matrix(calc.density, len(p_i))
+            calculate_single_orbital_atomic_density_matrix(
+                calc.wfs, DD_aop, p_i, calc.density.ncomponents
+            )
+        else:
+            DD_aop = None
+        drhodf_ixR = get_drho_df(calc, p_i)
+        drhodf_ixg = interpolate_drhodf(
+            empty_xc.gd, empty_xc.distribute_and_interpolate, drhodf_ixR
+        )
+        res = get_features_and_weights_deriv(
+            calc,
+            empty_xc,
+            p_i,
+            drhodf_ixg,
+            DD_aop=DD_aop,
+            screen_dens=screen_dens,
+        )
+    return res
 
 
 def calc_fixed(bd, fref_sqn, f_qn):
@@ -75,6 +215,7 @@ def calculate_single_orbital_atomic_density_matrix(self, D_aop, p_o, nspin):
     """
     Get the atomic density matrices for the band given
     by index tuple p
+
     Args:
         self: GPAW Wavefunctions object
         D_asp: stores the single-orbital density matrix
@@ -104,12 +245,12 @@ def get_empty_atomic_matrix(dens, norb):
 class FixedGOccupationNumbers(FixedOccupationNumbers):
     """
     Same as FixedOccupationNumbers but with a perturb_occupation_
-    functionn for testing incremental occupation numbers.
+    function for testing incremental occupation numbers.
     """
 
     def perturb_occupation_(self, p, delta):
         """
-        Change the occupation number of a band at a k-point
+        Change the occupation number of a band at every k-point
         Args:
             p: (s, k, n) or (s, n). k is ignored
             delta: amount to change occupation number
@@ -139,7 +280,15 @@ class FixedKOccupationNumbers(OccupationNumberCalculator):
         self.f_skn = np.array(f_skn)
         self.weight_sk = weight_sk
 
-    def _calculate(self, nelectrons, eig_qn, weight_q, f_qn, fermi_level_guess=np.nan):
+    def _calculate(
+        self,
+        nelectrons,
+        eig_qn,
+        weight_q,
+        f_qn,
+        fermi_level_guess=np.nan,
+        fix_fermi_level=False,
+    ):
         calc_fixed(self.bd, self.f_skn[:, self.kpt_indices, :], f_qn)
 
         return np.inf, 0.0
@@ -334,11 +483,11 @@ def get_features_and_weights(calc, xc, screen_dens=True):
             all_wt = np.append(all_wt, wt, axis=-1)
 
     if not isinstance(xc, _SLFeatMixin):
-        ae_feat *= nspin
         # TODO make this safer
-        ae_feat[:, 1, :] /= nspin ** (5.0 / 3)
+        ae_feat[:, 0, :] *= nspin
+        ae_feat[:, 1, :] /= nspin ** (2.0 / 3)
         if ae_feat.shape[1] == 6:
-            ae_feat[:, 2, :] /= nspin ** (5.0 / 3)
+            ae_feat[:, 2, :] /= nspin ** (2.0 / 3)
     return ae_feat, all_wt
 
 
@@ -371,13 +520,13 @@ def get_features_and_weights_deriv(
             all_wt = np.append(all_wt, wt, axis=-1)
 
     if not isinstance(xc, _SLFeatMixin):
-        feat_sig *= nspin
-        feat_sig[:, 1, :] /= nspin ** (5.0 / 3)
-        dfeat_jig *= nspin
-        dfeat_jig[:, 1, :] /= nspin ** (5.0 / 3)
+        feat_sig[:, 0, :] *= nspin
+        dfeat_jig[:, 0, :] *= nspin
+        feat_sig[:, 1, :] /= nspin ** (2.0 / 3)
+        dfeat_jig[:, 1, :] /= nspin ** (2.0 / 3)
         if feat_sig.shape[1] == 6:
-            feat_sig[:, 2, :] /= nspin ** (5.0 / 3)
-            dfeat_jig[:, 2, :] /= nspin ** (5.0 / 3)
+            feat_sig[:, 2, :] /= nspin ** (2.0 / 3)
+            dfeat_jig[:, 2, :] /= nspin ** (2.0 / 3)
     return feat_sig, dfeat_jig, all_wt
 
 
@@ -429,13 +578,11 @@ def get_drho_df(calc, p_i):
 # noinspection PyUnresolvedReferences
 class _FeatureMixin:
     def get_features_on_grid(self, include_density=False):
-        self.nexp
         nt_sg = self.dens.nt_sg
         self.nspin = nt_sg.shape[0]
         self.gd
         if self.rbuf_ag is None:
             self.initialize_more_things()
-            self.construct_cubic_splines()
         sigma_xg, _ = calculate_sigma(self.gd, self.grad_v, nt_sg)
 
         if self.type == "MGGA":
@@ -455,10 +602,9 @@ class _FeatureMixin:
 
         nspin = nt_sg.shape[0]
         feat, dfeat, p_iag, q_ag, dq_ag = {}, {}, {}, {}, {}
-        cider_nt_sg = self.domain_world2cider(nt_sg)
-        if cider_nt_sg is None:
-            cider_nt_sg = {s: None for s in range(nspin)}
-        ascale, _ = self.get_ascale_and_derivs(nt_sg, sigma_xg, tau_sg)
+        cider_nt_sg, ascale, ascale_derivs = self._get_conv_terms(
+            nt_sg, sigma_xg, tau_sg
+        )
 
         if self.has_paw:
             c_sabi, df_asbLg = self.paw_kernel.calculate_paw_feat_corrections(
@@ -575,7 +721,6 @@ class _FeatureMixin:
     def calculate_6d_integral_deriv(
         self, n_g, dndf_g, dcider_exp, q_ag, dq_ag, p_iag, c_abi=None
     ):
-        nexp = self.nexp
 
         dascaledf_ig = self.domain_world2cider(dcider_exp)
 
@@ -598,12 +743,10 @@ class _FeatureMixin:
             self.timer.stop()
 
         if n_g is not None:
-            dfeatdf = np.zeros([nexp - 1] + list(n_g.shape))
-        for i in range(nexp - 1):
-            const = ((self.consts[i, 1] + self.consts[-1, 1]) / 2) ** 1.5
-            const = const + self.consts[i, 0] / (self.consts[i, 0] + const)
+            dfeatdf = np.zeros([self._plan.num_vj] + list(n_g.shape))
+        for i in range(self._plan.num_vj):
             for ind, a in enumerate(self.alphas):
-                dfeatdf[i, :] += const * p_iag[i, a] * self.rbuf_ag[a]
+                dfeatdf[i, :] += p_iag[i, a] * self.rbuf_ag[a]
 
         self.timer.start("6d comm fwd")
         if n_g is not None:
@@ -634,21 +777,18 @@ class _FeatureMixin:
                 Derivatives of the density (0), gradient (1,2,3),
                 and kinetic energy density (4) with respect to orbital
                 occupation number.
-            include_density: whether to return density or just
-                feature values
+            DD_aop (dict of numpy array): derivatives of atomic density
+                matrices with respect to orbital occupation.
 
         Returns:
 
         """
         include_density = True
-
-        self.nexp
         nt_sg = self.dens.nt_sg
         self.nspin = nt_sg.shape[0]
         self.gd
         if self.rbuf_ag is None:
             self.initialize_more_things()
-            self.construct_cubic_splines()
 
         if DD_aop is not None:
             DD_aop = self.atomdist.to_work(DD_aop)
@@ -681,13 +821,13 @@ class _FeatureMixin:
         nspin = nt_sg.shape[0]
         feat, dfeat, p_iag, q_ag, dq_ag = {}, {}, {}, {}, {}
         dfeatdf_jig = {}
-        cider_nt_sg = self.domain_world2cider(nt_sg)
         cider_drhodf_jg = self.domain_world2cider(drhodf_jg)
-        if cider_nt_sg is None:
-            cider_nt_sg = {s: None for s in range(nspin)}
+        # TODO need to account for conv func != rho
         if cider_drhodf_jg is None:
             cider_drhodf_jg = {j: None for j in range(nj)}
-        ascale, ascale_derivs = self.get_ascale_and_derivs(nt_sg, sigma_xg, tau_sg)
+        cider_nt_sg, ascale, ascale_derivs = self._get_conv_terms(
+            nt_sg, sigma_xg, tau_sg
+        )
         dascaledf_jig = np.empty((nj,) + ascale.shape[1:], dtype=ascale.dtype)
         for j in range(nj):
             s = p_j[j][0]
@@ -812,7 +952,6 @@ class _SLFeatMixin(_FeatureMixin):
         _, gradn_svg = calculate_sigma(self.gd, self.grad_v, nt_sg)
         if self.rbuf_ag is None:
             self.initialize_more_things()
-            self.construct_cubic_splines()
 
         taut_sG = self.wfs.calculate_kinetic_energy_density()
         if taut_sG is None:
@@ -838,7 +977,6 @@ class _SLFeatMixin(_FeatureMixin):
         _, gradn_svg = calculate_sigma(self.gd, self.grad_v, nt_sg)
         if self.rbuf_ag is None:
             self.initialize_more_things()
-            self.construct_cubic_splines()
 
         taut_sG = self.wfs.calculate_kinetic_energy_density()
         if taut_sG is None:
@@ -942,98 +1080,3 @@ def interpolate_drhodf(gd, interp, drhodf_ixR):
         for x in range(drhodf_ixR.shape[1]):
             interp(drhodf_ixR[i, x], drhodf_ixg[i, x])
     return drhodf_ixg
-
-
-def get_features(
-    calc,
-    p_i=None,
-    use_paw=True,
-    version="b",
-    a0=1.0,
-    fac_mul=0.03125,
-    vvmul=1.0,
-    amin=0.015625,
-    qmax=300,
-    lambd=1.8,
-    screen_dens=True,
-):
-    """
-    Compute grid weights, feature vectors, and (optionally)
-    feature vector derivatives with respect to orbital
-    occupation.
-
-    Args:
-        calc: a converged GPAW calculation
-        p_i (optional): A list of (s, k, n) indexes for orbitals
-            for which to differentiate features with respect to
-            occupation
-        use_paw (bool, True): Whether to use PAW corrections.
-        version (str, 'b'): Descriptor version b, d, or l.
-            l stands for local.
-
-    Returns:
-        if p_i is None:
-            weights, features
-        else:
-            weights, features, [list of feature derivatives]
-    """
-    from ciderpress.descriptors import XCShell
-
-    mlfunc = XCShell(version if version != "l" else "b", a0, fac_mul, amin, vvmul)
-    if version == "b":
-        kcls = CiderMGGAHybridKernel
-        cls = FeatMGGAPAW if use_paw else FeatMGGA
-    elif version == "d":
-        kcls = CiderGGAHybridKernel
-        cls = FeatGGAPAW if use_paw else FeatGGA
-    elif version == "l":
-        kcls = CiderMGGAHybridKernel
-        cls = FeatSLPAW if use_paw else FeatSL
-    else:
-        raise ValueError("Version not supported.")
-    cider_kernel = kcls(mlfunc, 0, "GGA_X_PBE", "GGA_C_PBE")
-    consts = np.array([0.00, mlfunc.a0, mlfunc.fac_mul, mlfunc.amin])
-    const_list = np.stack(
-        [0.5 * consts, 1.0 * consts, 2.0 * consts, consts * mlfunc.vvmul]
-    )
-    nexp = 4
-    empty_xc = cls(
-        cider_kernel,
-        nexp,
-        const_list,
-        Nalpha=None,
-        lambd=lambd,
-        encut=qmax,
-        xmix=0.0,
-        pasdw_ovlp_fit=True,
-        pasdw_store_funcs=False,
-    )
-    empty_xc.set_grid_descriptor(calc.density.finegd)
-    empty_xc.initialize(calc.density, calc.hamiltonian, calc.wfs)
-    empty_xc.set_positions(calc.spos_ac)
-    if calc.density.nt_sg is None:
-        calc.density.interpolate_pseudo_density()
-    if empty_xc.orbital_dependent:
-        calc.converge_wave_functions()
-    if p_i is None:
-        return get_features_and_weights(calc, empty_xc, screen_dens=screen_dens)
-    else:
-        if use_paw:
-            DD_aop = get_empty_atomic_matrix(calc.density, len(p_i))
-            calculate_single_orbital_atomic_density_matrix(
-                calc.wfs, DD_aop, p_i, calc.density.ncomponents
-            )
-        else:
-            DD_aop = None
-        drhodf_ixR = get_drho_df(calc, p_i)
-        drhodf_ixg = interpolate_drhodf(
-            empty_xc.gd, empty_xc.distribute_and_interpolate, drhodf_ixR
-        )
-        return get_features_and_weights_deriv(
-            calc,
-            empty_xc,
-            p_i,
-            drhodf_ixg,
-            DD_aop=DD_aop,
-            screen_dens=screen_dens,
-        )

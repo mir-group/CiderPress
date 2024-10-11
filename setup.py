@@ -1,29 +1,47 @@
 import os
 import sys
+import sysconfig
 
-from numpy.distutils.command.build import build
-from numpy.distutils.command.build_ext import build_ext
-from numpy.distutils.core import Extension as NPExtension
-from numpy.distutils.core import setup
-from setuptools import find_packages
+from setuptools import find_packages, setup
+from setuptools.command.build_py import build_py
 
-fext_dir = "ciderpress/lib/gpaw_utils_src"
-fsources = ["gpaw_utils.f90", "fast_sph_harm.f90"]
-fext = NPExtension(
-    name="ciderpress.dft.futil",
-    sources=[os.path.join(fext_dir, fsrc) for fsrc in fsources],
-    f2py_options=["--quiet"],
-)
+# TODO not using wheel yet, but plan to do so eventually
+from wheel.bdist_wheel import bdist_wheel
 
 
-class CMakeBuildExt(build_ext):
+def get_version():
+    topdir = os.path.abspath(os.path.join(__file__, ".."))
+    with open(os.path.join(topdir, "ciderpress", "__init__.py"), "r") as f:
+        for line in f.readlines():
+            if line.startswith("__version__"):
+                delim = '"' if '"' in line else "'"
+                return line.split(delim)[1]
+    raise ValueError("Version string not found")
+
+
+VERSION = get_version()
+
+
+def get_platform():
+    from sysconfig import get_platform
+
+    platform = get_platform()
+    # TODO might want to add darwin OSX support like PySCF
+    # but only after officially adding OSX support
+    return platform
+
+
+class CMakeBuildPy(build_py):
     def run(self):
-        super(CMakeBuildExt, self).run()
-        self.build_cmake(None)
+        self.plat_name = get_platform()
+        self.build_base = "build"
+        self.build_lib = os.path.join(self.build_base, "lib")
+        self.build_temp = os.path.join(self.build_base, f"temp.{self.plat_name}")
 
-    def build_cmake(self, extension):
         self.announce("Configuring extensions", level=3)
         src_dir = os.path.abspath(os.path.join(__file__, "..", "ciderpress", "lib"))
+        python_libdir = sysconfig.get_config_var("LIBDIR")
+        python_incdir = sysconfig.get_config_var("INCLUDEPY")
         cmd = [
             "cmake",
             f"-S{src_dir}",
@@ -31,6 +49,8 @@ class CMakeBuildExt(build_ext):
             "-DCMAKE_PREFIX_PATH={}".format(sys.base_prefix),
             "-DBLA_VENDOR=Intel10_64lp_seq",
             "-DCMAKE_BUILD_TYPE=Release",
+            "-DCMAKE_PYTHON_LIBRARY_PATH={}".format(python_libdir),
+            "-DCMAKE_PYTHON_INCLUDE_PATH={}".format(python_incdir),
         ]
         configure_args = os.getenv("CMAKE_CONFIGURE_ARGS")
         if configure_args:
@@ -46,35 +66,41 @@ class CMakeBuildExt(build_ext):
             self.announce(" ".join(cmd))
         else:
             self.spawn(cmd)
-
-    def get_ext_filename(self, ext_name):
-        if "ciderpress.lib" in ext_name:
-            ext_path = ext_name.split(".")
-            filename = build_ext.get_ext_filename(self, ext_name)
-            name, ext_suffix = os.path.splitext(filename)
-            return os.path.join(*ext_path) + ext_suffix
-        else:
-            return super(CMakeBuildExt, self).get_ext_filename(ext_name)
+        self.editable_mode = False
+        super().run()
 
 
-build.sub_commands = [c for c in build.sub_commands if c[0] == "build_ext"] + [
-    c for c in build.sub_commands if c[0] != "build_ext"
-]
+# NOTE note trying to support wheal yet, but including
+# these code block from PySCF setup.py for future.
+initialize_options_1 = bdist_wheel.initialize_options
 
-# TODO: need to add gpaw>=22.8.1b1 to reqs at some point
-with open("requirements.txt", "r") as f:
-    requirements = [l.strip() for l in f.readlines()]
 
-description = """CiderPress is a package for running DFT calculations
-with CIDER functionals in the GPAW and PySCF codes."""
+def initialize_with_default_plat_name(self):
+    initialize_options_1(self)
+    self.plat_name = get_platform()
+    self.plat_name_supplied = True
+
+
+bdist_wheel.initialize_options = initialize_with_default_plat_name
+
+# from PySCF setup.py
+try:
+    from setuptools.command.bdist_wheel import bdist_wheel
+
+    initialize_options_2 = bdist_wheel.initialize_options
+
+    def initialize_with_default_plat_name(self):
+        initialize_options_2(self)
+        self.plat_name = get_platform()
+        self.plat_name_supplied = True
+
+    bdist_wheel.initialize_options = initialize_with_default_plat_name
+except ImportError:
+    pass
 
 setup(
-    name="ciderpress",
-    description=description,
-    version="0.0.10",
+    version=VERSION,
+    include_package_data=True,
     packages=find_packages(exclude=["*test*", "*examples*"]),
-    ext_modules=[fext],
-    cmdclass={"build_ext": CMakeBuildExt},
-    setup_requires=["numpy"],
-    install_requires=requirements,
+    cmdclass={"build_py": CMakeBuildPy},
 )

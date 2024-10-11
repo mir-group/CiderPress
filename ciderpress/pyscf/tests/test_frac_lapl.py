@@ -23,6 +23,7 @@ import time
 import unittest
 
 import numpy as np
+import pyscf.dft.radi
 from numpy.testing import assert_allclose
 from pyscf import dft, gto, lib
 from pyscf.dft.gen_grid import Grids
@@ -48,6 +49,9 @@ from ciderpress.pyscf.tests.utils_for_test import (
     get_scaled_mol,
     rotate_molecule,
 )
+
+# This is for backward consistency
+pyscf.dft.radi.ATOM_SPECIFIC_TREUTLER_GRIDS = False
 
 
 def get_e_and_v(feat):
@@ -136,6 +140,10 @@ class TestFracLapl(unittest.TestCase):
         numint2 = FLNumInt(plan2)
         cls.mol = mol
         cls.numint2 = numint2
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.mol.stdout.close()
 
     def test_frac_lapl_deriv(self):
         x = np.linspace(0.001, 600, 1000000)

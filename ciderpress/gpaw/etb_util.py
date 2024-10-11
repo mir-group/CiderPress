@@ -23,10 +23,10 @@ from pyscf import gto
 from scipy.linalg import cholesky
 from scipy.linalg.lapack import dtrtri
 
-from ciderpress.dft.cider_conv import aug_etb_for_cider
 from ciderpress.dft.sphere_util import gauss_fft, gauss_real
 from ciderpress.gpaw.fit_paw_gauss_pot import get_dv
 from ciderpress.gpaw.gpaw_grids import SBTFullGridDescriptor
+from ciderpress.pyscf.nldf_convolutions import aug_etb_for_cider
 
 
 class ETBProjector:
@@ -34,9 +34,10 @@ class ETBProjector:
         Z = int(Z)
         spin = 0 if Z % 2 == 0 else 1
         tmp_mol = gto.M(atom=str(Z), basis="ano-rcc", spin=spin)
-        basis = aug_etb_for_cider(tmp_mol, beta=beta, upper_fac=5.0, lmax=10)[0]
+        basis = aug_etb_for_cider(
+            tmp_mol, beta=beta, upper_fac=10, lower_fac=0.25, lmax=5
+        )
         basis = list(basis.values())[0]
-        # print(basis)
         expnt_dict = {}
         coeff_dict = {}
         self.bas_l_jg = {}
@@ -79,10 +80,6 @@ class ETBProjector:
                 # bas_jk = solve_triangular(L, gauss_jk, lower=True, trans=0)
                 bas_jk = Linv.dot(gauss_jk)
                 self.bas_l_jk[l] = bas_jk
-                2 / np.pi * np.einsum(
-                    "ig,jg,g->ij", bas_jk, bas_jk, kgd.k_g**2 * kgd.dk_g
-                )
-                # print('K', np.linalg.norm(normk-np.identity(normk.shape[0])))
         self.rgd = rgd
         self.kgd = kgd
         self.expnt_dict = expnt_dict

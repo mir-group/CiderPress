@@ -18,12 +18,10 @@
 # Author: Kyle Bystrom <kylebystrom@gmail.com>
 #
 
-import joblib
-import yaml
 from pyscf import lib
 from pyscf.dft.gen_grid import Grids
 
-from ciderpress.dft.xc_evaluator import MappedXC
+from ciderpress.dft.model_utils import get_slxc_settings, load_cider_model
 from ciderpress.pyscf.gen_cider_grid import CiderGrids
 from ciderpress.pyscf.nldf_convolutions import PySCFNLDFInitializer
 from ciderpress.pyscf.numint import CiderNumInt, NLDFNLOFNumInt, NLDFNumInt, NLOFNumInt
@@ -90,40 +88,6 @@ def make_cider_calc(
         nlc_coeff=nlc_coeff,
     )
     return lib.set_class(new_ks, (_CiderKS, ks.__class__))
-
-
-def load_cider_model(mlfunc, mlfunc_format):
-    if isinstance(mlfunc, str):
-        if mlfunc_format is None:
-            if mlfunc.endswith(".yaml"):
-                mlfunc_format = "yaml"
-            elif mlfunc.endswith(".joblib"):
-                mlfunc_format = "joblib"
-            else:
-                raise ValueError("Unsupported file format")
-        if mlfunc_format == "yaml":
-            with open(mlfunc, "r") as f:
-                mlfunc = yaml.load(f, Loader=yaml.CLoader)
-        elif mlfunc_format == "joblib":
-            mlfunc = joblib.load(mlfunc)
-        else:
-            raise ValueError("Unsupported file format")
-    if not isinstance(mlfunc, MappedXC):
-        raise ValueError("mlfunc must be MappedXC")
-    return mlfunc
-
-
-def get_slxc_settings(xc, xkernel, ckernel, xmix):
-    if xc is None:
-        # xc is another way to specify non-mixed part of kernel
-        xc = ""
-    if ckernel is not None:
-        xc = ckernel + " + " + xc
-    if xkernel is not None:
-        xc = "{} * {} + {}".format(1 - xmix, xkernel, xc)
-    if xc.endswith(" + "):
-        xc = xc[:-3]
-    return xc
 
 
 class _CiderKS:
@@ -219,7 +183,34 @@ class _CiderKS:
     def method_not_implemented(self, *args, **kwargs):
         raise NotImplementedError
 
-    nuc_grad_method = Gradients = method_not_implemented
+    def density_fit(self, auxbasis=None, with_df=None, only_dfj=False):
+        new_self = super().density_fit(
+            auxbasis=auxbasis, with_df=with_df, only_dfj=only_dfj
+        )
+        lib.set_class(new_self, (_CiderDF, new_self.__class__))
+        return new_self
+
+    def nuc_grad_method(self):
+        from pyscf import dft
+
+        has_df = hasattr(self, "with_df") and self.with_df is not None
+        if isinstance(self, dft.rks.RKS):
+            from ciderpress.pyscf import rks_grad
+
+            if has_df:
+                return rks_grad.DFGradients(self)
+            else:
+                return rks_grad.Gradients(self)
+        elif isinstance(self, dft.uks.UKS):
+            from ciderpress.pyscf import uks_grad
+
+            if has_df:
+                return uks_grad.DFGradients(self)
+            else:
+                return uks_grad.Gradients(self)
+
+    Gradients = nuc_grad_method
+
     Hessian = method_not_implemented
     NMR = method_not_implemented
     NSR = method_not_implemented
@@ -230,3 +221,7 @@ class _CiderKS:
     CCSD = method_not_implemented
     CASCI = method_not_implemented
     CASSCF = method_not_implemented
+
+
+class _CiderDF:
+    nuc_grad_method = _CiderKS.nuc_grad_method

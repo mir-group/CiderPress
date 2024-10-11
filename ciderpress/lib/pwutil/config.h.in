@@ -1,0 +1,6 @@
+#ifndef CIDERPW_CONFIG_H
+#define CIDERPW_CONFIG_H
+
+#cmakedefine01 HAVE_MPI
+
+#endif

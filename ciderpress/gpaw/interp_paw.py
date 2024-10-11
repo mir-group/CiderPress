@@ -20,7 +20,7 @@
 
 import numpy as np
 from gpaw.atom.radialgd import AERadialGridDescriptor
-from gpaw.sphere.lebedev import Y_nL, weight_n
+from gpaw.sphere.lebedev import R_nv, Y_nL, weight_n
 from gpaw.xc.gga import GGA, radial_gga_vars
 from gpaw.xc.kernel import XCKernel
 from gpaw.xc.mgga import MGGA
@@ -94,10 +94,12 @@ class DiffPAWXCCorrection:
         d_qg,
         dt_qg,
         e_xc0,
+        Lmax,
         tau_npg=None,
         taut_npg=None,
         tauc_g=None,
         tauct_g=None,
+        ke_order_ng=True,
     ):
         self.rgd = rgd
         self.nc_g = nc_g
@@ -112,6 +114,7 @@ class DiffPAWXCCorrection:
         self.d_qg = d_qg
         self.dt_qg = dt_qg
         self.e_xc0 = e_xc0
+        self.Lmax = Lmax
         self.tau_npg = tau_npg
         self.taut_npg = taut_npg
         self.tauc_g = tauc_g
@@ -119,15 +122,25 @@ class DiffPAWXCCorrection:
         self.Y_nL = Y_nL
         if self.tau_npg is not None:
             NP = self.tau_npg.shape[1]
-            self.tau_pg = np.ascontiguousarray(
-                self.tau_npg.transpose(1, 0, 2).reshape(NP, -1)
-            )
-            self.taut_pg = np.ascontiguousarray(
-                self.taut_npg.transpose(1, 0, 2).reshape(NP, -1)
-            )
+            if ke_order_ng:
+                # radial coordinate is last index
+                self.tau_pg = np.ascontiguousarray(
+                    self.tau_npg.transpose(1, 0, 2).reshape(NP, -1)
+                )
+                self.taut_pg = np.ascontiguousarray(
+                    self.taut_npg.transpose(1, 0, 2).reshape(NP, -1)
+                )
+            else:
+                # angular coordinate is last index
+                self.tau_pg = np.ascontiguousarray(
+                    self.tau_npg.transpose(1, 2, 0).reshape(NP, -1)
+                )
+                self.taut_pg = np.ascontiguousarray(
+                    self.taut_npg.transpose(1, 2, 0).reshape(NP, -1)
+                )
 
     @classmethod
-    def from_setup(cls, setup, build_kinetic=False):
+    def from_setup(cls, setup, build_kinetic=False, ke_order_ng=True):
 
         if hasattr(setup, "old_xc_correction"):
             xcc = setup.old_xc_correction
@@ -202,10 +215,12 @@ class DiffPAWXCCorrection:
             np.array([_interpc(n_g) for n_g in d_qg]),
             np.array([_interpc(nt_g) for nt_g in dt_qg]),
             xcc.e_xc0,
+            xcc.Lmax,
             tau_npg,
             taut_npg,
             _interpc(core_dens["tauc_g"]),
             _interpc(core_dens["tauct_g"]),
+            ke_order_ng=ke_order_ng,
         )
 
 
@@ -370,12 +385,13 @@ def calculate_cider_paw_correction(
     addcoredensity=True,
     a=None,
     separate_ae_ps=False,
+    has_cider_contribs=True,
 ):
     xcc = setup.xc_correction
     rgd = xcc.rgd
     nspins = len(D_sp)
 
-    if expansion.rcalc.mode != "semilocal":
+    if has_cider_contribs and expansion.rcalc.mode != "semilocal":
         setup.cider_contribs.set_D_sp(D_sp, setup.xc_correction)
 
     if addcoredensity:
@@ -408,9 +424,9 @@ def calculate_cider_paw_correction(
             return res, rest
         else:
             return res - rest
-    elif expansion.rcalc.mode.startswith("debug"):
+    elif expansion.rcalc.mode == "debug_nosph":
         return res, rest
-    elif expansion.rcalc.mode == "energy":
+    elif expansion.rcalc.mode in ["energy", "energy_v2"]:
         e, dEdD_sqL, x_sbgL = res
         et, dEtdD_sqL, xt_sbgL = rest
 
@@ -455,7 +471,11 @@ def calculate_cider_paw_correction(
         else:
             return e - et
     else:
-        raise ValueError("Unsupported mode for CIDER PAW correction.")
+        raise ValueError(
+            "Unsupported mode for CIDER PAW correction: {}.".format(
+                expansion.rcalc.mode
+            )
+        )
 
 
 class CiderRadialExpansion:
@@ -479,9 +499,9 @@ class CiderRadialExpansion:
         assert self.rcalc.mode in [
             "feature",
             "energy",
+            "energy_v2",
             "potential",
             "semilocal",
-            "debug",
             "debug_nosph",
         ]
 
@@ -508,7 +528,7 @@ class CiderRadialExpansion:
                 * np.pi
                 * np.einsum("sbng,nL->sbgL", wx_sbng, weight_n[:, None] * Y_nL)
             )
-        elif self.rcalc.mode.startswith("debug"):
+        elif self.rcalc.mode == "debug_nosph":
             if self.F_sbg is None:
                 feat_xg = self.rcalc(
                     rgd, n_sLg, Y_nL[:, :Lmax], dndr_sLg, rnablaY_nLv[:, :Lmax], ae=ae
@@ -527,15 +547,9 @@ class CiderRadialExpansion:
             shape = feat_xg.shape[:-1]
             shape = shape + (Y_nL.shape[0], -1)
             feat_xng = feat_xg.reshape(*shape)
-            if self.rcalc.mode == "debug_nosph":
-                return feat_xng
-            else:
-                return (
-                    4
-                    * np.pi
-                    * np.einsum("...ng,nL->...gL", feat_xng, weight_n[:, None] * Y_nL)
-                )
-
+            return feat_xng
+        elif self.rcalc.mode == "feat_grid":
+            pass
         elif self.rcalc.mode == "semilocal":
             E = 0.0
             for n, Y_L in enumerate(Y_nL[:, :Lmax]):
@@ -617,6 +631,49 @@ class CiderRadialExpansion:
             )
 
             return dEdD_sqL
+
+        elif self.rcalc.mode == "energy_v2":
+            e_g, dedn_sg, dedgrad_svg, v_sbg = self.rcalc(
+                rgd,
+                n_sLg,
+                Y_nL[:, :Lmax],
+                dndr_sLg,
+                rnablaY_nLv[:, :Lmax],
+                self.F_sbg,
+                self.y_sbg,
+                ae=ae,
+            )
+            nb = v_sbg.shape[1]
+            nn = Y_nL.shape[0]
+
+            dedn_sng = dedn_sg.reshape(nspins, nn, -1)
+            dedgrad_svng = dedgrad_svg.reshape(nspins, 3, nn, -1)
+            # b_vsng = b_vsg.reshape(3, nspins, nn, -1)
+            # a_sng = a_sg.reshape(nspins, nn, -1)
+
+            dedgrad_sng = np.einsum("svng,nv->sng", dedgrad_svng, R_nv)
+            # va_sLg = np.einsum("sng,nL->sLg", va_sng, weight_n[:, None] * Y_nL[:, :Lmax])
+            dEdD_snq = np.dot(rgd.dv_g * dedn_sng, n_qg.T)
+            dEdD_snq += np.dot(rgd.dv_g * dedgrad_sng, dndr_qg.T)
+            # dEdD_sqL = np.einsum("sLg,qg->sqL", va_sLg, dndr_qg)
+            dEdD_sqL = np.einsum(
+                "snq,nL->sqL", dEdD_snq, weight_n[:, None] * Y_nL[:, :Lmax]
+            )
+
+            B_svnq = np.dot(dedgrad_svng * rgd.dr_g * rgd.r_g, n_qg.T)
+            dEdD_sqL += np.einsum(
+                "nLv,svnq->sqL",
+                (4 * np.pi) * weight_n[:, None, None] * rnablaY_nLv[:, :Lmax],
+                B_svnq,
+            )
+
+            E = weight_n.dot(rgd.integrate(e_g.reshape(nn, -1)))
+            v_sbgL = np.einsum(
+                "sbng,nL->sbgL",
+                v_sbg.reshape(nspins, nb, nn, -1),
+                weight_n[:, None] * Y_nL,
+            )
+            return E, dEdD_sqL, 4 * np.pi * v_sbgL
 
         else:
             mode = self.rcalc.mode
@@ -717,6 +774,27 @@ def vec_radial_gga_vars(rgd, n_sLg, Y_nL, dndr_sLg, rnablaY_nLv):
     return e_g, n_sg, dedn_sg, sigma_xg, dedsigma_xg, a_sg, b_vsg
 
 
+def vec_radial_gga_vars_v2(rgd, n_sLg, Y_nL, dndr_sLg, rnablaY_nLv):
+    nspins = len(n_sLg)
+
+    n_sg = np.dot(Y_nL, n_sLg).transpose(1, 0, 2).reshape(nspins, -1)
+
+    b_vsng = np.dot(rnablaY_nLv.transpose(0, 2, 1), n_sLg).transpose(1, 2, 0, 3)
+    b_vsng[..., 1:] /= rgd.r_g[1:]
+    b_vsng[..., 0] = b_vsng[..., 1]
+
+    a_sng = np.dot(Y_nL, dndr_sLg).transpose(1, 0, 2)
+    b_vsng += R_nv.T[:, None, :, None] * a_sng[None, :, :]
+    N = Y_nL.shape[0]
+
+    e_g = rgd.empty(N).reshape(-1)
+    e_g[:] = 0
+    dedn_sg = rgd.zeros((nspins, N)).reshape(nspins, -1)
+    dedgrad_svg = rgd.zeros((nspins, 3, N)).reshape(nspins, 3, -1)
+    grad_svg = b_vsng.transpose(1, 0, 2, 3).reshape(nspins, 3, -1)
+    return e_g, n_sg, dedn_sg, grad_svg, dedgrad_svg
+
+
 class CiderRadialFeatureCalculator:
     def __init__(self, xc):
         self.xc = xc
@@ -727,39 +805,6 @@ class CiderRadialFeatureCalculator:
             rgd, n_sLg, Y_nL, dndr_sLg, rnablaY_nLv
         )
         return self.xc.get_paw_atom_contribs(n_sg, sigma_xg, ae=ae)[0]
-
-
-class CiderDebugFeatureCalculator:
-    def __init__(self, xc, include_density=False):
-        self.xc = xc
-        self.mode = "debug"
-        self.include_density = include_density
-
-    def __call__(
-        self, rgd, n_sLg, Y_L, dndr_sLg, rnablaY_Lv, F_sbg=None, y_sbg=None, ae=True
-    ):
-        (e_g, n_sg, dedn_sg, sigma_xg, dedsigma_xg, a_sg, b_vsg) = vec_radial_gga_vars(
-            rgd,
-            n_sLg,
-            Y_nL[:, : n_sLg.shape[1]],
-            dndr_sLg,
-            rnablaY_nLv[:, : n_sLg.shape[1]],
-        )
-        return self.xc.get_paw_atom_feat(
-            n_sg, sigma_xg, y_sbg, F_sbg, ae, self.include_density
-        )
-
-
-class CiderDebugDensityCalculator:
-    def __init__(self, xc):
-        self.xc = xc
-        self.mode = "debug"
-
-    def __call__(self, rgd, n_sLg, Y_L, dndr_sLg, rnablaY_Lv, ae=True):
-        (e_g, n_sg, dedn_sg, sigma_xg, dedsigma_xg, a_sg, b_vsg) = vec_radial_gga_vars(
-            rgd, n_sLg, Y_nL, dndr_sLg, rnablaY_nLv
-        )
-        return n_sg
 
 
 class DiffSLRadialCalculator:
@@ -798,6 +843,22 @@ class CiderRadialEnergyCalculator:
             )
 
             return dedn_sg, b_vsg, a_sg, dedsigma_xg
+
+
+class CiderRadialEnergyCalculator2:
+    def __init__(self, xc, a=None):
+        self.mode = "energy_v2"
+        self.xc = xc
+        self.a = a
+
+    def __call__(self, rgd, n_sLg, Y_nL, dndr_sLg, rnablaY_nLv, F_sbg, y_sbg, ae=True):
+        (e_g, n_sg, dedn_sg, grad_svg, dedgrad_svg) = vec_radial_gga_vars_v2(
+            rgd, n_sLg, Y_nL, dndr_sLg, rnablaY_nLv
+        )
+        v_sag = self.xc.get_paw_atom_evxc_v2(
+            e_g, n_sg, dedn_sg, grad_svg, dedgrad_svg, y_sbg, F_sbg, self.a, ae
+        )
+        return e_g, dedn_sg, dedgrad_svg, v_sag
 
 
 class DiffGGA(GGA):
@@ -886,6 +947,18 @@ class DiffMGGA(MGGA):
                 self.mgga.mgga_radial(e_g, n_sg, v_sg, sigma_xg, dedsigma_xg)
 
         return DiffSLRadialCalculator(MockKernel(self))
+
+
+class DiffMGGA2(DiffMGGA):
+    def initialize(self, density, hamiltonian, wfs):
+        super(DiffMGGA, self).initialize(density, hamiltonian, wfs)
+        for setup in density.setups:
+            if setup.xc_correction is None:
+                raise NotImplementedError("SL MGGA not supported with NCPP")
+            if not isinstance(setup.xc_correction, DiffPAWXCCorrection):
+                setup.xc_correction = DiffPAWXCCorrection.from_setup(
+                    setup, build_kinetic=True, ke_order_ng=False
+                )
 
 
 class PyscfGGAKernel(XCKernel):

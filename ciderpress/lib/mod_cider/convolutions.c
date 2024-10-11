@@ -63,6 +63,11 @@ double gauss_ai0(int l, double alpha, double expi, double expj) {
 double gauss_dida(int l, double alpha, double expi, double expj) {
     double expi_conv = expi * alpha / (expi + alpha);
     double coefi = (-l / alpha + (1.5 + l) / (alpha + expi));
+    // TODO I think (1.5 + l) / (expi_conv + expj) can be removed
+    // if l is changed to l + 1 in gauss_integral argument. This will
+    // make "on-the-fly" integral generation for vi,j,k quite easy,
+    // which could in turn save a lot of memory for small computational
+    // overhead. (Might even speed things up due to memory accesses?)
     coefi += (1.5 + l) / (expi_conv + expj) * expi * expi /
              ((alpha + expi) * (alpha + expi));
     return coefi * gauss_integral(l, expi_conv + expj);
@@ -732,6 +737,97 @@ void solve_atc_coefs(convolution_collection *ccl) {
     }
 }
 
+void solve_atc_coefs_arr(atc_basis_set *atco, double *p_uq, int nalpha) {
+#pragma omp parallel
+    {
+        int ia, dish;
+        int ish0;
+        atc_atom atcc;
+        double *chomat;
+        int info;
+        int max_size = 0;
+        int my_size;
+        int n_mq, mq;
+        double *p_mq;
+        for (ia = 0; ia < atco->natm; ia++) {
+            atcc = atco->atc_convs[ia];
+            for (int l = 0; l < atcc.lmax + 1; l++) {
+                my_size = (2 * l + 1) *
+                          (atcc.global_l_loc[l + 1] - atcc.global_l_loc[l]);
+                max_size = MAX(max_size, my_size);
+            }
+        }
+        max_size *= nalpha;
+        double *buf = (double *)malloc(max_size * sizeof(double));
+#pragma omp for schedule(dynamic, 4)
+        for (ia = 0; ia < atco->natm; ia++) {
+            atcc = atco->atc_convs[ia];
+            for (int l = 0; l < atcc.lmax + 1; l++) {
+                ish0 = atcc.global_l_loc[l];
+                dish = atcc.global_l_loc[l + 1] - ish0;
+                n_mq = (2 * l + 1) * nalpha;
+                for (int sh = 0; sh < dish; sh++) {
+                    p_mq = p_uq + nalpha * atco->ao_loc[ish0 + sh];
+                    for (mq = 0; mq < n_mq; mq++) {
+                        buf[mq * dish + sh] = p_mq[mq];
+                    }
+                }
+                chomat = atcc.gtrans_0 + atcc.l_loc2[l];
+                dpotrs_(&(atco->UPLO), &dish, &n_mq, chomat, &dish, buf, &dish,
+                        &info);
+                for (int sh = 0; sh < dish; sh++) {
+                    p_mq = p_uq + nalpha * atco->ao_loc[ish0 + sh];
+                    for (mq = 0; mq < n_mq; mq++) {
+                        p_mq[mq] = buf[mq * dish + sh];
+                    }
+                }
+            }
+        }
+        free(buf);
+    }
+}
+
+void convert_atomic_radial_basis(double *p_uq, double *p_vq, double *ovlps_l,
+                                 int *iloc_l, int *jloc_l, int nalpha, int lmax,
+                                 int fwd) {
+    int ni, nj, m;
+    char transa = 'N';
+    char transb;
+    int ldb;
+    double one = 1.0;
+    double zero = 0.0;
+    int *kloc_l;
+    if (fwd) {
+        transb = 'T';
+        kloc_l = jloc_l;
+    } else {
+        transb = 'N';
+        kloc_l = iloc_l;
+    }
+    for (int l = 0; l <= lmax; l++) {
+        ni = iloc_l[l + 1] - iloc_l[l];
+        nj = jloc_l[l + 1] - jloc_l[l];
+        ldb = kloc_l[l + 1] - kloc_l[l];
+        m = nalpha * (2 * l + 1);
+        dgemm_(&transa, &transb, &m, &nj, &ni, &one, p_uq, &m, ovlps_l, &ldb,
+               &zero, p_vq, &m);
+        p_uq += m * ni;
+        p_vq += m * nj;
+        ovlps_l += ni * nj;
+    }
+}
+
+void solve_atc_coefs_arr_ccl(convolution_collection *ccl, double *p_uq,
+                             int nalpha, int inp) {
+    atc_basis_set *atco;
+    if (inp) {
+        atco = ccl->atco_inp;
+    } else {
+        atco = ccl->atco_out;
+    }
+    solve_atc_coefs_arr(atco, p_uq, nalpha);
+}
+
 /**
  * Convolve the input inp_uq to out_vq using the convolution_collection ccl.
  * NOTE this is for version i, j, and ij. Use multiply_atc_integrals_vk for
@@ -828,6 +924,55 @@ void multiply_atc_integrals(double *inp_uq, double *out_vq,
             }
         }
     }
+}
+
+void atc_reciprocal_convolution(double *in_sklmq, double *out_sklmq,
+                                double *k_k, double *alphas,
+                                double *alpha_norms, int nspin, int nk, int nlm,
+                                int nq) {
+    double *conv_facs = (double *)malloc(nq * nq * sizeof(double));
+    double *conv_exps = (double *)malloc(nq * nq * sizeof(double));
+    double FPI = 16 * atan(1.0);
+#pragma omp parallel for
+    for (int n2 = 0; n2 < nq; n2++) {
+        for (int n1 = 0; n1 < nq; n1++) {
+            int ind = n2 * nq + n1;
+            conv_exps[ind] = 0.25 / (alphas[n1] + alphas[n2]);
+            conv_facs[ind] = alpha_norms[n1] * alpha_norms[n2];
+            conv_facs[ind] *= pow(FPI * conv_exps[ind], 1.5);
+        }
+    }
+#pragma omp parallel
+    {
+        int k, q1, q2, lm, ind, displ, s;
+        double *conv = (double *)malloc(nq * nq * sizeof(double));
+        double *in_q, *out_q;
+        double mk2;
+        for (k = 0; k < nk; k++) {
+            mk2 = -1.0 * k_k[k] * k_k[k];
+            for (ind = 0; ind < nq * nq; ind++) {
+                conv[ind] = conv_facs[ind] * exp(mk2 * conv_exps[ind]);
+            }
+            for (s = 0; s < nspin; s++) {
+                for (lm = 0; lm < nlm; lm++) {
+                    // TODO blas
+                    ind = 0;
+                    displ = nq * (lm + nlm * (k + nk * s));
+                    in_q = in_sklmq + displ;
+                    out_q = out_sklmq + displ;
+                    for (q2 = 0; q2 < nq; q2++) {
+                        out_q[q2] = 0.0;
+                        for (q1 = 0; q1 < nq; q1++, ind++) {
+                            out_q[q2] += conv[ind] * in_q[q1];
+                        }
+                    }
+                }
+            }
+        }
+        free(conv);
+    }
+    free(conv_exps);
+    free(conv_facs);
 }
 
 /**
@@ -999,6 +1144,138 @@ void contract_orb_to_rad(double *theta_rlmq, double *p_uq, int *ar_loc,
                         theta_mq[mq] += val * p_q[q];
                     }
                     p_q += stride;
+                }
+            }
+        }
+    }
+}
+
+void expand_to_grid(double *in_i, double *out_g, int l, int ia, double *r_g,
+                    int ng, atc_basis_set *atco) {
+    int *bas = atco->bas;
+    double *env = atco->env;
+    atc_atom *atcc = atco->atc_convs + ia;
+    if (l > atcc->lmax) {
+        printf("INTERNAL ERROR: l > lmax for atcc");
+        exit(-1);
+    }
+    int ish0 = atcc->global_l_loc[l];
+    int ish1 = atcc->global_l_loc[l + 1];
+    int dish = ish1 - ish0;
+    int ish;
+    double *p_i = (double *)malloc((ish1 - ish0) * sizeof(double));
+    for (ish = 0; ish < dish; ish++) {
+        p_i[ish] = in_i[ish];
+    }
+    int info;
+    double *chomat = atcc->gtrans_0 + atcc->l_loc2[l];
+    int one = 1;
+    dpotrs_(&(atco->UPLO), &dish, &one, chomat, &dish, p_i, &dish, &info);
+    int *ibas;
+    double coef, beta;
+    for (int g = 0; g < ng; g++) {
+        out_g[g] = 0;
+        for (ish = ish0; ish < ish1; ish++) {
+            ibas = bas + ish * BAS_SLOTS;
+            l = ibas[ANG_OF];
+            coef = env[ibas[PTR_COEFF]];
+            beta = env[ibas[PTR_EXP]];
+            out_g[g] += p_i[ish - ish0] * coef * pow(r_g[g], l) *
+                        exp(-beta * r_g[g] * r_g[g]);
+        }
+    }
+}
+
+void contract_from_grid(double *in_g, double *out_i, int l, int ia, double *r_g,
+                        double *dv_g, int ng, atc_basis_set *atco) {
+    int *bas = atco->bas;
+    double *env = atco->env;
+    atc_atom *atcc = atco->atc_convs + ia;
+    if (l > atcc->lmax) {
+        printf("INTERNAL ERROR: l > lmax for atcc");
+        exit(-1);
+    }
+    int ish0 = atcc->global_l_loc[l];
+    int ish1 = atcc->global_l_loc[l + 1];
+    int dish = ish1 - ish0;
+    int ish;
+    int *ibas;
+    double coef, beta;
+    for (ish = 0; ish < dish; ish++) {
+        out_i[ish] = 0;
+    }
+    for (int g = 0; g < ng; g++) {
+        for (ish = ish0; ish < ish1; ish++) {
+            ibas = bas + ish * BAS_SLOTS;
+            l = ibas[ANG_OF];
+            coef = env[ibas[PTR_COEFF]];
+            beta = env[ibas[PTR_EXP]];
+            out_i[ish - ish0] += in_g[g] * coef * pow(r_g[g], l) *
+                                 exp(-beta * r_g[g] * r_g[g]) * dv_g[g];
+        }
+    }
+    // int info;
+    // double *chomat = atcc->gtrans_0 + atcc->l_loc2[l];
+    // int one = 1;
+    // dpotrs_(&(atco->UPLO), &dish, &one, chomat, &dish, out_i, &dish, &info);
+}
+
+void contract_orb_to_rad_num(double *theta_rlmq, double *p_uq, double *funcs_jg,
+                             int *jloc_l, int *uloc_l, int nrad, int nlm,
+                             int nalpha) {
+#pragma omp parallel
+    {
+        int j0, j1, u0, j, g, nm, l, q, m;
+        double f;
+        double *p_q, *theta_q;
+        int lmax = sqrt(nlm + 1e-8) - 1;
+#pragma omp for schedule(dynamic, 4)
+        for (l = 0; l <= lmax; l++) {
+            nm = 2 * l + 1;
+            j0 = jloc_l[l];
+            j1 = jloc_l[l + 1];
+            u0 = uloc_l[l];
+            for (j = j0; j < j1; j++) {
+                for (g = 0; g < nrad; g++) {
+                    f = funcs_jg[j * nrad + g];
+                    for (m = 0; m < nm; m++) {
+                        p_q = p_uq + (u0 + (j - j0) * nm + m) * nalpha;
+                        theta_q = theta_rlmq + nalpha * (l * l + m + nlm * g);
+                        for (q = 0; q < nalpha; q++) {
+                            theta_q[q] += p_q[q] * f;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+void contract_rad_to_orb_num(double *theta_rlmq, double *p_uq, double *funcs_jg,
+                             int *jloc_l, int *uloc_l, int nrad, int nlm,
+                             int nalpha) {
+#pragma omp parallel
+    {
+        int j0, j1, u0, j, g, nm, l, q, m;
+        double f;
+        double *p_q, *theta_q;
+        int lmax = sqrt(nlm + 1e-8) - 1;
+#pragma omp for schedule(dynamic, 4)
+        for (l = 0; l <= lmax; l++) {
+            nm = 2 * l + 1;
+            j0 = jloc_l[l];
+            j1 = jloc_l[l + 1];
+            u0 = uloc_l[l];
+            for (j = j0; j < j1; j++) {
+                for (g = 0; g < nrad; g++) {
+                    f = funcs_jg[j * nrad + g];
+                    for (m = 0; m < nm; m++) {
+                        p_q = p_uq + (u0 + (j - j0) * nm + m) * nalpha;
+                        theta_q = theta_rlmq + nalpha * (l * l + m + nlm * g);
+                        for (q = 0; q < nalpha; q++) {
+                            p_q[q] += theta_q[q] * f;
+                        }
+                    }
                 }
             }
         }

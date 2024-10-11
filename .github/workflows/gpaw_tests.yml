@@ -1,0 +1,52 @@
+name: Run Serial GPAW Tests
+
+on:
+  push:
+    branches:
+    - main
+
+  pull_request:
+    branches:
+    - main
+
+jobs:
+  build:
+
+    runs-on: ubuntu-20.04
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.12']
+    defaults:
+      run:
+        shell: bash -el {0}
+    steps:
+    - uses: actions/checkout@v4
+    - name: Setup conda environment
+      uses: mamba-org/setup-micromamba@v1
+      with:
+        micromamba-version: '1.5.6-0' # any version from https://github.com/mamba-org/micromamba-releases
+        environment-name: run_tests
+        init-shell: >-
+          bash
+          powershell
+        cache-environment: true
+        post-cleanup: 'all'
+        create-args: >-
+          python=${{ matrix.python-version }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - name: Install dependencies and build
+      run: |
+        sudo apt-get -qq install gcc cmake
+    - name: Build things
+      run: |
+        source .github/workflows/load_conda.sh
+        source .github/workflows/mm_install_torch.sh
+        LIBRARY_PATH=$CONDA_PREFIX/lib:$LIBRARY_PATH pip install .
+        python scripts/download_functionals.py
+    - name: Test with unittest
+      run: |
+        source .github/workflows/load_conda.sh
+        sh .github/workflows/setup_gpaw_nompi.sh
+        sh .github/workflows/run_gpaw_tests.sh

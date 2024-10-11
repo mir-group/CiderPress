@@ -59,7 +59,7 @@ class TestLCAOInterpolator(unittest.TestCase):
         # molstr = 'Ne'
 
         mol = gto.M(atom=molstr, basis="def2-tzvpd")
-        basis = aug_etb_for_cider(mol, lmax=6)[0]
+        basis = aug_etb_for_cider(mol, lmax=6)
         cls.mol = gto.M(atom=molstr, basis=basis)
         # For evaluating reference values; set F to 000 since
         # everything is referenced to nuclear coordinates here.

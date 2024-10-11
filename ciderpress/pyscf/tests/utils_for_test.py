@@ -93,6 +93,7 @@ def get_scaled_grid(grids, lambd):
             grids.radi_method,
             grids.level,
             grids.prune,
+            build_indexer=True,
         )
         new_grids.grids_indexer.rad_arr /= lambd
         new_grids.grids_indexer.all_weights = (

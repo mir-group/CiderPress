@@ -27,16 +27,12 @@ import numpy as np
 from pyscf import lib
 from pyscf.dft.numint import NumInt
 
-from ciderpress.dft.plans import FracLaplPlan
+from ciderpress.dft.plans import FracLaplPlan, SemilocalPlan
 from ciderpress.dft.settings import (
     FracLaplSettings,
     NLDFSettings,
     SDMXBaseSettings,
     SemilocalSettings,
-    dalpha,
-    ds2,
-    get_alpha,
-    get_s2,
 )
 from ciderpress.pyscf.analyzers import UHFAnalyzer
 from ciderpress.pyscf.frac_lapl import FLNumInt
@@ -372,36 +368,18 @@ def _sl_desc_getter(mol, pgrids, dms, settings, coeffs=None, **kwargs):
     ni = NumInt()
     xctype = "MGGA"
     prho = get_full_rho(ni, mol, dms, pgrids, xctype)[0]
-    psigma = np.einsum("xg,xg->g", prho[1:4], prho[1:4])
-    if settings.mode != "npa":
-        raise NotImplementedError
-    p = get_s2(prho[0], psigma)
-    dpdn, dpdsigma = ds2(prho[0], psigma)
-    alpha = get_alpha(prho[0], psigma, prho[4])
-    dalpha_rho, dalpha_sigma, dalpha_tau = dalpha(prho[0], psigma, prho[4])
-    nfeat = settings.nfeat
-    assert nfeat == 3
-    feat_ig = np.stack([prho[0], p, alpha])
-
+    plan = SemilocalPlan(settings, 1)
     if coeffs is None:
-        return feat_ig
-    if len(coeffs) == 0:
-        return feat_ig, 0
-
-    coeffs = np.array(coeffs)
-    nmo = coeffs.shape[0]
-    dfeat_jig = np.empty((nmo, nfeat, prho.shape[-1]))
-    dprho_dphi = get_mo_densities(ni, mol, coeffs, pgrids, xctype)
-    dp_jg = dpdn * dprho_dphi[:, 0]
-    dalpha_jg = dalpha_rho * dprho_dphi[:, 0] + dalpha_tau * dprho_dphi[:, 4]
-    for imo in range(nmo):
-        dsigma_dphi = 2 * np.einsum("xg,xg->g", dprho_dphi[imo, 1:4], prho[1:4])
-        dp_jg[imo] += dpdsigma * dsigma_dphi
-        dalpha_jg[imo] += dalpha_sigma * dsigma_dphi
-    dfeat_jig[:, 0, :] = dprho_dphi[:, 0]
-    dfeat_jig[:, 1, :] = dp_jg
-    dfeat_jig[:, 2, :] = dalpha_jg
-    return feat_ig, dfeat_jig
+        return plan.get_feat(prho[None, :])[0]
+    else:
+        coeffs = np.array(coeffs)
+        feat = plan.get_feat(prho[None, :])[0]
+        dprho_dphi = get_mo_densities(ni, mol, coeffs, pgrids, xctype)
+        occds = []
+        nmo = coeffs.shape[0]
+        for imo in range(nmo):
+            occds.append(plan.get_occd(prho[None, :], dprho_dphi[imo : imo + 1])[1][0])
+        return feat, np.stack(occds)
 
 
 def _nldf_desc_getter(

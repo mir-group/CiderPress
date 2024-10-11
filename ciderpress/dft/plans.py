@@ -165,10 +165,83 @@ def _construct_cubic_splines(coefs_qi, dense_indexes):
     return np.ascontiguousarray(C_aip.transpose(1, 0, 2))
 
 
-class SemilocalPlan:
+def get_rho_tuple_with_grad_cross(rho_data, is_mgga=False):
+    assert rho_data.ndim == 3
+    drho = rho_data[:, 1:4]
+    nspin = rho_data.shape[0]
+    sigma = np.empty((2 * nspin - 1, rho_data.shape[-1]), order="F")
+    sigma[::2] = np.einsum("sxg,sxg->sg", drho, drho)
+    if nspin == 2:
+        sigma[1] = np.einsum("xg,xg->g", drho[0], drho[1])
+    rho = rho_data[:, 0].copy(order="F")
+    if is_mgga:
+        return rho, sigma, rho_data[:, 4].copy(order="F")
+    else:
+        return rho, sigma
+
+
+def vxc_tuple_to_array(rho_data, vtuple):
+    varr = np.zeros_like(rho_data)
+    varr[:, 0] = vtuple[0]
+    if len(vtuple) > 1:
+        varr[:, 1:4] = 2 * vtuple[1][::2, None] * rho_data[:, 1:4]
+        if len(vtuple) == 3:
+            varr[:, 4] = vtuple[2]
+        if rho_data.shape[0] == 2:
+            varr[:, 1:4] += vtuple[1][1] * rho_data[::-1, 1:4]
+    return varr
+
+
+def get_rho_tuple(rho_data, with_spin=False, is_mgga=False):
+    if with_spin:
+        drho = rho_data[:, 1:4]
+        sigma = np.einsum("sx...,sx...->s...", drho, drho)
+        if is_mgga:
+            return rho_data[:, 0].copy(), sigma, rho_data[:, 4].copy()
+        else:
+            return rho_data[:, 0].copy(), sigma
+    else:
+        drho = rho_data[1:4]
+        sigma = np.einsum("x...,x...->...", drho, drho)
+        if is_mgga:
+            return rho_data[0], sigma, rho_data[4]
+        else:
+            return rho_data[0], sigma
+
+
+def get_drhodf_tuple(rho_data, drhodf_data, with_spin=False, is_mgga=False):
+    if with_spin:
+        raise NotImplementedError("Have not implemented this function for with_spin")
+        drho = rho_data[:, 1:4]
+        ddrhodf = drhodf_data[:, 1:4]
+        dsigmadf = 2 * np.einsum("sx...,sx...->s...", drho, ddrhodf)
+        if is_mgga:
+            return drhodf_data[:, 0].copy(), dsigmadf, drhodf_data[:, 4].copy()
+        else:
+            return drhodf_data[:, 0].copy(), dsigmadf
+    else:
+        drho = rho_data[1:4]
+        ddrhodf = drhodf_data[1:4]
+        dsigmadf = 2 * np.einsum("x...,x...->...", drho, ddrhodf)
+        if is_mgga:
+            return drhodf_data[0], dsigmadf, drhodf_data[4]
+        else:
+            return drhodf_data[0], dsigmadf
+
+
+def get_ccl_settings(plan):
+    has_vj = "j" in plan.nldf_settings.nldf_type
+    ifeat_ids = []
+    for spec in plan.nldf_settings.l0_feat_specs:
+        ifeat_ids.append(VI_ID_MAP[spec])
+    for spec in plan.nldf_settings.l1_feat_specs:
+        ifeat_ids.append(VI_ID_MAP[spec])
+    return has_vj, ifeat_ids
+
+
+class _BaseSemilocalPlan:
     def __init__(self, settings, nspin):
         """
-
         Args:
             settings (SemilocalSettings): Settings for SL features
             nspin (int): Number of spin channels.
@@ -179,56 +252,120 @@ class SemilocalPlan:
         if self.settings.mode not in ["npa", "nst", "np", "ns"]:
             raise NotImplementedError
 
-    def _fill_feat_npa_(self, rho, feat):
+    @property
+    def level(self):
+        return self.settings.level
+
+    def _fill_feat_npa_(self, rho, sigma, tau, feat):
         assert feat.shape[1] == 3
-        sigma = np.einsum("sxg,sxg->sg", rho[:, 1:4], rho[:, 1:4])
-        feat[:, 0] = rho[:, 0]
-        feat[:, 1] = get_s2(rho[:, 0], sigma)
-        feat[:, 2] = get_alpha(rho[:, 0], sigma, rho[:, 4])
+        feat[:, 0] = rho
+        feat[:, 1] = get_s2(rho, sigma)
+        feat[:, 2] = get_alpha(rho, sigma, tau)
         feat[:, 0] *= self.nspin
         feat[:, 1:3] /= self.nspin ** (2.0 / 3)
 
-    def _fill_feat_nst_(self, rho, feat):
+    def _fill_occd_npa_(
+        self, feat, occd, rho, drho, sigma, dsigma, tau=None, dtau=None
+    ):
+        dpdn, dpdsigma = ds2(rho, sigma)
+        feat[:, 0] = rho
+        feat[:, 1] = get_s2(rho, sigma)
+        occd[:, 0] = drho
+        occd[:, 1] = dpdn * drho + dpdsigma * dsigma
+        if self.level == "MGGA":
+            feat[:, 2] = get_alpha(rho, sigma, tau)
+            dadn, dadsigma, dadtau = dalpha(rho, sigma, tau)
+            occd[:, 2] = dadn * drho + dadsigma * dsigma + dadtau * dtau
+        feat[:, 0] *= self.nspin
+        feat[:, 1:3] /= self.nspin ** (2.0 / 3)
+        occd[:, 0] *= self.nspin
+        occd[:, 1:3] /= self.nspin ** (2.0 / 3)
+
+    def _fill_feat_nst_(self, rho, sigma, tau, feat):
         assert feat.shape[1] == 3
-        sigma = np.einsum("sxg,sxg->sg", rho[:, 1:4], rho[:, 1:4])
-        feat[:, 0] = rho[:, 0]
+        feat[:, 0] = rho
         feat[:, 1] = sigma
-        feat[:, 2] = rho[:, 4]
+        feat[:, 2] = tau
         feat[:, 0] *= self.nspin
         feat[:, 1] *= self.nspin * self.nspin
         feat[:, 2] *= self.nspin
 
-    def _fill_feat_np_(self, rho, feat):
+    def _fill_occd_nst_(
+        self, feat, occd, rho, drho, sigma, dsigma, tau=None, dtau=None
+    ):
+        feat[:, 0] = self.nspin * rho
+        occd[:, 0] = self.nspin * drho
+        feat[:, 1] = sigma * (self.nspin * self.nspin)
+        occd[:, 1] = dsigma * (self.nspin * self.nspin)
+        if self.level == "MGGA":
+            feat[:, 2] = tau * self.nspin
+            occd[:, 2] = dtau * self.nspin
+
+    def _fill_feat_np_(self, rho, sigma, feat):
         assert feat.shape[1] == 2
-        sigma = np.einsum("sxg,sxg->sg", rho[:, 1:4], rho[:, 1:4])
-        feat[:, 0] = rho[:, 0]
-        feat[:, 1] = get_s2(rho[:, 0], sigma)
+        feat[:, 0] = rho
+        feat[:, 1] = get_s2(rho, sigma)
         feat[:, 0] *= self.nspin
         feat[:, 1] /= self.nspin ** (2.0 / 3)
 
-    def _fill_feat_ns_(self, rho, feat):
+    def _fill_feat_ns_(self, rho, sigma, feat):
         assert feat.shape[1] == 2
-        sigma = np.einsum("sxg,sxg->sg", rho[:, 1:4], rho[:, 1:4])
-        feat[:, 0] = rho[:, 0]
+        feat[:, 0] = rho
         feat[:, 1] = sigma
         feat[:, 0] *= self.nspin
         feat[:, 1] *= self.nspin * self.nspin
 
-    def get_feat(self, rho):
-        assert rho.ndim == 3
-        feat = np.empty((rho.shape[0], self.settings.nfeat, rho.shape[2]))
+    def get_feat(self, rho, sigma, tau=None):
+        for arr in [rho, sigma, tau]:
+            assert arr is None or arr.ndim == 2
+        feat = np.empty((rho.shape[0], self.settings.nfeat, rho.shape[1]))
         if self.settings.mode == "npa":
-            self._fill_feat_npa_(rho, feat)
+            self._fill_feat_npa_(rho, sigma, tau, feat)
         elif self.settings.mode == "nst":
-            self._fill_feat_nst_(rho, feat)
+            self._fill_feat_nst_(rho, sigma, tau, feat)
         elif self.settings.mode == "np":
-            self._fill_feat_np_(rho, feat)
+            self._fill_feat_np_(rho, sigma, feat)
         else:
-            self._fill_feat_ns_(rho, feat)
+            self._fill_feat_ns_(rho, sigma, feat)
         return feat
 
+    def get_occd(self, rho, drho, sigma, dsigma, tau=None, dtau=None):
+        for arr in [rho, drho, sigma, dsigma, tau, dtau]:
+            assert arr is None or arr.ndim == 2
+        feat = np.empty((rho.shape[0], self.settings.nfeat, rho.shape[1]))
+        occd = np.empty((rho.shape[0], self.settings.nfeat, rho.shape[1]))
+        if self.settings.mode in ["npa", "np"]:
+            self._fill_occd_npa_(feat, occd, rho, drho, sigma, dsigma, tau, dtau)
+        elif self.settings.mode in ["nst", "ns"]:
+            self._fill_occd_nst_(feat, occd, rho, drho, sigma, dsigma, tau, dtau)
+        return feat, occd
+
+
+class SemilocalPlan(_BaseSemilocalPlan):
+    def get_feat(self, rho):
+        sigma = np.einsum("sx...,sx...->s...", rho[:, 1:4], rho[:, 1:4])
+        if self.level == "MGGA":
+            tau = rho[:, 4]
+        else:
+            tau = None
+        return super(SemilocalPlan, self).get_feat(rho[:, 0], sigma, tau)
+
+    def get_occd(self, rho, drho):
+        assert rho.ndim == drho.ndim == 3
+        sigma = np.einsum("sx...,sx...->s...", rho[:, 1:4], rho[:, 1:4])
+        dsigma = 2 * np.einsum("sx...,sx...->s...", rho[:, 1:4], drho[:, 1:4])
+        if self.level == "MGGA":
+            tau = rho[:, 4]
+            dtau = drho[:, 4]
+        else:
+            tau = None
+            dtau = None
+        return super(SemilocalPlan, self).get_occd(
+            rho[:, 0], drho[:, 0], sigma, dsigma, tau, dtau
+        )
+
     def _fill_vxc_npa_(self, rho, vfeat, vxc):
-        sigma = np.einsum("sxg,sxg->sg", rho[:, 1:4], rho[:, 1:4])
+        sigma = np.einsum("sx...,sx...->s...", rho[:, 1:4], rho[:, 1:4])
         sm23 = self.nspin ** (-2.0 / 3)
         dpdn, dpdsigma = ds2(rho[:, 0], sigma)
         dadn, dadsigma, dadtau = dalpha(rho[:, 0], sigma, rho[:, 4])
@@ -253,7 +390,7 @@ class SemilocalPlan:
         vxc[:, 4] += self.nspin * vfeat[:, 2]
 
     def _fill_vxc_np_(self, rho, vfeat, vxc):
-        sigma = np.einsum("sxg,sxg->sg", rho[:, 1:4], rho[:, 1:4])
+        sigma = np.einsum("sx...,sx...->s...", rho[:, 1:4], rho[:, 1:4])
         sm23 = self.nspin ** (-2.0 / 3)
         dpdn, dpdsigma = ds2(rho[:, 0], sigma)
         vxc[:, 0] += self.nspin * vfeat[:, 0] + sm23 * vfeat[:, 1] * dpdn
@@ -281,6 +418,36 @@ class SemilocalPlan:
         else:
             self._fill_vxc_ns_(rho, vfeat, vxc)
         return vxc
+
+
+class SemilocalPlan2(_BaseSemilocalPlan):
+    def _fill_vxc_npa_(self, vfeat, rho, vrho, sigma, vsigma, tau=None, vtau=None):
+        sm23 = self.nspin ** (-2.0 / 3)
+        dpdn, dpdsigma = ds2(rho, sigma)
+        if self.level == "MGGA":
+            dadn, dadsigma, dadtau = dalpha(rho, sigma, tau)
+            vrho[:] += self.nspin * vfeat[:, 0] + sm23 * (
+                vfeat[:, 1] * dpdn + vfeat[:, 2] * dadn
+            )
+            vsigma[:] += sm23 * (vfeat[:, 1] * dpdsigma + vfeat[:, 2] * dadsigma)
+            vtau[:] += sm23 * vfeat[:, 2] * dadtau
+        else:
+            vrho[:] += self.nspin * vfeat[:, 0] + sm23 * vfeat[:, 1] * dpdn
+            vsigma[:] += sm23 * vfeat[:, 1] * dpdsigma
+
+    def _fill_vxc_nst_(self, vfeat, vrho, vsigma, vtau=None):
+        vrho[:] += self.nspin * vfeat[:, 0]
+        vsigma[:] += self.nspin * self.nspin * vfeat[:, 1]
+        if self.level == "MGGA":
+            vtau[:] += self.nspin * vfeat[:, 2]
+
+    def get_vxc(self, vfeat, rho, vrho, sigma, vsigma, tau=None, vtau=None):
+        for arr in [rho, vrho, sigma, vsigma, tau, vtau]:
+            assert arr is None or arr.ndim == 2
+        if self.settings.mode in ["npa", "np"]:
+            self._fill_vxc_npa_(vfeat, rho, vrho, sigma, vsigma, tau, vtau)
+        elif self.settings.mode in ["nst", "ns"]:
+            self._fill_vxc_nst_(vfeat, vrho, vsigma, vtau)
 
 
 class FracLaplPlan:
@@ -1233,9 +1400,30 @@ class NLDFAuxiliaryPlan(ABC):
 
         self._run_setup()
 
+    def new(self, **kwargs):
+        new_kwargs = dict(
+            nldf_settings=self.nldf_settings,
+            nspin=self.nspin,
+            alpha0=self.alpha0,
+            lambd=self.lambd,
+            nalpha=self.nalpha,
+            coef_order=self.coef_order,
+            alpha_formula=self.alpha_formula,
+            proc_inds=self.proc_inds,
+            rhocut=self.rhocut,
+            expcut=self.expcut,
+        )
+        new_kwargs.update(kwargs)
+        return self.__class__(**new_kwargs)
+
     @abstractmethod
     def _run_setup(self):
         pass
+
+    @property
+    def num_vj(self):
+        """Number of vj or vk features"""
+        return self.nldf_settings.num_feat_param_sets
 
     @property
     def num_vi_ints(self):
@@ -1295,13 +1483,18 @@ class NLDFAuxiliaryPlan(ABC):
         else:
             raise NotImplementedError
 
-    def get_rho_tuple(self, rho_data):
-        drho = rho_data[1:4]
-        sigma = np.einsum("xg,xg->g", drho, drho)
-        if self.nldf_settings.sl_level == "MGGA":
-            return rho_data[0], sigma, rho_data[4]
-        else:
-            return rho_data[0], sigma
+    def get_rho_tuple(self, rho_data, with_spin=False):
+        return get_rho_tuple(
+            rho_data, with_spin=with_spin, is_mgga=self.nldf_settings.sl_level == "MGGA"
+        )
+
+    def get_drhodf_tuple(self, rho_data, drhodf_data, with_spin=False):
+        return get_drhodf_tuple(
+            rho_data,
+            drhodf_data,
+            with_spin=with_spin,
+            is_mgga=self.nldf_settings.sl_level == "MGGA",
+        )
 
     def eval_feat_exp(self, rho_tuple, i=-1):
         """
@@ -1438,6 +1631,7 @@ class NLDFAuxiliaryPlan(ABC):
         dfeat=None,
         cache_p=True,
         apply_transformation=False,
+        coeff_multipliers=None,
     ):
         """
 
@@ -1469,6 +1663,9 @@ class NLDFAuxiliaryPlan(ABC):
         for i in range(num_vj):
             a_g = self.get_interpolation_arguments(rho_tuple, i=i)[0]
             p, dp = self.get_interpolation_coefficients(a_g, i=i, dbuf=dbuf)
+            if coeff_multipliers is not None:
+                p[:] *= coeff_multipliers[:, None]
+                dp[:] *= coeff_multipliers[:, None]
             if apply_transformation:
                 self.get_transformed_interpolation_terms(p, i=i, fwd=True, inplace=True)
                 self.get_transformed_interpolation_terms(
@@ -1493,10 +1690,11 @@ class NLDFAuxiliaryPlan(ABC):
         occd_f,
         occd_rho_data,
         apply_transformation=True,
+        coeff_multipliers=None,
     ):
         spin = 0
-        if self.nspin != 1:
-            raise NotImplementedError
+        # if self.nspin != 1:
+        #     raise NotImplementedError
         if self.coef_order == "qg":
             f_qg = f
             occd_f_qg = occd_f
@@ -1513,6 +1711,9 @@ class NLDFAuxiliaryPlan(ABC):
         for i in range(num_vj):
             a_g, da_tuple = self.get_interpolation_arguments(rho_tuple, i=i)
             p, dp = self.get_interpolation_coefficients(a_g, i=i, dbuf=dbuf)
+            if coeff_multipliers is not None:
+                p[:] *= coeff_multipliers[:, None]
+                dp[:] *= coeff_multipliers[:, None]
             occd_a_g = occd_rho_data[0] * da_tuple[0]
             occd_a_g[:] += occd_sigma * da_tuple[1]
             if self.nldf_settings.sl_level == "MGGA":
@@ -1544,7 +1745,7 @@ class NLDFAuxiliaryPlan(ABC):
                 "xg,xg->g", l1_vals[j], l1_occd[k]
             ) + np.einsum("xg,xg->g", l1_occd[j], l1_vals[k])
             i += 1
-        return occd1_feat + occd2_feat
+        return self.nspin * (occd1_feat + occd2_feat)
 
     def eval_vxc_full(
         self,
@@ -1866,6 +2067,12 @@ class NLDFSplinePlan(NLDFAuxiliaryPlan):
         if self._spline_size != self.nalpha:
             di[:] *= (self._spline_size - 1) / (self.nalpha - 1)
             derivi[:] *= (self._spline_size - 1) / (self.nalpha - 1)
+        libcider.cider_ind_clip(
+            di.ctypes.data_as(ctypes.c_void_p),
+            derivi.ctypes.data_as(ctypes.c_void_p),
+            ctypes.c_int(self._spline_size - 1),
+            ctypes.c_int(exp_g.size),
+        )
         return di, derivi
 
     def _get_interpolation_arguments(self, rho_tuple, i=-1):
@@ -1897,8 +2104,6 @@ class NLDFSplinePlan(NLDFAuxiliaryPlan):
             w_kap.ctypes.data_as(ctypes.c_void_p),
             ctypes.c_int(ngrids),
             ctypes.c_int(nalpha),
-            ctypes.c_int(w_kap.shape[0]),
-            ctypes.c_double(self.alpha0),
             ctypes.c_double(self.lambd),
         )
         return p, dp
