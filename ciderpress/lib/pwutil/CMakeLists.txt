@@ -5,11 +5,17 @@ add_library(pwutil SHARED
 set_target_properties(pwutil PROPERTIES
   LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}
   COMPILE_FLAGS ${OpenMP_C_FLAGS}
-  LINK_FLAGS ${OpenMP_C_FLAGS})
+  LINK_FLAGS ${OpenMP_C_FLAGS}
+)
 
-configure_file(config.h.in config.h NEWLINE_STYLE UNIX)
+configure_file(
+  ${PROJECT_SOURCE_DIR}/pwutil/config.h.in
+  ${PROJECT_SOURCE_DIR}/pwutil/config.h
+  NEWLINE_STYLE UNIX
+)
 
 target_include_directories(pwutil PRIVATE ../mod_cider/)
+target_include_directories(pwutil PRIVATE ${PROJECT_SOURCE_DIR}/pwutil)
 target_include_directories(pwutil PRIVATE ${PYTHON_INCLUDE_DIRS})
 message(INCLUDE_DIRECTORIES="${PYTHON_INCLUDE_DIRS}")
 get_property(dirs DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY INCLUDE_DIRECTORIES)
