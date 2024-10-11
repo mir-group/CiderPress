@@ -145,7 +145,7 @@ class _CiderPASDW_MPRoutines:
 
         if self.verbose:
             print("CIDER: density array size:", self.gd.get_size_of_global_array())
-            print("CIDER: zero-padded array size:", self.shape)
+            print("CIDER: zero-padded array size:", self._shape)
 
         cider_kernel_inp = (
             self.cider_kernel

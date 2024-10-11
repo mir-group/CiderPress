@@ -80,10 +80,11 @@ void ciderpw_init_serial(ciderpw_data data, int nalpha, int nbeta,
     data->icell.offset[1] = 0;
     data->icell.offset[2] = 0;
 
-    fftw_alloc_size =
-        plan_dims[0] * plan_dims[1] * plan_dims[2] * data->kernel.work_size;
+    fftw_alloc_size = data->icell.Nglobal[0] * data->icell.Nglobal[1] *
+                      data->icell.Nglobal[2] * data->kernel.work_size;
     assert(fftw_alloc_size % data->kernel.work_size == 0);
     data->work_ska = fftw_alloc_complex(fftw_alloc_size);
+    data->work_array_size = fftw_alloc_size;
 
     if (data->fft_type == CIDERPW_R2C) {
         data->plan_g2k = fftw_plan_many_dft_r2c(

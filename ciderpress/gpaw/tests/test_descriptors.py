@@ -38,6 +38,20 @@ else:
     from ciderpress.gpaw.interp_paw import DiffGGA, DiffMGGA
 
 
+def setUpModule():
+    # TODO it would be better not to need this, but until CIDER
+    # gives no intermediate numpy floating point errors,
+    # pytest seems to insist on turning the warnings to raised errors.
+    global NUMPY_ERR_DICT
+    NUMPY_ERR_DICT = np.geterr()
+    np.seterr(all="warn")
+
+
+def tearDownModule():
+    global NUMPY_ERR_DICT
+    np.seterr(**NUMPY_ERR_DICT)
+
+
 def get_xc(fname, use_paw=True, force_nl=False):
     return get_cider_functional(
         fname,

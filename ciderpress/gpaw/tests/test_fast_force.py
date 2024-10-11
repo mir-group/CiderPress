@@ -50,7 +50,7 @@ def _run_cider_forces(functional, get_xc=None):
         nbands="150%",
         occupations=FermiDirac(width=0.01),
         kpts=(3, 3, 3),
-        convergence={"energy": 1e-7},
+        convergence={"energy": 1e-8},
         mixer=Mixer(0.7, 8, 50),
         parallel={"augment_grids": True},
     )

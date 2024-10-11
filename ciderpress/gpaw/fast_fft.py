@@ -42,6 +42,8 @@ CIDERPW_GRAD_MODE_STRESS = 2
 
 class _FastCiderBase:
 
+    is_cider_functional = True
+
     has_paw = False
 
     RHO_TOL = DEFAULT_RHO_TOL
@@ -103,6 +105,7 @@ class _FastCiderBase:
         return {
             "kernel_params": kernel_params,
             "xc_params": xc_params,
+            "_cider_fast": True,
         }
 
     def _check_parallelization(self, wfs):
@@ -154,14 +157,14 @@ class _FastCiderBase:
         # XCFunctional.set_grid_descriptor(self, gd)
         # self.grad_v = get_gradient_ops(gd)
         if self.size is None:
-            self.shape = gd.N_c.copy()
-            for c, n in enumerate(self.shape):
+            self._shape = gd.N_c.copy()
+            for c, n in enumerate(self._shape):
                 if not gd.pbc_c[c]:
-                    # self.shape[c] = get_efficient_fft_size(n)
-                    self.shape[c] = int(2 ** np.ceil(np.log(n) / np.log(2)))
+                    # self._shape[c] = get_efficient_fft_size(n)
+                    self._shape[c] = int(2 ** np.ceil(np.log(n) / np.log(2)))
         else:
-            self.shape = np.array(self.size)
-            for c, n in enumerate(self.shape):
+            self._shape = np.array(self.size)
+            for c, n in enumerate(self._shape):
                 if gd.pbc_c[c]:
                     assert n == gd.N_c[c]
                 else:

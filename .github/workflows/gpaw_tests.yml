@@ -1,4 +1,4 @@
-name: Run MPI Tests
+name: Run Serial GPAW Tests
 
 on:
   push:

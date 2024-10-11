@@ -3,6 +3,7 @@ from gpaw.calculator import GPAW
 from gpaw.xc.libxc import LibXC
 
 from ciderpress.dft.model_utils import load_cider_model
+from ciderpress.gpaw import fast_paw
 from ciderpress.gpaw.cider_fft import (
     CiderGGA,
     CiderGGAHybridKernel,
@@ -133,15 +134,11 @@ def get_cider_functional(
             return SLCiderMGGA(cider_kernel)
         cider_kernel = CiderMGGAHybridKernel(mlfunc, xmix, xkernel, ckernel)
         if use_paw and fast:
-            from ciderpress.gpaw.fast_paw import CiderMGGAPASDW as FastMGGAPASDW
-
-            cls = FastMGGAPASDW
+            cls = fast_paw.CiderMGGAPASDW
         elif use_paw:
             cls = CiderMGGAPASDW
         elif fast:
-            from ciderpress.gpaw.fast_fft import CiderMGGA as FastMGGA
-
-            cls = FastMGGA
+            cls = fast_paw.CiderMGGA
         else:
             cls = CiderMGGA
     elif mlfunc.desc_version == "d":
@@ -152,15 +149,11 @@ def get_cider_functional(
             return SLCiderGGA(cider_kernel)
         cider_kernel = CiderGGAHybridKernel(mlfunc, xmix, xkernel, ckernel)
         if use_paw and fast:
-            from ciderpress.gpaw.fast_paw import CiderGGAPASDW as FastGGAPASDW
-
-            cls = FastGGAPASDW
+            cls = fast_paw.CiderGGAPASDW
         elif use_paw:
             cls = CiderGGAPASDW
         elif fast:
-            from ciderpress.gpaw.fast_fft import CiderGGA as FastGGA
-
-            cls = FastGGA
+            cls = fast_paw.CiderGGA
         else:
             cls = CiderGGA
     else:
@@ -221,7 +214,6 @@ class CiderGPAW(GPAW):
         )
 
     def _write(self, writer, mode):
-
         writer = super(CiderGPAW, self)._write(writer, mode)
         if hasattr(self.hamiltonian.xc, "get_mlfunc_data"):
             mlfunc_data = self.hamiltonian.xc.get_mlfunc_data()
@@ -257,17 +249,18 @@ def cider_functional_from_dict(d):
         XC Functional object for use in GPAW.
     """
     cider_type = d.pop("_cider_type")
+    is_fast = d.pop("_cider_fast", False)
     if cider_type == "CiderGGAPASDW":
-        cls = CiderGGAPASDW
+        cls = fast_paw.CiderGGAPASDW if is_fast else CiderGGAPASDW
         kcls = CiderGGAHybridKernel
     elif cider_type == "CiderMGGAPASDW":
-        cls = CiderMGGAPASDW
+        cls = fast_paw.CiderMGGAPASDW if is_fast else CiderMGGAPASDW
         kcls = CiderMGGAHybridKernel
     elif cider_type == "CiderGGA":
-        cls = CiderGGA
+        cls = fast_paw.CiderGGA if is_fast else CiderGGA
         kcls = CiderGGAHybridKernel
     elif cider_type == "CiderMGGA":
-        cls = CiderMGGA
+        cls = fast_paw.CiderMGGA if is_fast else CiderMGGA
         kcls = CiderMGGAHybridKernel
     elif cider_type == "SLCiderGGA":
         cls = SLCiderGGA

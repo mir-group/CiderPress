@@ -435,6 +435,8 @@ class CiderMGGAHybridKernel(CiderGGAHybridKernel):
 
 class _CiderBase:
 
+    is_cider_functional = True
+
     has_paw = False
 
     RHO_TOL = DEFAULT_RHO_TOL
@@ -486,6 +488,7 @@ class _CiderBase:
         return {
             "kernel_params": kernel_params,
             "xc_params": xc_params,
+            "_cider_fast": False,
         }
 
     def get_mlfunc_data(self):
@@ -515,14 +518,14 @@ class _CiderBase:
         # XCFunctional.set_grid_descriptor(self, gd)
         # self.grad_v = get_gradient_ops(gd)
         if self.size is None:
-            self.shape = gd.N_c.copy()
-            for c, n in enumerate(self.shape):
+            self._shape = gd.N_c.copy()
+            for c, n in enumerate(self._shape):
                 if not gd.pbc_c[c]:
-                    # self.shape[c] = get_efficient_fft_size(n)
-                    self.shape[c] = int(2 ** np.ceil(np.log(n) / np.log(2)))
+                    # self._shape[c] = get_efficient_fft_size(n)
+                    self._shape[c] = int(2 ** np.ceil(np.log(n) / np.log(2)))
         else:
-            self.shape = np.array(self.size)
-            for c, n in enumerate(self.shape):
+            self._shape = np.array(self.size)
+            for c, n in enumerate(self._shape):
                 if gd.pbc_c[c]:
                     assert n == gd.N_c[c]
                 else:
@@ -556,10 +559,10 @@ class _CiderBase:
         self.r2xd_comm = self.world.new_communicator(xdranks)
 
     def _setup_kgrid(self):
-        scale_c1 = (self.shape / (1.0 * self.gd.N_c))[:, np.newaxis]
+        scale_c1 = (self._shape / (1.0 * self.gd.N_c))[:, np.newaxis]
         if self.a_comm is not None:
             self.gdfft = GridDescriptor(
-                self.shape, self.gd.cell_cv * scale_c1, True, comm=self.comms["d"]
+                self._shape, self.gd.cell_cv * scale_c1, True, comm=self.comms["d"]
             )
             self.pwfft = CiderPWDescriptor(None, self.gdfft, gammacentered=True)
             if USE_INTERNAL_FFT:
