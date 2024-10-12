@@ -20,7 +20,7 @@
 
 import os
 
-scalapack = True
+scalapack = False
 mklpath = os.environ["CONDA_PREFIX"]
 omppath = os.environ["CONDA_PREFIX"]
 
@@ -32,11 +32,7 @@ libraries = [
     "fftw3",
     "fftw3_omp",
     "xc",
-    "mpi",
-    "mkl_blacs_openmpi_lp64",
-    "mkl_scalapack_lp64",
     "mkl_intel_lp64",
-    "mkl_intel_thread",
     "mkl_intel_thread",
     "mkl_core",
     "iomp5",

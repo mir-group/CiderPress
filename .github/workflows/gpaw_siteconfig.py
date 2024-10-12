@@ -37,7 +37,6 @@ libraries = [
     "mkl_scalapack_lp64",
     "mkl_intel_lp64",
     "mkl_intel_thread",
-    "mkl_intel_thread",
     "mkl_core",
     "iomp5",
     "pthread",
