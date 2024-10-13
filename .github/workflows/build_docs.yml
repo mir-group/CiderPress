@@ -1,11 +1,7 @@
-name: Run Serial GPAW Tests
+name: Build docs
 
 on:
   push:
-    branches:
-    - main
-
-  pull_request:
     branches:
     - main
 
@@ -56,4 +52,4 @@ jobs:
       uses: peaceiris/actions-gh-pages@v4
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
-        publish_dir: ./docs/build/html
+        publish_dir: ./docs/_build/html
