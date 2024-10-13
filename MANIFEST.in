@@ -15,3 +15,6 @@ recursive-include ciderpress/lib *.c *.h CMakeLists.txt
 recursive-exclude ciderpress/lib *.cl
 
 global-exclude *.py[cod]
+
+# docs
+recursive-exclude docs/

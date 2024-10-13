@@ -1,3 +1,23 @@
+#!/usr/bin/env python
+# CiderPress: Machine-learning based density functional theory calculations
+# Copyright (C) 2024 The President and Fellows of Harvard College
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>
+#
+# Author: Kyle Bystrom <kylebystrom@gmail.com>
+#
+
 import yaml
 from gpaw.calculator import GPAW
 from gpaw.xc.libxc import LibXC
@@ -54,7 +74,7 @@ def get_cider_functional(
     class is returned to evaluate the semilocal functional.
 
     Args:
-        mlfunc (MappedXC, str): An ML functional object or a str
+        mlfunc (MappedXC, MappedXC2, str): An ML functional object or a str
             corresponding to the file name of a yaml or joblib file
             containing it.
         xmix (float, 1.00): Mixing parameter for CIDER exchnange.

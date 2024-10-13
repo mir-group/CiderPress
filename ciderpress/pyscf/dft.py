@@ -57,7 +57,7 @@ def make_cider_calc(
 
     Args:
         ks (pyscf.dft.KohnShamDFT): DFT object
-        mlfunc (MappedXC or str): CIDER exchange functional or file name
+        mlfunc (MappedXC, MappedXC2, str): CIDER exchange functional or file name
         xmix (float): Fraction of CIDER exchange used.
         xc (str or None): If specified, this semi-local XC code is evaluated
              and added to the total XC energy.

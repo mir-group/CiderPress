@@ -1,6 +1,9 @@
 .idea/
 .vscode/
 build/
+docs/_build
+docs/_static
+docs/xml
 functionals/
 *__pycache__*
 *.egg-info*
@@ -9,6 +12,7 @@ functionals/
 *.npy
 *.npz
 *.hdf5
+*.html
 *.pth
 *.so
 *.o
