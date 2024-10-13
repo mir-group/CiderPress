@@ -1,0 +1,59 @@
+name: Run Serial GPAW Tests
+
+on:
+  push:
+    branches:
+    - main
+
+  pull_request:
+    branches:
+    - main
+
+jobs:
+  build:
+
+    runs-on: ubuntu-20.04
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.12']
+    defaults:
+      run:
+        shell: bash -el {0}
+    steps:
+    - uses: actions/checkout@v4
+    - name: Setup conda environment
+      uses: mamba-org/setup-micromamba@v1
+      with:
+        micromamba-version: '1.5.6-0' # any version from https://github.com/mamba-org/micromamba-releases
+        environment-name: run_tests
+        init-shell: >-
+          bash
+          powershell
+        cache-environment: false
+        post-cleanup: 'all'
+        create-args: >-
+          python=${{ matrix.python-version }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - name: Install dependencies and build
+      run: |
+        sudo apt-get -qq install gcc cmake
+    - name: Build things
+      run: |
+        source .github/workflows/load_conda.sh
+        source .github/workflows/mm_install_torch.sh
+        LIBRARY_PATH=$CONDA_PREFIX/lib:$LIBRARY_PATH pip install .
+        python scripts/download_functionals.py
+    - name: Build documentation
+      run: |
+        sudo apt-get -qq install doxygen
+        pip install sphinx breathe sphinx_rtd_theme
+        cd docs
+        doxygen Doxyfile.in
+        make html
+    - name: Publish the docs
+      uses: peaceiris/actions-gh-pages@v4
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./docs/build/html
