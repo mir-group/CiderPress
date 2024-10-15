@@ -16,11 +16,12 @@
       <script src="../../_static/documentation_options.js?v=01f34227"></script>
       <script src="../../_static/doctools.js?v=9bcbadda"></script>
       <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <script src="../../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../../genindex.html" />
     <link rel="search" title="Search" href="../../search.html" />
-    <link rel="next" title="PySCF Interface" href="../pyscf/pyscf.html" />
-    <link rel="prev" title="Overview and Installation Instructions" href="../../installation/installation.html" /> 
+    <link rel="next" title="The Settings Module" href="settings.html" />
+    <link rel="prev" title="Smooth Density Matrix Exchange (SDMX)" href="../../features/sdmx.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -46,7 +47,10 @@
               <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
 <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="../../installation/installation.html">Overview and Installation Instructions</a></li>
-<li class="toctree-l1 current"><a class="current reference internal" href="#">DFT Module</a><ul class="simple">
+<li class="toctree-l1"><a class="reference internal" href="../../theory/theory.html">Theory Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../features/features.html">Density and Orbital Features in CiderPress</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">DFT Module</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="settings.html">The Settings Module</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../pyscf/pyscf.html">PySCF Interface</a></li>
@@ -81,6 +85,36 @@
   <section id="dft-module">
 <h1>DFT Module<a class="headerlink" href="#dft-module" title="Link to this heading"></a></h1>
 <div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="settings.html">The Settings Module</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="settings.html#ciderpress.dft.settings.ALLOWED_I_SPECS_L0"><code class="docutils literal notranslate"><span class="pre">ALLOWED_I_SPECS_L0</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="settings.html#ciderpress.dft.settings.ALLOWED_I_SPECS_L1"><code class="docutils literal notranslate"><span class="pre">ALLOWED_I_SPECS_L1</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="settings.html#ciderpress.dft.settings.ALLOWED_J_SPECS"><code class="docutils literal notranslate"><span class="pre">ALLOWED_J_SPECS</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="settings.html#ciderpress.dft.settings.ALLOWED_K_SPECS"><code class="docutils literal notranslate"><span class="pre">ALLOWED_K_SPECS</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="settings.html#ciderpress.dft.settings.ALLOWED_RHO_DAMPS"><code class="docutils literal notranslate"><span class="pre">ALLOWED_RHO_DAMPS</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="settings.html#ciderpress.dft.settings.ALLOWED_RHO_MULTS"><code class="docutils literal notranslate"><span class="pre">ALLOWED_RHO_MULTS</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="settings.html#ciderpress.dft.settings.BaseSettings"><code class="docutils literal notranslate"><span class="pre">BaseSettings</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="settings.html#ciderpress.dft.settings.EmptySettings"><code class="docutils literal notranslate"><span class="pre">EmptySettings</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="settings.html#ciderpress.dft.settings.FeatureSettings"><code class="docutils literal notranslate"><span class="pre">FeatureSettings</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="settings.html#ciderpress.dft.settings.FracLaplSettings"><code class="docutils literal notranslate"><span class="pre">FracLaplSettings</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="settings.html#ciderpress.dft.settings.HybridSettings"><code class="docutils literal notranslate"><span class="pre">HybridSettings</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="settings.html#ciderpress.dft.settings.NLDFSettings"><code class="docutils literal notranslate"><span class="pre">NLDFSettings</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="settings.html#ciderpress.dft.settings.NLDFSettingsVI"><code class="docutils literal notranslate"><span class="pre">NLDFSettingsVI</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="settings.html#ciderpress.dft.settings.NLDFSettingsVIJ"><code class="docutils literal notranslate"><span class="pre">NLDFSettingsVIJ</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="settings.html#ciderpress.dft.settings.NLDFSettingsVJ"><code class="docutils literal notranslate"><span class="pre">NLDFSettingsVJ</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="settings.html#ciderpress.dft.settings.NLDFSettingsVK"><code class="docutils literal notranslate"><span class="pre">NLDFSettingsVK</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="settings.html#ciderpress.dft.settings.SADMSettings"><code class="docutils literal notranslate"><span class="pre">SADMSettings</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="settings.html#ciderpress.dft.settings.SDMX1Settings"><code class="docutils literal notranslate"><span class="pre">SDMX1Settings</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="settings.html#ciderpress.dft.settings.SDMXBaseSettings"><code class="docutils literal notranslate"><span class="pre">SDMXBaseSettings</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="settings.html#ciderpress.dft.settings.SDMXFullSettings"><code class="docutils literal notranslate"><span class="pre">SDMXFullSettings</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="settings.html#ciderpress.dft.settings.SDMXG1Settings"><code class="docutils literal notranslate"><span class="pre">SDMXG1Settings</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="settings.html#ciderpress.dft.settings.SDMXGSettings"><code class="docutils literal notranslate"><span class="pre">SDMXGSettings</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="settings.html#ciderpress.dft.settings.SDMXSettings"><code class="docutils literal notranslate"><span class="pre">SDMXSettings</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="settings.html#ciderpress.dft.settings.SPEC_USPS"><code class="docutils literal notranslate"><span class="pre">SPEC_USPS</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="settings.html#ciderpress.dft.settings.SemilocalSettings"><code class="docutils literal notranslate"><span class="pre">SemilocalSettings</span></code></a></li>
+</ul>
+</li>
+</ul>
 </div>
 </section>
 
@@ -88,8 +122,8 @@
            </div>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="../../installation/installation.html" class="btn btn-neutral float-left" title="Overview and Installation Instructions" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="../pyscf/pyscf.html" class="btn btn-neutral float-right" title="PySCF Interface" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="../../features/sdmx.html" class="btn btn-neutral float-left" title="Smooth Density Matrix Exchange (SDMX)" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="settings.html" class="btn btn-neutral float-right" title="The Settings Module" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>

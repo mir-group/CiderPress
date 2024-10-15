@@ -14,10 +14,12 @@ kylebystrom@gmail.com.
 
 
 .. toctree::
-   :maxdepth: 4
+   :maxdepth: 2
    :caption: Contents:
 
    installation/installation
+   theory/theory
+   features/features
    ciderpress/dft/dft
    ciderpress/pyscf/pyscf
    ciderpress/gpaw/gpaw

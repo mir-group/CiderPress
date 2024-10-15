@@ -16,6 +16,7 @@
       <script src="_static/documentation_options.js?v=01f34227"></script>
       <script src="_static/doctools.js?v=9bcbadda"></script>
       <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
@@ -45,6 +46,8 @@
               <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="installation/installation.html">Overview and Installation Instructions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="theory/theory.html">Theory Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="features/features.html">Density and Orbital Features in CiderPress</a></li>
 <li class="toctree-l1"><a class="reference internal" href="ciderpress/dft/dft.html">DFT Module</a></li>
 <li class="toctree-l1"><a class="reference internal" href="ciderpress/pyscf/pyscf.html">PySCF Interface</a></li>
 <li class="toctree-l1"><a class="reference internal" href="ciderpress/gpaw/gpaw.html">GPAW Interface</a></li>
@@ -88,10 +91,7 @@ please feel free to post a Github issue or reach out the developers at
 <li class="toctree-l1"><a class="reference internal" href="installation/installation.html">Overview and Installation Instructions</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="installation/installation.html#what-is-the-cider-formalism">What is the CIDER formalism?</a></li>
 <li class="toctree-l2"><a class="reference internal" href="installation/installation.html#warning-the-ciderpress-code-base-is-experimental"><strong>WARNING</strong>: The CiderPress Code Base is Experimental</a></li>
-<li class="toctree-l2"><a class="reference internal" href="installation/installation.html#installation">Installation</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="installation/installation.html#easy-installation-with-conda-micromamba-etc">Easy Installation with Conda, Micromamba, etc.</a></li>
-</ul>
-</li>
+<li class="toctree-l2"><a class="reference internal" href="installation/installation.html#installation">Installation</a></li>
 <li class="toctree-l2"><a class="reference internal" href="installation/installation.html#how-can-i-run-a-cider-calculation">How can I run a CIDER calculation?</a></li>
 <li class="toctree-l2"><a class="reference internal" href="installation/installation.html#how-can-i-train-a-cider-functional">How can I train a CIDER functional?</a></li>
 <li class="toctree-l2"><a class="reference internal" href="installation/installation.html#known-issues">Known Issues</a></li>
@@ -99,14 +99,23 @@ please feel free to post a Github issue or reach out the developers at
 <li class="toctree-l2"><a class="reference internal" href="installation/installation.html#citing">Citing</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="ciderpress/dft/dft.html">DFT Module</a><ul class="simple">
+<li class="toctree-l1"><a class="reference internal" href="theory/theory.html">Theory Overview</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="theory/uniform_scaling.html">Uniform Scaling</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="features/features.html">Density and Orbital Features in CiderPress</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="features/sl.html">Semilocal Features (SL)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="features/nldf.html">Nonlocal Density Features (NLDF)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="features/nlof.html">Nonlocal Orbital Features (NLOF)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="features/sdmx.html">Smooth Density Matrix Exchange (SDMX)</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="ciderpress/dft/dft.html">DFT Module</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="ciderpress/dft/settings.html">The Settings Module</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="ciderpress/pyscf/pyscf.html">PySCF Interface</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="ciderpress/pyscf/dft.html">dft</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="ciderpress/pyscf/dft.html#ciderpress.pyscf.dft.make_cider_calc"><code class="docutils literal notranslate"><span class="pre">make_cider_calc()</span></code></a></li>
-</ul>
-</li>
+<li class="toctree-l2"><a class="reference internal" href="ciderpress/pyscf/dft.html">dft</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="ciderpress/gpaw/gpaw.html">GPAW Interface</a><ul class="simple">
