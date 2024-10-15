@@ -226,39 +226,47 @@ class FracLaplSettings(BaseSettings):
         on the indexing of the features, fl_rho is the part of the density
         ingredient vector AFTER the semilocal part.
 
+        Note on the l=1 feature indexing. If l1_dots[i] = (j, k), then::
+
+            fl_feat[i+nk0] = einsum(
+                'xg,xg->g',
+                fl_rho[3*j+nk0 : 3*j+3+nk0],
+                fl_rho[3*k+nk0 : 3*k+3+nk0],
+            )
+
+        If ld_dots[i] = (j, k), then::
+
+            nstart = nk0 + 3 * nk1
+            fl_feat[i + nk0 + len(l1_dots)] = einsum(
+                'xg,xg->g',
+                fl_rho[3*j+nstart : 3*j+3+nstart],
+                fl_rho[3*k+nstart : 3*k+3+nstart],
+            )
+            nstart = nk0 + 3 * nk1 + 3 * nd1
+            fl_feat[i + nk0 + len(l1_dots) + len(ld_dots)] = fl_rho[i + nstart]
+
         Args:
             slist (list of float): s parameters for the fractional
-                Laplacian. For each s, (-Laplacian)**s phi_i is computed
+                Laplacian. For each s, :math:`(-\\Delta)^s \\phi_i` is computed
                 for each single-particle orbital.
             nk0 (int): Number of scalar (l=0) features. Must be <= len(slist).
-                fl_feat[i] = fl_rho[i] = (-Laplacian')**slist[i] rho(r, r') |_r'=r
+                fl_feat[i] = fl_rho[i] = :math:`(-\\Delta')^s \\rho(r, r') |_{r'=r}`,
+                with s=slist[i].
             nk1 (int): Number of vector (l=1) features F_s^1. Must be <= len(slist).
-                fl_rho[3*i+nk0 : 3*i+3+nk0] = nabla'' (-Laplacian')**slist[i]
-                                              rho(r'', r') |_r'=r,r''=r=
+                fl_rho[3*i+nk0 : 3*i+3+nk0] =
+                :math:`\\nabla'' (-\\Delta')^s \\rho(r'', r') |_{r'=r,r''=r}`,
+                with s=slist[i].
             l1_dots (list of (int, int)): List of index tuples for contracting
                 the l=1 F_s^1 features. -1 indicates to use the semilocal
-                density gradient. If l1_dots[i] = (j, k), then
-                    fl_feat[i+nk0] = einsum(
-                        'xg,xg->g',
-                        fl_rho[3*j+nk0 : 3*j+3+nk0],
-                        fl_rho[3*k+nk0 : 3*k+3+nk0],
-                    )
-            nd1 (int): Number of vector features F_s^d. Must be <= len(slist)
-                nstart = nk0 + 3 * nk1
-                fl_rho[i * 3 + nstart : (i+1) * 3 + nstart] =
-                    nabla' (-Laplacian')**slist[i] rho(r, r') |_r'=r
+                density gradient.
+            nd1 (int): Number of vector features F_s^d. Must be ``<= len(slist)``
+                With ``nstart = nk0 + 3 * nk1``,
+                ``fl_rho[i * 3 + nstart : (i+1) * 3 + nstart] =``
+                :math:`\\nabla' (-\\Delta')^s \\rho(r, r') |_{r'=r}`,
+                with s=slist[i].
             ld_dots (list of (int, int)): Same as l1_dots but for the F_s^d
                 features. -1 indicates to use the semilocal density gradient.
-                If ld_dots[i] = (j, k), then
-                    nstart = nk0 + 3 * nk1
-                    fl_feat[i + nk0 + len(l1_dots)] = einsum(
-                        'xg,xg->g',
-                        fl_rho[3*j+nstart : 3*j+3+nstart],
-                        fl_rho[3*k+nstart : 3*k+3+nstart],
-                    )
-            ndd (int): Numer of dot product features F_s^{dd}. Must be <= nd1
-                nstart = nk0 + 3 * nk1 + 3 * nd1
-                fl_feat[i + nk0 + len(l1_dots) + len(ld_dots)] = fl_rho[i + nstart]
+            ndd (int): Numer of dot product features :math:`F_s^{dd}`. Must be <= nd1
         """
         self.slist = slist
         assert nk0 <= self.npow
@@ -449,7 +457,7 @@ class SADMSettings(SDMXBaseSettings):
     the self-repulsion of the exchange hole constructed only from
     the spherically averaged density matrix at a point.
 
-    WARNING DEPRECATED, especially 'exact' which is not numerically
+    WARNING: DEPRECATED, especially 'exact' which is not numerically
     accurate. Use SDMXSettings and its variants instead.
     """
 
@@ -546,7 +554,7 @@ class SDMXGSettings(SDMXSettings):
         Initialize SDMXGSettings
 
         Args:
-            pows (list of int): list or 0, 1, 2, see SDMXSettings docstring.
+            pows (list of int): list of 0, 1, 2, see SDMXSettings docstring.
             ndt (int): Number of gradient features H_n^d. Will compute features
                 for the first ndt values of n in pows.
         """
@@ -603,7 +611,7 @@ class SDMX1Settings(SDMXSettings):
         Initialize SDMX1Settings
 
         Args:
-            pows (list of int): list or 0, 1, 2, see SDMXSettings docstring.
+            pows (list of int): list of 0, 1, 2, see SDMXSettings docstring.
             n1 (int): Number of gradient features H_n^1. Will compute features
                 for the first n1 values of n in pows.
         """
@@ -648,7 +656,7 @@ class SDMXG1Settings(SDMXGSettings):
         Initialize SDMXG1Settings
 
         Args:
-            pows (list of int): list or 0, 1, 2, see SDMXSettings docstring.
+            pows (list of int): list of 0, 1, 2, see SDMXSettings docstring.
             nd (int): Number of gradient features H_n^d. Will compute features
                 for the first nd values of n in pows.
             n1 (int): Number of gradient features H_n^1. Will compute features
@@ -893,50 +901,61 @@ class HybridSettings(BaseSettings):
         raise NotImplementedError
 
 
+ALLOWED_I_SPECS_L0 = ["se", "se_r2", "se_apr2", "se_ap", "se_ap2r2", "se_lapl"]
 """
+Allowed spec strings for version i l=0 features.
+
 se: squared-exponential
+
 se_ap: squared-exponential times the exponent of the
-       r' coordinate.
+r' coordinate.
+
 se_apr2: squared-exponential times the exponent of the
-         r' coordinate times r^2
+r' coordinate times r^2
+
 se_ap2r2: squared-exponential times exponent^2 times r^2
+
 se_lapl: laplacian of squared-exponential
 """
-ALLOWED_I_SPECS_L0 = ["se", "se_r2", "se_apr2", "se_ap", "se_ap2r2", "se_lapl"]
 
-
+ALLOWED_I_SPECS_L1 = ["se_grad", "se_rvec"]
 """
+Allowed spec strings for version i l=1 features
+
 se_grad: gradient of squared-exponential
+
 se_rvec: squared-exponential times vector (r'-r)
 """
-ALLOWED_I_SPECS_L1 = ["se_grad", "se_rvec"]
 
-"""
-se: squared-exponential
-se_ar2: squared-exponential * a * r^2
-se_a2r4: squared-exponential * a^2 * r^4
-se_erf_rinv: squared-exponential * 1/r with short-range
-             erf damping
-"""
 ALLOWED_J_SPECS = ["se", "se_ar2", "se_a2r4", "se_erf_rinv"]
+"""
+Allowed spec strings for version j features.
+Version k features have the same allowed spec strings
+
+se: squared-exponential
+
+se_ar2: squared-exponential * a * r^2
+
+se_a2r4: squared-exponential * a^2 * r^4
+
+se_erf_rinv: squared-exponential * 1/r with short-range
+erf damping
+"""
 ALLOWED_K_SPECS = ALLOWED_J_SPECS
+"""
+See ``ALLOWED_J_SPECS``
+"""
 
-"""
-TODO docs here
-"""
 ALLOWED_RHO_MULTS = ["one", "taumix", "dampmix", "expnt"]
-
 """
 TODO docs here
 """
-ALLOWED_RHO_DAMPS = ["none", "exponential", "asymptotic_const"]
 
+ALLOWED_RHO_DAMPS = ["none", "exponential", "asymptotic_const"]
 """
-Uniform-scaling powers (USPs) descibe how features scale as the
-density is scaled by n_lambda(r) = lambda^3 n(lambda r). If the
-USP of a functional F is u, then
-F[n_lambda](r) = lambda^u F[n](lambda r)
+TODO docs here
 """
+
 SPEC_USPS = {
     "se": 0,
     "se_r2": -2,
@@ -951,6 +970,12 @@ SPEC_USPS = {
     "se_rvec": -1,
     "grad_rho": 4,
 }
+"""
+Uniform-scaling powers (USPs) descibe how features scale as the
+density is scaled by n_lambda(r) = lambda^3 n(lambda r). If the
+USP of a functional F is u, then
+F[n_lambda](r) = lambda^u F[n](lambda r)
+"""
 RHO_MULT_USPS = {
     "one": 0,
     "taumix": 0,
