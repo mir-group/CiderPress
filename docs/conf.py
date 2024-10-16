@@ -48,6 +48,6 @@ napoleon_use_param = False
 
 html_theme = 'sphinx_rtd_theme'
 html_static_path = ['_static']
-html_logo = "cider_logo_and_name.png"
+html_logo = "logos/cider_logo_and_name.png"
 html_theme_options = {'logo_only': True}
 

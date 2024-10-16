@@ -907,11 +907,13 @@ Allowed spec strings for version i l=0 features.
 
 se: squared-exponential
 
-se_ap: squared-exponential times the exponent of the
-r' coordinate.
+se_r2: squared-exponential times r^2
 
 se_apr2: squared-exponential times the exponent of the
 r' coordinate times r^2
+
+se_ap: squared-exponential times the exponent of the
+r' coordinate.
 
 se_ap2r2: squared-exponential times exponent^2 times r^2
 

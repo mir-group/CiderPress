@@ -7,6 +7,7 @@ particularly machine learning-based functionals.
 
 .. toctree::
    :maxdepth: 1
+   :caption: Contents:
 
    uniform_scaling
 

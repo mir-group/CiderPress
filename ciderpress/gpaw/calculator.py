@@ -117,7 +117,7 @@ def get_cider_functional(
         qmax (float, 300):
             Maximum value of q to use for kernel interpolation on FFT grid.
             Default should be fine for most cases.
-        * qmin (not currently a parameter, set automatically):
+        qmin (not currently a parameter, set automatically):
             Mininum value of q to use for kernel interpolation.
             Currently, qmin is set automatically based
             on the minimum regularized value of the kernel exponent.
