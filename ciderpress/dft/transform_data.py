@@ -1067,9 +1067,9 @@ class OmegaMap(FeatureNormalizer):
             y[:] = self.c * omega / denominator
 
             # 添加总体统计信息
-            total_elements = len(n)
-            nan_percentage = (np.sum(n_nan_mask) + np.sum(s2_nan_mask) + np.sum(alpha_nan_mask)) / (3 * total_elements) * 100
-            zero_percentage = np.sum(n_zero_mask) / total_elements * 100
+            # total_elements = len(n)
+            # nan_percentage = (np.sum(n_nan_mask) + np.sum(s2_nan_mask) + np.sum(alpha_nan_mask)) / (3 * total_elements) * 100
+            # zero_percentage = np.sum(n_zero_mask) / total_elements * 100
             # self._print_message(f"Summary for mol_id {mol_id}: Total elements: {total_elements}, "
             #                     f"NaN percentage: {nan_percentage:.2f}%, "
             #                     f"Zero percentage in n: {zero_percentage:.2f}%")
@@ -1090,7 +1090,7 @@ class OmegaMap(FeatureNormalizer):
         #                     f"mean: {np.mean(y):.2e}, median: {np.median(y):.2e}")
     
     def _print_warning(self, message):
-        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         print(f"WARNING [{timestamp}]: {message}", file=sys.stderr)
 
     def _print_message(self, message, is_warning=False):
