@@ -42,6 +42,7 @@ if(EXISTS "${PROJECT_SOURCE_DIR}/cmake.arch.inc")
 endif()
 
 set(MKL_INTERFACE lp64)
+set(MKL_THREADING gnu_thread)
 find_package(MKL CONFIG REQUIRED PATHS $ENV{MKLROOT})
 set(MKL_INCLUDE_DIR ${MKL_ROOT}/include)
 message(STATUS "Imported MKL targets: ${MKL_IMPORTED_TARGETS}")
