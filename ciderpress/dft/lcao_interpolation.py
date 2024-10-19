@@ -430,20 +430,6 @@ class LCAOInterpolator:
         nrad = self.num_ai.shape[1]
         assert self.all_coords.shape[1] == 3
         assert self.all_coords.flags.c_contiguous
-        """libcider.compute_spline_ind_order(
-            self._loc_ai[a].ctypes.data_as(ctypes.c_void_p),
-            self.all_coords.ctypes.data_as(ctypes.c_void_p),
-            self.atom_coords[a].ctypes.data_as(ctypes.c_void_p),
-            self._coords_ord.ctypes.data_as(ctypes.c_void_p),
-            self._ind_ord_fwd.ctypes.data_as(ctypes.c_void_p),
-            self._ind_ord_bwd.ctypes.data_as(ctypes.c_void_p),
-            ctypes.c_double(self.aparam),
-            ctypes.c_double(self.dparam),
-            ctypes.c_int(ngrids_tot),
-            ctypes.c_int(nrad),
-            self._ga_loc_ptr,
-            ctypes.c_int(a),
-        )"""
         libcider.compute_spline_ind_order_new(
             self._loc_ai[a].ctypes.data_as(ctypes.c_void_p),
             self.all_coords.ctypes.data_as(ctypes.c_void_p),
@@ -468,7 +454,9 @@ class LCAOInterpolator:
         self._compute_spline_ind_order(a)
         ngrids = self._coords_ord.shape[0]
         if self.onsite_direct:
-            ngrids -= self._ga_loc[a + 1] - self._ga_loc[a]
+            # TODO maybe a bit inefficient, should clean this up
+            # when I get around to parallelizing _compute_spline_ind_order
+            ngrids -= np.sum(self.grids_indexer.iatom_list == a)
         nlm = self.nlm
         nrad = self.nrad
         atm_coord = self.atom_coords[a]
@@ -492,7 +480,9 @@ class LCAOInterpolator:
         self._compute_spline_ind_order(a)
         ngrids = self._coords_ord.shape[0]
         if self.onsite_direct:
-            ngrids -= self._ga_loc[a + 1] - self._ga_loc[a]
+            # TODO maybe a bit inefficient, should clean this up
+            # when I get around to parallelizing _compute_spline_ind_order
+            ngrids -= np.sum(self.grids_indexer.iatom_list == a)
         nlm = self.nlm
         nrad = self.nrad
         atm_coord = self.atom_coords[a]

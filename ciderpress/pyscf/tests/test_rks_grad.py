@@ -47,7 +47,6 @@ def build_ks_calc(mol, mlfunc, df=False, alt_settings=None):
         ks = ks.density_fit()
     ks.grids.level = 1
     ks = make_cider_calc(ks, mlfunc, nldf_init=nldf_init, **settings)
-    ks.small_rho_cutoff = 0.0
     ks.conv_tol = CONV_TOL
     return ks
 
