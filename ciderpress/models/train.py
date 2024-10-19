@@ -50,6 +50,11 @@ def strk_to_tuplek(d, ref=False):
 
 
 class MOLGP:
+    """
+    Gaussian process model for the exchange-correlation functional
+    or its components.
+    """
+
     def __init__(
         self,
         kernels,
@@ -58,9 +63,6 @@ class MOLGP:
         default_noise=0.030,
     ):
         """
-        Initialize a Gaussian process model for the exchange-correlation functional
-        or its components.
-
         Args:
             kernels (list[DFTKernel]): List of kernels that sum to the XC energy.
             settings (DescParams or FeatureSettings): Settings for the
@@ -117,7 +119,7 @@ class MOLGP:
         evaluate the XC energy and which can also be serialized.
 
         Returns:
-            mapping_plans (list of function): Functions that map each
+            list(callable): Functions that map each
                 kernel to a MappedDFTKernel object
         """
         mapped_kernels = [
@@ -449,14 +451,15 @@ class MOLGP:
             rxn_list: List of tuples. In each tuple, element 0
                 is an integer mode (mode: 0 (X), 1 (C), or 2 (XC)),
                 and element 1 is a reaction dict. Each dict should have
-                    structs: struct codes list
-                        If an element in structs is a tuple, the first
-                        tuple element is a structure code, and the second
-                        is an orbital code.
-                    counts: count codes list
-                    energy: Energy of the reaction
-                    unit: Eh per (rxn energy unit)
-                    noise (optional): noise in Eh for the reaction
+
+                * structs: struct codes list
+                  (If an element in structs is a tuple, the first
+                  tuple element is a structure code, and the second
+                  is an orbital code.)
+                * counts: count codes list
+                * energy: Energy of the reaction
+                * unit: Eh per (rxn energy unit)
+                * noise (optional): noise in Eh for the reaction
         """
         for mode, rxn in rxn_list:
             if mode == 1:
@@ -514,6 +517,11 @@ class MOLGP:
 
 
 class MOLGP2(MOLGP):
+    """
+    Gaussian process model for the exchange-correlation functional
+    or its components.
+    """
+
     def __init__(
         self,
         kernels,
@@ -522,7 +530,19 @@ class MOLGP2(MOLGP):
         default_noise=0.030,
     ):
         """
-        Same as MOLGP, except kernels should be of type DFTKernel2
+        Same as MOLGP, except kernels should be of type DFTKernel2.
+        This requires a new class because DFTKernel2 has a different approach
+        to evaluating baseline functional contributions, so a few
+        functions in MOLGP need to be modified.
+
+        Args:
+            kernels (list[DFTKernel2]): List of kernels that sum to the XC energy.
+            settings (DescParams or FeatureSettings): Settings for the
+                features. Specifies what the feature vector is.
+            libxc_baseline (str or None): Additional baseline functional to
+                evaluate using the libxc library.
+            default_noise (float): Default noise hyperparameter, used if noise
+                is not provided for a particular data point
         """
         super(MOLGP2, self).__init__(
             kernels,
@@ -656,7 +676,7 @@ class MOLGP2(MOLGP):
         evaluate the XC energy and which can also be serialized.
 
         Returns:
-            mapping_plans (list of function): Functions that map each
+            list(callable): Functions that map each
                 kernel to a MappedDFTKernel object
         """
         mapped_kernels = [
