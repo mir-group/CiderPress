@@ -24,7 +24,6 @@ from ase.units import Bohr, Ha
 from gpaw.occupations import FixedOccupationNumbers, OccupationNumberCalculator
 from gpaw.pw.density import ReciprocalSpaceDensity
 from gpaw.sphere.lebedev import Y_nL, weight_n
-from gpaw.xc.gga import calculate_sigma
 
 from ciderpress.dft.plans import SemilocalPlan
 from ciderpress.dft.settings import (
@@ -111,21 +110,15 @@ def get_descriptors(
             raise ValueError("Settings must be Settings object or letter l")
         kcls = CiderMGGAHybridKernel
         cls = FeatSLMGGAPAW if use_paw else FeatSLMGGA
-        # TODO this part is messy/unncessary, should refactor to avoid
         cider_kernel = kcls(XCShell(RhoVectorSettings()), 0, "GGA_X_PBE", "GGA_C_PBE")
     elif isinstance(settings, SemilocalSettings):
         if settings.level == "MGGA":
             kcls = CiderMGGAHybridKernel
             cls = FeatSLMGGAPAW if use_paw else FeatSLMGGA
-            mode = "npa"
         else:
             kcls = CiderGGAHybridKernel
             cls = FeatSLGGAPAW if use_paw else FeatSLGGA
-            mode = "np"
-        # TODO this part is messy/unncessary, should refactor to avoid
-        cider_kernel = kcls(
-            XCShell(SemilocalSettings(mode)), 0, "GGA_X_PBE", "GGA_C_PBE"
-        )
+        cider_kernel = kcls(XCShell(settings), 0, "GGA_X_PBE", "GGA_C_PBE")
     elif isinstance(settings, NLDFSettings):
         if settings.sl_level == "MGGA":
             kcls = CiderMGGAHybridKernel
@@ -886,24 +879,9 @@ class _SLFeatMixin(_FeatureMixin):
 
     def get_features_on_grid(self):
         nt_sg = self._get_pseudo_density()
-        self.nspin = nt_sg.shape[0]
-        _, gradn_svg = calculate_sigma(self.gd, self.grad_v, nt_sg)
+        taut_sg = self._get_taut(nt_sg)[0]
+        rho_sxg = self._get_cider_inputs(nt_sg, taut_sg)[1]
         settings = self.cider_kernel.mlfunc.settings.sl_settings
-        if settings.level == "MGGA":
-            taut_sG = self.wfs.calculate_kinetic_energy_density()
-            if taut_sG is None:
-                taut_sG = self.wfs.gd.zeros(len(nt_sg))
-            taut_sg = np.empty_like(nt_sg)
-            for taut_G, taut_g in zip(taut_sG, taut_sg):
-                if self.has_paw:
-                    taut_G += 1.0 / self.wfs.nspins * self.tauct_G
-                self.distribute_and_interpolate(taut_G, taut_g)
-            tau_sg = taut_sg
-            rho_sxg = np.concatenate(
-                [nt_sg[:, np.newaxis], gradn_svg, tau_sg[:, np.newaxis]], axis=1
-            )
-        else:
-            rho_sxg = np.concatenate([nt_sg[:, np.newaxis], gradn_svg], axis=1)
         rho_sxg = rho_sxg.view()
         rho_sxg.shape = rho_sxg.shape[:2] + (-1,)
         if settings.mode != "l":
@@ -915,29 +893,16 @@ class _SLFeatMixin(_FeatureMixin):
 
     def get_features_on_grid_deriv(self, p_j, drhodf_jxg, DD_aop=None):
         nt_sg = self._get_pseudo_density()
-        self.nspin = nt_sg.shape[0]
-        _, gradn_svg = calculate_sigma(self.gd, self.grad_v, nt_sg)
-        settings = self.cider_kernel.mlfunc.settings.sl_settings
-        if settings.level == "MGGA":
-            taut_sG = self.wfs.calculate_kinetic_energy_density()
-            if taut_sG is None:
-                taut_sG = self.wfs.gd.zeros(len(nt_sg))
-            taut_sg = np.empty_like(nt_sg)
-            for taut_G, taut_g in zip(taut_sG, taut_sg):
-                if self.has_paw:
-                    taut_G += 1.0 / self.wfs.nspins * self.tauct_G
-                self.distribute_and_interpolate(taut_G, taut_g)
-            tau_sg = taut_sg
-            rho_sxg = np.concatenate(
-                [nt_sg[:, np.newaxis], gradn_svg, tau_sg[:, np.newaxis]], axis=1
-            )
-        else:
-            rho_sxg = np.concatenate([nt_sg[:, np.newaxis], gradn_svg], axis=1)
-            drhodf_jxg = np.ascontiguousarray(drhodf_jxg[:, :4])
+        taut_sg = self._get_taut(nt_sg)[0]
+        self.timer.start("Reorganize density")
+        rho_sxg = self._get_cider_inputs(nt_sg, taut_sg)[1]
+        drhodf_jxg = self._distribute_to_cider_grid(drhodf_jxg)
+        self.timer.stop()
         rho_sxg = rho_sxg.view()
         drhodf_jxg = drhodf_jxg.view()
         rho_sxg.shape = rho_sxg.shape[:2] + (-1,)
         drhodf_jxg.shape = drhodf_jxg.shape[:2] + (-1,)
+        settings = self.cider_kernel.mlfunc.settings.sl_settings
         if settings.mode != "l":
             plan = SemilocalPlan(settings, self.nspin)
             dfeat_jig = np.empty((len(p_j), settings.nfeat) + rho_sxg.shape[2:])
