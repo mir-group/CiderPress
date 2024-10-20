@@ -194,7 +194,7 @@ class CiderGrids(Grids):
                         [self.coords, np.repeat([[1e-4] * 3], padding, axis=0)]
                     )
                     self.weights = np.hstack([self.weights, np.zeros(padding)])
-                    self.grids_indexer.set_padding(padding)
+                self.grids_indexer.set_padding(padding)
             self.non0tab = self.make_mask(mol, self.coords)
             self.screen_index = self.non0tab
             self.coords = np.asarray(self.coords, order="C")

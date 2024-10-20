@@ -63,7 +63,6 @@ def run_functional(xcname):
         ks, xcfile, xmix=0.25, xkernel="GGA_X_PBE", ckernel="GGA_C_PBE"
     )
     ks = ks.density_fit(auxbasis="def2-universal-jfit")
-    ks.small_rho_cutoff = 0.0
     etot = ks.kernel()
     mol.stdout.close()
     assert_almost_equal(etot, XCVALS[xcname], 5)

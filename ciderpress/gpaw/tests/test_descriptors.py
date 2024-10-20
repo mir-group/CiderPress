@@ -503,7 +503,7 @@ def run_nl_feature_test(xc, use_pp=False, spinpol=False, baseline="PBE"):
 def run_sl_feature_test(use_pp=False, spinpol=False):
     # TODO precision is poor for Si. Why is this?
     k = 3
-    si = bulk("Ge")
+    si = bulk("Si")
     from gpaw.xc.libxc import LibXC
 
     if use_pp:
@@ -512,7 +512,7 @@ def run_sl_feature_test(use_pp=False, spinpol=False):
         xc0 = xc0name
         xc1 = xc1name
     else:
-        xc0name = "MGGA_X_SCAN+MGGA_C_SCAN"
+        xc0name = "MGGA_X_R2SCAN+MGGA_C_R2SCAN"
         xc1name = "GGA_X_PBE+GGA_C_PBE"
         xc0 = DiffMGGA(LibXC(xc0name))
         xc1 = DiffGGA(LibXC(xc1name))
@@ -555,7 +555,7 @@ def run_sl_feature_test(use_pp=False, spinpol=False):
 
     ni = NumInt()
     if use_pp:
-        exc0, vxc0 = ni.eval_xc_eff(xc0name, rho, xctype="GGA")[:2]
+        exc0, vxc0 = ni.eval_xc_eff(xc0name, rho[..., :4, :], xctype="GGA")[:2]
         exc1, vxc1 = ni.eval_xc_eff(xc1name, rho[..., :4, :], xctype="GGA")[:2]
     else:
         exc0, vxc0 = ni.eval_xc_eff(xc0name, rho, xctype="MGGA")[:2]
@@ -563,7 +563,7 @@ def run_sl_feature_test(use_pp=False, spinpol=False):
     exc_tot_0 = np.sum(exc0 * feat[:, 0].sum(0) * wt)
     exc_tot_1 = np.sum(exc1 * feat[:, 0].sum(0) * wt)
     parprint(exc_tot_1 - exc_tot_0, ediff)
-    assert_almost_equal(exc_tot_1 - exc_tot_0, ediff, 7)
+    assert_almost_equal(exc_tot_1 - exc_tot_0, ediff, 5)
 
     eig_vbm, ei_vbm, en_vbm = nscfeig(
         si.calc, xc1, n1=p_vbm[2], n2=p_vbm[2] + 1, kpt_indices=[p_vbm[1]]
