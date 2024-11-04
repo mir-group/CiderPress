@@ -11,7 +11,7 @@ include ciderpress/lib/*.so*
 include ciderpress/lib/*.dylib
 
 # source code
-recursive-include ciderpress/lib *.c *.h CMakeLists.txt
+recursive-include ciderpress/lib *.c *.h *.h.in CMakeLists.txt
 recursive-exclude ciderpress/lib *.cl
 
 global-exclude *.py[cod]
