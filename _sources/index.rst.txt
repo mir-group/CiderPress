@@ -21,6 +21,7 @@ kylebystrom@gmail.com.
    theory/theory
    features/features
    ciderpress/dft/dft
+   ciderpress/models/models
    ciderpress/pyscf/pyscf
    ciderpress/gpaw/gpaw
    c_extensions/c_extensions

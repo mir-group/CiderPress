@@ -6,7 +6,7 @@
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>PySCF Interface &mdash; CiderPress 0.1.0 documentation</title>
+  <title>The Models Module &mdash; CiderPress 0.1.0 documentation</title>
       <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=80d5e7a1" />
       <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=e59714d7" />
 
@@ -19,8 +19,8 @@
     <script src="../../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../../genindex.html" />
     <link rel="search" title="Search" href="../../search.html" />
-    <link rel="next" title="dft" href="dft.html" />
-    <link rel="prev" title="Kernel Tools" href="../models/kernel_tools.html" /> 
+    <link rel="next" title="ciderpress.models.train" href="train.html" />
+    <link rel="prev" title="The Settings Module" href="../dft/settings.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -49,11 +49,14 @@
 <li class="toctree-l1"><a class="reference internal" href="../../theory/theory.html">Theory Overview</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../features/features.html">Density and Orbital Features in CiderPress</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../dft/dft.html">DFT Module</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../models/models.html">The Models Module</a></li>
-<li class="toctree-l1 current"><a class="current reference internal" href="#">PySCF Interface</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="dft.html">dft</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">The Models Module</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="train.html">ciderpress.models.train</a></li>
+<li class="toctree-l2"><a class="reference internal" href="dft_kernel.html">ciderpress.models.dft_kernel</a></li>
+<li class="toctree-l2"><a class="reference internal" href="kernels.html">ciderpress.models.kernels</a></li>
+<li class="toctree-l2"><a class="reference internal" href="kernel_tools.html">Kernel Tools</a></li>
 </ul>
 </li>
+<li class="toctree-l1"><a class="reference internal" href="../pyscf/pyscf.html">PySCF Interface</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../gpaw/gpaw.html">GPAW Interface</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../c_extensions/c_extensions.html">C Extension Libraries</a></li>
 </ul>
@@ -72,9 +75,9 @@
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
       <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
-      <li class="breadcrumb-item active">PySCF Interface</li>
+      <li class="breadcrumb-item active">The Models Module</li>
       <li class="wy-breadcrumbs-aside">
-            <a href="../../_sources/ciderpress/pyscf/pyscf.rst.txt" rel="nofollow"> View page source</a>
+            <a href="../../_sources/ciderpress/models/models.rst.txt" rel="nofollow"> View page source</a>
       </li>
   </ul>
   <hr/>
@@ -82,14 +85,24 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
              
-  <section id="pyscf-interface">
-<h1>PySCF Interface<a class="headerlink" href="#pyscf-interface" title="Link to this heading"></a></h1>
+  <section id="the-models-module">
+<span id="models-module"></span><h1>The Models Module<a class="headerlink" href="#the-models-module" title="Link to this heading"></a></h1>
+<p>The <code class="xref py py-mod docutils literal notranslate"><span class="pre">ciderpress.models</span></code> module is the workhorse for training
+Cider exchange-correlation functionals and mapping them to efficient
+models for evaluation in DFT codes. The <code class="xref py py-mod docutils literal notranslate"><span class="pre">train</span></code> module
+contains the <code class="xref py py-class docutils literal notranslate"><span class="pre">MOLGP</span></code> and <code class="xref py py-class docutils literal notranslate"><span class="pre">MOLGP2</span></code> classes,
+which are used to construct Gaussian process models for the exchange
+and correlation energies. While these Gaussian process classes
+are custom to CiderPress, the kernel functions used to construct
+the covariance matrix are built on top of those in the scikit-learn
+package.</p>
 <div class="toctree-wrapper compound">
+<p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="dft.html">dft</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="dft.html#ciderpress.pyscf.dft.make_cider_calc"><code class="docutils literal notranslate"><span class="pre">make_cider_calc()</span></code></a></li>
-</ul>
-</li>
+<li class="toctree-l1"><a class="reference internal" href="train.html">ciderpress.models.train</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dft_kernel.html">ciderpress.models.dft_kernel</a></li>
+<li class="toctree-l1"><a class="reference internal" href="kernels.html">ciderpress.models.kernels</a></li>
+<li class="toctree-l1"><a class="reference internal" href="kernel_tools.html">Kernel Tools</a></li>
 </ul>
 </div>
 </section>
@@ -98,8 +111,8 @@
            </div>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="../models/kernel_tools.html" class="btn btn-neutral float-left" title="Kernel Tools" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="dft.html" class="btn btn-neutral float-right" title="dft" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="../dft/settings.html" class="btn btn-neutral float-left" title="The Settings Module" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="train.html" class="btn btn-neutral float-right" title="ciderpress.models.train" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>

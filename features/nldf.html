@@ -61,6 +61,7 @@
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../ciderpress/dft/dft.html">DFT Module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../ciderpress/models/models.html">The Models Module</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../ciderpress/pyscf/pyscf.html">PySCF Interface</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../ciderpress/gpaw/gpaw.html">GPAW Interface</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../c_extensions/c_extensions.html">C Extension Libraries</a></li>
@@ -117,7 +118,7 @@ It turns out that version <code class="docutils literal notranslate"><span class
 they can be combined into one feature version <code class="docutils literal notranslate"><span class="pre">ij</span></code>.</p>
 <section id="version-j">
 <h2>Version J<a class="headerlink" href="#version-j" title="Link to this heading"></a></h2>
-<p>Version J is the NLDF implemented in our paper TODO. It takes the form</p>
+<p>Version J is the NLDF implemented in Bystrom and Kozinsky<a class="footnote-reference brackets" href="#footcite-cider23x" id="id1" role="doc-noteref"><span class="fn-bracket">[</span>1<span class="fn-bracket">]</span></a>. It takes the form</p>
 <div class="math notranslate nohighlight">
 \[G_i[n](\mathbf{r}) = \int \text{d}^3\mathbf{r} \exp(-(a_i[n](\mathbf{r})+a_0[n](\mathbf{r}))|\mathbf{r}-\mathbf{r}'|^2) n(\mathbf{r}')\]</div>
 <p>For a functional with GGA semilocal features, <span class="math notranslate nohighlight">\(a_i[n](\mathbf{r})\)</span> (and <span class="math notranslate nohighlight">\(a_0[n](\mathbf{r})\)</span>) take the form</p>
@@ -186,6 +187,14 @@ decays when <span class="math notranslate nohighlight">\(a_i(\mathbf{r})&lt;&lt;
 \[G_i[n](\mathbf{r}) = \int \text{d}^3\mathbf{r} \exp(-a_i[n](\mathbf{r})|\mathbf{r}-\mathbf{r}'|^2) \exp(-3a_0[n](\mathbf{r}')/2a_i[n](\mathbf{r})) n(\mathbf{r}')\]</div>
 <p>We have alternative options for the damping function, but the above exponential is the only supported
 one currently.</p>
+<div class="docutils container" id="id2">
+<aside class="footnote-list brackets">
+<aside class="footnote brackets" id="footcite-cider23x" role="doc-footnote">
+<span class="label"><span class="fn-bracket">[</span><a role="doc-backlink" href="#id1">1</a><span class="fn-bracket">]</span></span>
+<p>Kyle Bystrom and Boris Kozinsky. Nonlocal machine-learned exchange functional for molecules and solids. <em>Phys. Rev. B</em>, 110:075130, Aug 2024. URL: <a class="reference external" href="https://link.aps.org/doi/10.1103/PhysRevB.110.075130">https://link.aps.org/doi/10.1103/PhysRevB.110.075130</a>, <a class="reference external" href="https://doi.org/10.1103/PhysRevB.110.075130">doi:10.1103/PhysRevB.110.075130</a>.</p>
+</aside>
+</aside>
+</div>
 </section>
 </section>
 

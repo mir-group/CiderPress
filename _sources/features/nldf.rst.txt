@@ -33,7 +33,7 @@ they can be combined into one feature version ``ij``.
 Version J
 ---------
 
-Version J is the NLDF implemented in our paper TODO. It takes the form
+Version J is the NLDF implemented in :footcite:t:`CIDER23X`. It takes the form
 
 .. math:: G_i[n](\mathbf{r}) = \int \text{d}^3\mathbf{r} \exp(-(a_i[n](\mathbf{r})+a_0[n](\mathbf{r}))|\mathbf{r}-\mathbf{r}'|^2) n(\mathbf{r}')
 
@@ -114,3 +114,6 @@ decays when :math:`a_i(\mathbf{r})<<a_0(\mathbf{r}')`:
 
 We have alternative options for the damping function, but the above exponential is the only supported
 one currently.
+
+.. footbibliography::
+

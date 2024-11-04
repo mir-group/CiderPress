@@ -9,7 +9,7 @@ We can consider a transformed density of the form
 
 .. math:: n_\lambda(\mathbf{r}) = \lambda^3 n(\lambda \mathbf{r})
 
-This transformation is called *uniform coordinate scaling*,
+This transformation is called *uniform coordinate scaling*,\ :footcite:p:`Martin2004`
 because it essentially involves redefining
 :math:`\mathbf{r}\leftarrow\lambda\mathbf{r}`, which squishes
 (:math:`\lambda>0`) or expands (:math:`\lambda<0`) the
@@ -32,15 +32,15 @@ from the lowest-energy density matrix with density :math:`n`. This is a very
 subtle point, however, and does not usually make a big impact, so in most
 cases we will always refer to scaling the density :math:`n_\lambda` for
 simplicity, even when orbital-dependent quantities are involved.
-For more details, see Ref. TODO.
+For more details, see :footcite:t:`Gorling1995`.
 
 The exact exchange functional :math:`E_\text{x}[n]` has a simple,
-exact behavior under uniform scaling:
+exact behavior under uniform scaling:\ :footcite:p:`Levy1985`
 
 .. math:: E_\text{x}[n_\lambda] = \lambda E_\text{x}[n]
 
 The correlation functional :math:`E_\text{c}[n]` does not have such simple
-behavior under uniform scaling, but it does obey the limits
+behavior under uniform scaling, but it does obey the limits\ :footcite:p:`Kaplan2023`
 
 .. math::
 
@@ -63,4 +63,6 @@ their behavior under uniform scaling will be the same as the behavior of the mul
 baseline functional used for training. If the baseline model has reasonable behavior under
 uniform scaling (such as PBE/SCAN), this could help make more physically realistic models.
 (However, it could also needlessly restrict the model's flexibility, so there are trade-offs involved).
+
+.. footbibliography::
 

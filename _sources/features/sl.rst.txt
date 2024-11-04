@@ -19,11 +19,11 @@ Lastly, the kinetic energy density
 
 can be used, resulting in a meta-generalized gradient approximation (meta-GGA or MGGA).
 To help enforce physical constraints such as uniform scaling, regularized
-features are often introduced, including the reduced gradient
+features are often introduced, including the reduced gradient\ :footcite:p:`Perdew1996`
 
 .. math:: p = \frac{|\nabla n|^2}{2(3\pi^2)^{1/3}n^{4/3}}
 
-and the iso-orbital indicator
+and the iso-orbital indicator\ :footcite:p:`Sun2013`
 
 .. math:: \alpha = \frac{\tau - \tau_W}{\tau_0}
 
@@ -63,4 +63,6 @@ constraint in trained models. (TODO need to elaborate on this).
 
 See the :class:`SemilocalSettings` class in the :ref:`Feature Settings <settings_module>`
 documentation for more details on the API for setting up these features.
+
+.. footbibliography::
 
