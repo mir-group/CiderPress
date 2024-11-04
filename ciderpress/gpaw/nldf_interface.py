@@ -21,7 +21,11 @@
 import ctypes
 
 import numpy as np
-from gpaw import cgpaw
+
+try:
+    from gpaw import cgpaw
+except ImportError:
+    import _gpaw as cgpaw
 from gpaw.grid_descriptor import GridDescriptor
 from gpaw.xc.libvdwxc import FFTDistribution, nulltimer
 

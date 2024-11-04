@@ -6,6 +6,8 @@ include ciderpress/data/*.npy
 prune pyscf/lib/build
 include ciderpress/lib/*.so
 include ciderpress/lib/*.so*
+recursive-include ciderpress/lib/deps *.so
+recursive-include ciderpress/lib/deps *.so.*
 
 # macos dynamic libraries
 include ciderpress/lib/*.dylib

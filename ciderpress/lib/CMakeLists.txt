@@ -101,7 +101,7 @@ link_directories(${CMAKE_INSTALL_PREFIX}/lib ${CMAKE_INSTALL_PREFIX}/lib64)
 # See also https://gitlab.kitware.com/cmake/community/wikis/doc/cmake/RPATH-handling
 set(CMAKE_SKIP_BUILD_RPATH  True)
 set(CMAKE_BUILD_WITH_INSTALL_RPATH True)
-set(CMAKE_INSTALL_RPATH "${PROJECT_SOURCE_DIR}:${PROJECT_SOURCE_DIR}/deps/lib:\$ORIGIN/deps/lib64")
+set(CMAKE_INSTALL_RPATH "\$ORIGIN:\$ORIGIN/deps/lib:\$ORIGIN/deps/lib64")
 message(RPATH=${CMAKE_INSTALL_RPATH})
 
 include(ExternalProject)
