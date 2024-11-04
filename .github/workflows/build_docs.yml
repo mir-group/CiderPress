@@ -44,7 +44,7 @@ jobs:
     - name: Build documentation
       run: |
         sudo apt-get -qq install doxygen
-        pip install sphinx breathe sphinx_rtd_theme
+        pip install sphinx breathe sphinx_rtd_theme sphinxcontrib-bibtex
         cd docs
         doxygen Doxyfile.in
         make html

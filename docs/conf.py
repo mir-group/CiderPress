@@ -24,8 +24,10 @@ extensions = [
     'sphinx_rtd_theme',
     'sphinx.ext.mathjax',
     'sphinx.ext.napoleon',
+    'sphinxcontrib.bibtex',
     'breathe',
 ]
+bibtex_bibfiles = ['refs/refs.bib', 'refs/cider_refs.bib']
 
 templates_path = ['_templates']
 exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
