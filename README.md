@@ -8,24 +8,51 @@ Machine Learning (ML) has recently gained attention as a means to fit more accur
 
 ## **WARNING**: The CiderPress Code Base is Experimental
 
-We want to make clear that both the code and the functionals themselves are experimental. The code base will likely change significantly in the next few years. Therefore, please read the installation guidance, usage instructions, examples, and known issues thoroughly before using CiderPress.
+We want to make clear that both the code and the functionals themselves are experimental.
+The code base will likely change significantly in the next few years. Therefore, please
+read the installation guidance, usage instructions, examples,
+and known issues thoroughly before using CiderPress.
 
 ## Installation
 
-We do not yet have a PyPI package for CiderPress, as the setup procedure and dependencies are complex and a work in progress. We are currently working on updating the build environment to enable simple installation through pip/conda/mamba.
-In the meantime, we have done our best to make installation from source work smoothly.
-We recommend creating a conda environment from scratch for setting up CiderPress as described below, as this makes it much easier to quickly install compatible version of the dependencies of CiderPress, PySCF, and GPAW. In case you want to install using a different setup, here is a list of dependencies that are not Python packages:
+CiderPress can be installed via PyPI or from source. However, both methods require a few prerequisites
+(i.e., things you need to set up before running `pip install`).
+These dependencies are the following:
 - Python 3.9-3.12
 - Intel Math Kernel Library (MKL)
 - Libxc
 - C and C++ compilers with OpenMP support.
-If you have conda, you can install the MKL using
-```
-conda install mkl"<=2024.0" mkl-devel"<=2024.0" mkl-service"<=2024.0" mkl_fft mkl_random
-```
-The `<=2024.0` is to fix a compatibility issue with PyTorch and MKL, so you can remove it if you don't need PyTorch (i.e. if you don't want to use CIDER24X models). In principle, it is also possible to pip install the MKL dependencies, but we have had trouble getting the libraries to link. Please make sure MKL and Libxc can be found by cmake before building.
+Note that while `mkl` and can be installed via pip, this installation is not done automatically by
+`pip install ciderpress` because we assume that some users will want to use an external (non-pip)
+MKL installation.
 
-Once you have those dependencies set up, you can install CiderPress simply by
+If you have conda, you can install the MKL and libxc dependencies using
+```
+conda install mkl"<=2024.0" mkl-devel"<=2024.0" mkl_fft libxc
+```
+If you are using pip, you can install MKL using
+```
+pip install mkl"<=2024.0" mkl-devel"<=2024.0" mkl_fft
+```
+libxc is not available through pip, so it must be installed separately. It is available on some Linux
+package managers, e.g.
+```
+apt install libxc-dev
+```
+Otherwise, you can get the source from https://libxc.gitlab.io/.
+
+For the MKL dependencies, the `<=2024.0` is to fix a compatibility issue with PyTorch and MKL,
+so you can remove it if you don't need PyTorch (i.e. if you don't want to use CIDER24X models).
+getting the libraries to link. Please make sure MKL and Libxc can be found by cmake before building.
+
+Once you have those dependencies set up, you can install CiderPress via the usual
+```
+pip install ciderpress
+```
+Note that currently we do not have wheels available for installation, so this command might take
+a while because it needs to compile C extensions and other dependencies.
+
+You can also install from source if you have the code in the directory `<CiderPress>`:
 ```
 cd <CiderPress>
 pip install .
@@ -41,22 +68,26 @@ See the `examples` directory for details on how to load and use the functionals.
 
 If you want to run plane-wave DFT calculations, you must also install GPAW with LibXC and FFTW. GPAW uses a `siteconfig.py` file to customize the libraries it links to. This repo's `.github/workflows/gpaw_siteconfig.py` could be useful for compiling GPAW with MKL, LibXC, and FFTW.
 
-**NOTE**: GPAW uses MPI for parallelization, and the CiderPress extensions must also link to MPI to run parallel GPAW calculations. Make sure cmake can find OpenMPI or an equivalent installation and that you have a working `mpicc` compiler before building CiderPress and GPAW together.
+**NOTE**: GPAW uses MPI for parallelization, and the CiderPress extensions must also link to MPI to run parallel GPAW calculations.
+If you want to run parallel GPAW calculations with CIDER, make sure cmake can find OpenMPI or an equivalent installation
+and that you have a working `mpicc` compiler before building CiderPress and GPAW together.
+In principle, the MPI version should work when installing from PyPI or source as long as MPI is found by cmake, but
+so far we have only tested it using installation from source.
 
-**NOTE**: The CiderPress C extensions must use the same OpenMP as PySCF and GPAW, otherwise you will run into parallelization issues and code crashes. `gpaw_siteconfig.py` and `ciderpress/lib/CMakeLists.txt` assume Intel's `iomp5` as the OpenMP library by default. If you are using GNU OpenMP, you should change `iomp5` to `gomp` in `gpaw_siteconfig.py` and change
-```
-set(MKL_INTERFACE lp64)
-```
-to
-```
-set(MKL_INTERFACE lp64)
-set(MKL_THREADING gnu_thread)
-```
-in `ciderpress/lib/CMakeLists.txt`. We are working on making this build setup more portable so the user doesn't have to figure this out by hand.
+**NOTE**: The CiderPress C extensions must use the same OpenMP as PySCF and GPAW.
+If they use different OpenMP installations, you will run into
+parallelization issues and code crashes. The provided `gpaw_siteconfig.py` assumes Intel's `iomp5`
+as the OpenMP library by default. You can use GNU instead by changing `iomp5` to `gomp` in `gpaw_siteconfig.py`.
 
-**NOTE**: To run the CIDER24X functionals, you also need to install pytorch.
+The cmake configuration file (`ciderpress/lib/CMakeLists.txt`) automatically selects OpenMP using the
+`find_package(OpenMP)` command. If `iomp5` or `gomp` is found, that version is used as the MKL
+threading layer, and calls to MKL made by CiderPress will run in parallel.
+Otherwise, the MKL threading layer is set to `sequential`, and MKL calls
+made by CiderPress will not run in parallel.
 
-### Easy Installation with Conda, Micromamba, etc.
+**NOTE**: To run the CIDER24X functionals, you also need to install `pytorch`.
+
+### More Detailed Instructions for Conda Installation.
 
 This section covers how to install CiderPress and its dependencies from a fresh conda environment. Micromamba is also supported; you will just need to replace the 'conda' commands with 'micromamba' below.
 
