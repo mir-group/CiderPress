@@ -83,8 +83,10 @@ else ()
   set(FFTW_CONFIGURE_ARGS --enable-static=no --enable-shared=yes --enable-threads --enable-openmp)
   message(STATUS "Did not find MPI: ${FFTW_CONFIGURE_ARGS}")
 endif()
-include_directories(${CMAKE_PYTHON_INCLUDE_PATH})
-link_directories(${CMAKE_PYTHON_LIBRARY_PATH})
+# include_directories(${CMAKE_PYTHON_INCLUDE_PATH})
+# link_directories(${CMAKE_PYTHON_LIBRARY_PATH})
+
+find_package(Python REQUIRED COMPONENTS Interpreter Development)
 
 if (NOT BLAS_LIBRARIES)
   message(FATAL_ERROR "A required library with BLAS API not found.")

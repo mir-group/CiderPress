@@ -22,12 +22,9 @@ import numpy as np
 from gpaw.atom.radialgd import AERadialGridDescriptor
 from gpaw.sphere.lebedev import R_nv, Y_nL, weight_n
 from gpaw.xc.gga import GGA, radial_gga_vars
-from gpaw.xc.kernel import XCKernel
 from gpaw.xc.mgga import MGGA
 from gpaw.xc.pawcorrection import rnablaY_nLv
 from numpy import pi, sqrt
-from pyscf.dft.gen_grid import RAD_GRIDS
-from pyscf.dft.libxc import eval_xc
 from scipy.interpolate import interp1d
 
 from ciderpress.gpaw.gpaw_grids import GCRadialGridDescriptor
@@ -149,17 +146,14 @@ class DiffPAWXCCorrection:
             xcc = setup.xc_correction
 
         tab = np.array((2, 10, 18, 36, 54, 86, 118))
-        period = (setup.Z > tab).sum()
+        (setup.Z > tab).sum()
         rcut = xcc.rgd.r_g[-1]
-        # rgd = GCRadialGridDescriptor(int(setup.Z), RAD_GRIDS[9,period])
-        # rgd = GCRadialGridDescriptor(int(setup.Z), 500)
         if setup.Z > 36 and hasattr(setup.rgd, "a") and hasattr(setup.rgd, "b"):
-            # print(setup.Z, setup.rgd.a, setup.rgd.b, setup.rgd.N)
             rgd = AERadialGridDescriptor(setup.rgd.a, setup.rgd.b, setup.rgd.N)
             gcut = rgd.ceil(rcut)
             rgd = rgd.new(gcut)
         else:
-            rgd = GCRadialGridDescriptor(int(setup.Z), RAD_GRIDS[9, period])
+            rgd = GCRadialGridDescriptor(int(setup.Z), 200)
             gcut = rgd.ceil(rcut)
             rgd = rgd.make_cut(gcut)
 
@@ -959,37 +953,3 @@ class DiffMGGA2(DiffMGGA):
                 setup.xc_correction = DiffPAWXCCorrection.from_setup(
                     setup, build_kinetic=True, ke_order_ng=False
                 )
-
-
-class PyscfGGAKernel(XCKernel):
-    def __init__(self, name):
-        self.name = "PBE"
-        self._xcname = name
-
-    def calculate(self, e_g, n_sg, dedn_sg, sigma_xg, dedsigma_xg):
-        if n_sg.shape[0] == 1:
-            spin = 0
-            ngrid = n_sg.shape[1]
-            rho = np.zeros(4, ngrid)
-            rho[0] = n_sg[0]
-            rho[1] = np.sqrt(sigma_xg[0])
-        else:
-            spin = 1
-            ngrid = n_sg.shape[1]
-            rho = np.zeros(2, 4, ngrid)
-            rho[:, 0] = n_sg
-            gu = np.sqrt(sigma_xg[0])
-            gd = np.sqrt(sigma_xg[2])
-            costheta = sigma_xg[1] / (gu * gd + 1e-32)
-            sintheta = np.sqrt(1 - costheta**2)
-            rho[0, 1] = gu
-            rho[1, 1] = gd * costheta
-            rho[1, 2] = gd * sintheta
-        e_xc, v_xc = eval_xc(self._xcname, rho, spin=spin)[:2]
-        e_g[:] = e_xc
-        if spin == 0:
-            dedn_sg[0, :] = v_xc[0]
-            dedsigma_xg[0, :] = v_xc[1]
-        else:
-            dedn_sg[:, :] = v_xc[0].T
-            dedsigma_xg[:, :] = v_xc[1].T

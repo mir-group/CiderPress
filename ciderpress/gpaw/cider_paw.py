@@ -512,9 +512,6 @@ class CiderGGAPASDW(CiderPASDW_MPRoutines, CiderGGA):
         self.world = wfs.world
         self._plan = None
         self.setups = None
-        self.gdfft = None
-        self.pwfft = None
-        self.rbuf_ag = None
         self._check_parallelization(wfs)
 
     def calculate_force_contribs(self, F_av, n_sg):
@@ -571,7 +568,6 @@ class CiderMGGAPASDW(CiderPASDW_MPRoutines, CiderMGGA):
         self.atom_slices_s = None
 
     def initialize(self, density, hamiltonian, wfs):
-        # TODO remove unneeded items here
         MGGA.initialize(self, density, hamiltonian, wfs)
         self.dens = density
         self._hamiltonian = hamiltonian
@@ -579,12 +575,7 @@ class CiderMGGAPASDW(CiderPASDW_MPRoutines, CiderMGGA):
         self.world = wfs.world
         self.setups = None
         self.atom_slices_s = None
-        self.gdfft = None
-        self.pwfft = None
         self._plan = None
-        self.rbuf_ag = None
-        self.kbuf_ak = None
-        self.theta_ak = None
         self._check_parallelization(wfs)
 
     def _get_taut(self, n_sg):

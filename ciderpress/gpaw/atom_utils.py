@@ -42,15 +42,15 @@ from ciderpress.dft.lcao_convolutions import (
 )
 from ciderpress.dft.plans import NLDFAuxiliaryPlan, get_ccl_settings, libcider
 from ciderpress.gpaw.fit_paw_gauss_pot import (
-    construct_full_p_matrices_v2,
-    get_delta_lpg_v2,
+    construct_full_p_matrices,
+    get_delta_lpg,
     get_dv,
     get_dvk,
-    get_ffunc3,
-    get_p11_matrix_v2,
-    get_p12_p21_matrix_v2,
+    get_ffunc,
+    get_p11_matrix,
+    get_p12_p21_matrix,
     get_p22_matrix,
-    get_pfunc2_norm,
+    get_pfunc_norm,
     get_pfuncs_k,
     get_phi_iabg,
     get_phi_iabk,
@@ -265,7 +265,7 @@ class FastAtomPASDWSlice:
         )
         lmax = self.psetup.lmax
         Lmax = (lmax + 1) * (lmax + 1)
-        ylm = pwutil.recursive_sph_harm_t2(Lmax, self.rhat_gv)
+        ylm = pwutil.recursive_sph_harm(Lmax, self.rhat_gv)
         funcs_ig = pwutil.eval_pasdw_funcs(
             radfuncs_ng,
             np.ascontiguousarray(ylm.T),
@@ -297,7 +297,7 @@ class FastAtomPASDWSlice:
         )
         lmax = self.psetup.lmax
         Lmax = (lmax + 1) * (lmax + 1)
-        ylm, dylm = pwutil.recursive_sph_harm_t2_deriv(Lmax, self.rhat_gv)
+        ylm, dylm = pwutil.recursive_sph_harm_deriv(Lmax, self.rhat_gv)
         dylm /= self.rad_g[:, None, None] + 1e-8  # TODO right amount of regularization?
         rodylm = np.ascontiguousarray(np.einsum("gv,gvL->Lg", self.rhat_gv, dylm))
         # dylm = np.dot(dylm, drhat_g.T)
@@ -349,7 +349,7 @@ class FastAtomPASDWSlice:
         )
         lmax = self.psetup.lmax
         Lmax = (lmax + 1) * (lmax + 1)
-        ylm = pwutil.recursive_sph_harm_t2(Lmax, self.rhat_gv)
+        ylm = pwutil.recursive_sph_harm(Lmax, self.rhat_gv)
         pfuncs_ig = pwutil.eval_pasdw_funcs(
             rad_pfuncs_ng,
             np.ascontiguousarray(ylm.T),
@@ -1701,7 +1701,7 @@ class PAugSetup(PASDWData):
         for n in range(nn):
             self.pfuncs_ntp[n] = spline(
                 np.arange(self.interp_rgd.r_g.size).astype(np.float64),
-                get_ffunc3(n, self.interp_rgd.r_g, self.rcut_func)
+                get_ffunc(n, self.interp_rgd.r_g, self.rcut_func)
                 * self.get_filt(self.interp_rgd.r_g),
             )
         # TODO should work but dangerous, make cleaner way to set rcut_func
@@ -1757,8 +1757,8 @@ class PAugSetup(PASDWData):
         pfuncs_ng = np.zeros((nn, ng), dtype=np.float64, order="C")
         pfuncs_ntp = np.zeros((nn, nt, 4), dtype=np.float64, order="C")
         for n in range(nn):
-            pfunc_t = get_ffunc3(n, interp_r_g, rcut_func)
-            pfuncs_ng[n, :] = get_ffunc3(n, rgd.r_g, rcut_func)
+            pfunc_t = get_ffunc(n, interp_r_g, rcut_func)
+            pfuncs_ng[n, :] = get_ffunc(n, rgd.r_g, rcut_func)
             pfuncs_ntp[n, :, :] = spline(
                 np.arange(interp_r_g.size).astype(np.float64), pfunc_t
             )
@@ -2061,8 +2061,8 @@ class _PSmoothSetupBase(PASDWData):
         pfuncs_ntp = np.zeros((nn, nt, 4), dtype=np.float64, order="C")
         pfuncs_nt = np.zeros((nn, nt), dtype=np.float64, order="C")
         for n in range(nn):
-            pfuncs_nt[n, :] = get_pfunc2_norm(n, interp_r_g, rcut_func)
-            pfuncs_ng[n, :] = get_pfunc2_norm(n, rgd.r_g, rcut_func)
+            pfuncs_nt[n, :] = get_pfunc_norm(n, interp_r_g, rcut_func)
+            pfuncs_ng[n, :] = get_pfunc_norm(n, rgd.r_g, rcut_func)
 
         for n in range(nn):
             pfuncs_ntp[n, :, :] = spline(
@@ -2109,7 +2109,7 @@ class _PSmoothSetupBase(PASDWData):
         else:
             pmax = 2 * self.pmax
 
-        return get_delta_lpg_v2(betas_lv, self.rcut_feat, rgd, pmin, pmax + 1e-8)
+        return get_delta_lpg(betas_lv, self.rcut_feat, rgd, pmin, pmax + 1e-8)
 
     def k2orb(self, f_skLq):
         f_skLq = f_skLq * get_dvk(self.sbt_rgd)[:, None, None]
@@ -2295,7 +2295,7 @@ class PSmoothSetupV1(_PSmoothSetupBase):
             nn = self.pfuncs_ng.shape[0]
             pfuncs2_ng = np.zeros((nn, ng2), dtype=np.float64, order="C")
             for n in range(nn):
-                pfuncs2_ng[n, :] = get_pfunc2_norm(n, self.sbt_rgd.r_g, self.rcut_func)
+                pfuncs2_ng[n, :] = get_pfunc_norm(n, self.sbt_rgd.r_g, self.rcut_func)
             pfuncs_jg = np.stack([pfuncs2_ng[n] for n in self.nlist_j])
             pfuncs_jk = get_pfuncs_k(
                 pfuncs_jg, self.llist_j, self.sbt_rgd, ns=self.nlist_j
@@ -2316,8 +2316,8 @@ class PSmoothSetupV1(_PSmoothSetupBase):
                     )
         else:
             phi_jabg = get_phi_iabg(phi_jabk, self.llist_j, self.sbt_rgd)
-        p11_l_vv = get_p11_matrix_v2(delta_l_pg, self.slrgd, reg=REG11)
-        p12_l_vbja, p21_l_javb = get_p12_p21_matrix_v2(
+        p11_l_vv = get_p11_matrix(delta_l_pg, self.slrgd, reg=REG11)
+        p12_l_vbja, p21_l_javb = get_p12_p21_matrix(
             delta_l_pg2, phi_jabg, rgd, self.w_b, self.nbas_loc
         )
         p22_l_jaja = []
@@ -2342,7 +2342,7 @@ class PSmoothSetupV1(_PSmoothSetupBase):
                 self.nbas_loc,
                 cut_func=True,
             )
-        p_l_ii = construct_full_p_matrices_v2(
+        p_l_ii = construct_full_p_matrices(
             p11_l_vv,
             p12_l_vbja,
             p21_l_javb,

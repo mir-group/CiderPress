@@ -36,7 +36,7 @@ CIDERPW_GRAD_MODE_FORCE = 1
 CIDERPW_GRAD_MODE_STRESS = 2
 
 
-class _FastCiderBase:
+class _CiderBase:
 
     is_cider_functional = True
 
@@ -72,9 +72,6 @@ class _FastCiderBase:
             self.lambd = lambd
             self.encut = encut
 
-        self.phi_aajp = None
-        self.verbose = False
-        self.size = None
         self._plan = None
         self.distribution = None
         self.fft_obj = None
@@ -145,21 +142,6 @@ class _FastCiderBase:
         )
 
     def set_grid_descriptor(self, gd):
-        # XCFunctional.set_grid_descriptor(self, gd)
-        # self.grad_v = get_gradient_ops(gd)
-        if self.size is None:
-            self._shape = gd.N_c.copy()
-            for c, n in enumerate(self._shape):
-                if not gd.pbc_c[c]:
-                    # self._shape[c] = get_efficient_fft_size(n)
-                    self._shape[c] = int(2 ** np.ceil(np.log(n) / np.log(2)))
-        else:
-            self._shape = np.array(self.size)
-            for c, n in enumerate(self._shape):
-                if gd.pbc_c[c]:
-                    assert n == gd.N_c[c]
-                else:
-                    assert n >= gd.N_c[c]
         self.gd = gd
         self.distribution = FFTDistribution(gd, [gd.comm.size, 1, 1])
 
@@ -403,7 +385,6 @@ class _FastCiderBase:
         return fs
 
     def _distribute_to_cider_grid(self, n_xg):
-        # shape = (len(n_xg),)
         shape = n_xg.shape[:-3]
         ndist_xg = self.distribution.block_zeros(shape)
         self.distribution.gd2block(n_xg, ndist_xg)
@@ -413,15 +394,12 @@ class _FastCiderBase:
         self.distribution.block2gd_add(ddist_xg, d_xg)
 
     def _get_taut(self, n_sg):
-        # TODO don't calculate sigma/dedsigma here
-        # instead just compute the gradient and dedgrad
-        # for sake of generality
         if self.type == "MGGA":
             if self.fixed_ke:
                 taut_sG = self._fixed_taut_sG
                 if not self._taut_gradv_init:
                     self._taut_gradv_init = True
-                    # ensure initialization for calculation potential
+                    # ensure initialization for calculating potential
                     self.wfs.calculate_kinetic_energy_density()
             else:
                 taut_sG = self.wfs.calculate_kinetic_energy_density()
@@ -473,12 +451,12 @@ class _FastCiderBase:
                 self.ekin -= self.wfs.gd.integrate(self.dedtaut_sG[s] * taut_sG[s])
 
 
-class CiderGGA(_FastCiderBase, GGA):
+class CiderGGA(_CiderBase, GGA):
     def __init__(self, cider_kernel, **kwargs):
         sl_settings = cider_kernel.mlfunc.settings.sl_settings
         if not sl_settings.is_empty and sl_settings.level != "GGA":
             raise ValueError("CiderGGA only supports GGA functionals!")
-        _FastCiderBase.__init__(self, cider_kernel, **kwargs)
+        _CiderBase.__init__(self, cider_kernel, **kwargs)
 
         GGA.__init__(self, LibXC("PBE"), stencil=2)
         self.type = "GGA"
@@ -493,7 +471,7 @@ class CiderGGA(_FastCiderBase, GGA):
 
     def set_grid_descriptor(self, gd):
         GGA.set_grid_descriptor(self, gd)
-        _FastCiderBase.set_grid_descriptor(self, gd)
+        _CiderBase.set_grid_descriptor(self, gd)
 
     def set_positions(self, spos_ac):
         self.spos_ac = spos_ac
@@ -572,12 +550,12 @@ def add_gradient_correction(grad_v, dedrho_sxg, v_sg):
             v_sg[s] -= vv_g
 
 
-class CiderMGGA(_FastCiderBase, MGGA):
+class CiderMGGA(_CiderBase, MGGA):
     def __init__(self, cider_kernel, **kwargs):
         sl_settings = cider_kernel.mlfunc.settings.sl_settings
         if (not sl_settings.is_empty) and sl_settings.level != "MGGA":
             raise ValueError("CiderMGGA only supports MGGA functionals!")
-        _FastCiderBase.__init__(self, cider_kernel, **kwargs)
+        _CiderBase.__init__(self, cider_kernel, **kwargs)
 
         MGGA.__init__(self, LibXC("PBE"), stencil=2)
         self.type = "MGGA"
@@ -593,7 +571,7 @@ class CiderMGGA(_FastCiderBase, MGGA):
 
     def set_grid_descriptor(self, gd):
         MGGA.set_grid_descriptor(self, gd)
-        _FastCiderBase.set_grid_descriptor(self, gd)
+        _CiderBase.set_grid_descriptor(self, gd)
 
     def calculate_paw_correction(
         self, setup, D_sp, dEdD_sp=None, addcoredensity=True, a=None

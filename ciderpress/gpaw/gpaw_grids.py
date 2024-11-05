@@ -64,9 +64,7 @@ class SBTRadialGridDescriptor(RadialGridDescriptor):
         return g
 
     def d2gdr2(self):
-        # TODO
         raise NotImplementedError
-        # return -1 / (self.a**2 * self.d * (self.r_g / self.a + 1)**2)
 
     def interpolate(self, f_g, r_x):
         return _interp_helper(f_g, self.r2g(r_x))
@@ -119,7 +117,6 @@ class SBTFullGridDescriptor(SBTRadialGridDescriptor):
     def __del__(self):
         cutil.free_sbt_descriptor(ctypes.c_void_p(self.sbt_desc))
 
-    # TODO make separate grid for ks?
     def k2g(self, r):
         g = np.zeros_like(r)
         g[r <= self.a_k] = 0  # NOTE: truncates g
@@ -235,122 +232,3 @@ class CutGCRadialGridDescriptor(GCRadialGridDescriptor):
         self.rm = rm
         self.npt = npt
         RadialGridDescriptor.__init__(self, r_g, dr_g, default_spline_points)
-
-
-# misc, to delete eventually
-"""
-from scipy.interpolate import splrep, splev
-def _get_cider_pawxc(data, rgd, gcut2, lcut):
-    def _interpc(func):
-        #return interp1d(
-        #    data.rgd.r_g,
-        #    func,
-        #    kind='cubic',
-        #)(rgd.r_g)
-        #return interp1d(
-        #    np.arange(data.rgd.r_g.size),
-        #    func,
-        #    kind='cubic',
-        #)(data.rgd.r2g(rgd.r_g))
-        spl = splrep(
-            np.arange(data.rgd.r_g.size),
-            func,
-            k=5,
-            s=0,
-        )
-        return splev(data.rgd.r2g(rgd.r_g), spl)
-
-    core_dens = {}
-    if True: # TODO take a look at this later to make spline smoother
-        xrgd = data.rgd
-        for name, n_g in zip(
-                    ['nc_g', 'nct_g', 'phicorehole_g'],
-                    [data.nc_g, data.nct_g, data.phicorehole_g]
-                ):
-            if n_g is None:
-                continue
-            x1 = xrgd.r_g[2] - xrgd.r_g[1]
-            x2 = xrgd.r_g[3] - xrgd.r_g[1]
-            xe = xrgd.r_g[0] - xrgd.r_g[1]
-            f0, f1, f2 = n_g[1:4]
-            n_g = n_g.copy()
-            a = ( (f2 - f0) / x2 - (f1 - f0) / x1 ) / (x2 - x1)
-            b = -a * x1 + (f1 - f0) / x1
-            c = f0
-            n_g[0] = a * xe**2 + b * xe + c
-            core_dens[name] = n_g
-    else:
-        for name, n_g in zip(
-                    ['nc_g', 'nct_g', 'phicorehole_g'],
-                    [data.nc_g, data.nct_g, data.phicorehole_g]
-                ):
-            core_dens[name] = n_g
-
-    phicorehole_g = data.phicorehole_g
-    if phicorehole_g is not None:
-        #phicorehole_g = _interpc(phicorehole_g)[:gcut2].copy()
-        phicorehole_g = _interpc(core_dens['phicorehole_g'])[:gcut2].copy()
-
-    xcc = PAWXCCorrection(
-        [_interpc(phi_g)[:gcut2] for phi_g in data.phi_jg],
-        [_interpc(phit_g)[:gcut2] for phit_g in data.phit_jg],
-        _interpc(core_dens['nc_g'])[:gcut2] / sqrt(4 * pi),
-        _interpc(core_dens['nct_g'])[:gcut2] / sqrt(4 * pi),
-        #_interpc(data.nc_g)[:gcut2] / sqrt(4 * pi),
-        #_interpc(data.nct_g)[:gcut2] / sqrt(4 * pi),
-        rgd,
-        list(enumerate(data.l_j)),
-        min(2 * lcut, 4),
-        data.e_xc,
-        phicorehole_g,
-        data.fcorehole,
-        None if data.tauc_g is None else _interpc(data.tauc_g)[:gcut2].copy(),
-        None if data.tauct_g is None else _interpc(data.tauct_g)[:gcut2].copy()
-    )
-    return xcc
-"""
-
-'''
-class GCRadialGridDescriptor(RadialGridDescriptor):
-    """
-    Gauss-Chebyshev radial grids from PySCF
-    """
-    def __init__(self, N=100, default_spline_points=25):
-        r_g, dr_g = gauss_chebyshev(N)
-        self.r2g_func = interp1d(
-            2**(1-r_g) - 1,
-            np.arange(N),
-            kind='cubic',
-            bounds_error=False,
-            fill_value=(0,N-1)
-        )
-        RadialGridDescriptor.__init__(self, r_g, dr_g, default_spline_points)
-
-    def r2g(self, r):
-        return self.r2g_func(2**(1-r) - 1)
-
-    def d2gdr2(self):
-        raise NotImplementedError
-
-    def interpolate(self, f_g, r_x):
-        return _interp_helper(f_g, self.r2g(r_x))
-
-    def new(self, N):
-        raise NotImplementedError
-
-    def cut(self, N):
-        return CutGCRadialGridDescriptor(self.r_g[:N], self.dr_g[:N])
-
-class CutGCRadialGridDescriptor(GCRadialGridDescriptor):
-
-    def __init__(self, r_g, dr_g, default_spline_points=25):
-        N = r_g.size
-        self.r2g_func = interp1d(
-            r_g,
-            np.arange(N),
-            kind='cubic',
-            bounds_error=False,
-            fill_value=(0,N-1)
-        )
-        RadialGridDescriptor.__init__(self, r_g, dr_g, default_spline_points)
-'''
