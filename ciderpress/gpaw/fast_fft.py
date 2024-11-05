@@ -21,18 +21,14 @@
 
 import numpy as np
 import yaml
+from gpaw import mpi
+from gpaw.xc.gga import GGA
 from gpaw.xc.libvdwxc import FFTDistribution
+from gpaw.xc.libxc import LibXC
+from gpaw.xc.mgga import MGGA
 
 from ciderpress.dft.density_util import get_sigma
 from ciderpress.dft.plans import NLDFSplinePlan
-from ciderpress.gpaw.cider_fft import (
-    DEFAULT_RHO_TOL,
-    GGA,
-    MGGA,
-    CiderParallelization,
-    LibXC,
-    mpi,
-)
 from ciderpress.gpaw.nldf_interface import LibCiderPW
 
 CIDERPW_GRAD_MODE_NONE = 0
@@ -45,8 +41,6 @@ class _FastCiderBase:
     is_cider_functional = True
 
     has_paw = False
-
-    RHO_TOL = DEFAULT_RHO_TOL
 
     def __init__(
         self, cider_kernel, Nalpha=None, lambd=1.8, encut=300, world=None, **kwargs
@@ -136,9 +130,6 @@ class _FastCiderBase:
         nldf_settings = self.cider_kernel.mlfunc.settings.nldf_settings
         need_plan = self._plan is None or self._plan.nspin != self.nspin
         need_plan = need_plan and not nldf_settings.is_empty
-        self.par_cider = CiderParallelization(self.world, self.Nalpha)
-        self.comms = self.par_cider.build_communicators()
-        self.a_comm = self.comms["a"]
         if need_plan:
             self._plan = NLDFSplinePlan(
                 nldf_settings,

@@ -28,14 +28,14 @@ if USE_FAST_CIDER:
 
     get_features = get_descriptors
 else:
-    from ciderpress.gpaw.descriptors import (
+    from ciderpress.gpaw.interp_paw import DiffGGA, DiffMGGA
+    from ciderpress.gpaw.old.descriptors import (
         get_drho_df,
         get_features,
         get_homo_lumo_fd_,
         interpolate_drhodf,
         run_constant_occ_calculation_,
     )
-    from ciderpress.gpaw.interp_paw import DiffGGA, DiffMGGA
 
 
 def setUpModule():

@@ -28,6 +28,7 @@ from gpaw.xc.vdw import spline
 from scipy.linalg import cho_factor, cho_solve
 
 from ciderpress.data import get_hgbs_max_exps
+from ciderpress.dft import pwutil
 from ciderpress.dft.density_util import get_sigma
 from ciderpress.dft.grids_indexer import AtomicGridsIndexer
 from ciderpress.dft.lcao_convolutions import (
@@ -40,7 +41,6 @@ from ciderpress.dft.lcao_convolutions import (
     get_gamma_lists_from_etb_list,
 )
 from ciderpress.dft.plans import NLDFAuxiliaryPlan, get_ccl_settings, libcider
-from ciderpress.gpaw.atom_utils import AtomPASDWSlice, SBTGridContainer
 from ciderpress.gpaw.fit_paw_gauss_pot import (
     construct_full_p_matrices_v2,
     get_delta_lpg_v2,
@@ -56,6 +56,7 @@ from ciderpress.gpaw.fit_paw_gauss_pot import (
     get_phi_iabk,
     get_poly,
 )
+from ciderpress.gpaw.gpaw_grids import SBTFullGridDescriptor
 from ciderpress.gpaw.interp_paw import (
     DiffPAWXCCorrection,
     calculate_cider_paw_correction,
@@ -132,10 +133,67 @@ def get_psetup_func_counts(Z, big=False):
             return PSETUP_LIST1
 
 
-class FastAtomPASDWSlice(AtomPASDWSlice):
-    def __init__(self, *args, **kwargs):
-        super(FastAtomPASDWSlice, self).__init__(*args, **kwargs)
-        self.indset = np.ascontiguousarray(self.indset.astype(np.int64))
+class SBTGridContainer:
+    def __init__(
+        self,
+        rgd,
+        big_rgd,
+    ):
+        self.rgd = rgd
+        self.big_rgd = big_rgd
+
+    @classmethod
+    def from_setup(cls, setup, rmin=1e-4, d=0.03, encut=1e6, N=None):
+        # rcut = np.max(setup.rcut_j)
+        rmax = setup.rgd.r_g[-1]
+        if N is not None:
+            assert isinstance(N, int)
+            d = np.log(rmax / rmin) / (N - 1)
+        else:
+            N = np.ceil(np.log(rmax / rmin) / d) + 1
+        xcc = setup.xc_correction
+        lmax = int(np.sqrt(Y_nL.shape[1]) + 1e-8) - 1
+        big_rgd = SBTFullGridDescriptor(rmin, encut, d, N=N, lmax=lmax)
+        xrgd = xcc.rgd
+        rmax = xrgd.r_g[-1] - 0.2  # TODO be more precise
+        N = int(np.log(rmax / big_rgd.a) / big_rgd.d) + 1
+        ergd = big_rgd.new(N)
+
+        return cls(ergd, big_rgd)
+
+
+class FastAtomPASDWSlice:
+    def __init__(
+        self,
+        indset,
+        g,
+        dg,
+        rad_g,
+        rhat_gv,
+        rcut,
+        psetup,
+        dv,
+        h,
+        ovlp_fit=False,
+        store_funcs=False,
+    ):
+        self.t_g = np.ascontiguousarray(g.astype(np.int32))
+        self.dt_g = np.ascontiguousarray(dg.astype(np.float64))
+        self.rad_g = rad_g
+        self.h = h
+        self.rhat_gv = rhat_gv
+        self.rcut = rcut
+        self.psetup = psetup
+        self.dv = dv
+        if ovlp_fit:
+            self.setup_ovlpt()
+        else:
+            self.sinv_pf = None
+        self.store_funcs = store_funcs
+        self._funcs_gi = None
+        if self.store_funcs:
+            self._funcs_gi = self.get_funcs()
+        self.indset = np.ascontiguousarray(indset.astype(np.int64))
 
     @classmethod
     def from_gd_and_setup(
@@ -188,6 +246,156 @@ class FastAtomPASDWSlice(AtomPASDWSlice):
             ovlp_fit=ovlp_fit,
             store_funcs=store_funcs,
         )
+
+    def get_funcs(self, pfunc=True):
+        if (self.store_funcs) and (self._funcs_gi is not None) and (pfunc):
+            return self._funcs_gi
+
+        if pfunc:
+            funcs_xtp = self.psetup.pfuncs_ntp
+            xlist_i = self.psetup.nlist_i
+        else:
+            funcs_xtp = self.psetup.ffuncs_jtp
+            xlist_i = self.psetup.jlist_i
+
+        radfuncs_ng = pwutil.eval_cubic_spline(
+            funcs_xtp,
+            self.t_g,
+            self.dt_g,
+        )
+        lmax = self.psetup.lmax
+        Lmax = (lmax + 1) * (lmax + 1)
+        ylm = pwutil.recursive_sph_harm_t2(Lmax, self.rhat_gv)
+        funcs_ig = pwutil.eval_pasdw_funcs(
+            radfuncs_ng,
+            np.ascontiguousarray(ylm.T),
+            xlist_i,
+            self.psetup.lmlist_i,
+        )
+        return funcs_ig
+
+    def get_grads(self, pfunc=True):
+        if pfunc:
+            funcs_xtp = self.psetup.pfuncs_ntp
+            xlist_i = self.psetup.nlist_i
+        else:
+            funcs_xtp = self.psetup.ffuncs_jtp
+            xlist_i = self.psetup.jlist_i
+
+        radfuncs_ng = pwutil.eval_cubic_spline(
+            funcs_xtp,
+            self.t_g,
+            self.dt_g,
+        )
+        radderivs_ng = (
+            pwutil.eval_cubic_spline_deriv(
+                funcs_xtp,
+                self.t_g,
+                self.dt_g,
+            )
+            / self.h
+        )
+        lmax = self.psetup.lmax
+        Lmax = (lmax + 1) * (lmax + 1)
+        ylm, dylm = pwutil.recursive_sph_harm_t2_deriv(Lmax, self.rhat_gv)
+        dylm /= self.rad_g[:, None, None] + 1e-8  # TODO right amount of regularization?
+        rodylm = np.ascontiguousarray(np.einsum("gv,gvL->Lg", self.rhat_gv, dylm))
+        # dylm = np.dot(dylm, drhat_g.T)
+        funcs_ig = pwutil.eval_pasdw_funcs(
+            radderivs_ng,
+            np.ascontiguousarray(ylm.T),
+            xlist_i,
+            self.psetup.lmlist_i,
+        )
+        funcs_ig -= pwutil.eval_pasdw_funcs(
+            radfuncs_ng,
+            rodylm,
+            xlist_i,
+            self.psetup.lmlist_i,
+        )
+        funcs_vig = self.rhat_gv.T[:, None, :] * funcs_ig
+        for v in range(3):
+            funcs_vig[v] += pwutil.eval_pasdw_funcs(
+                radfuncs_ng,
+                np.ascontiguousarray(dylm[:, v].T),
+                xlist_i,
+                self.psetup.lmlist_i,
+            )
+        return funcs_vig
+
+    def get_stress_funcs(self, pfunc=True):
+        funcs_vig = self.get_grads(pfunc=pfunc)
+        r_vg = self.rad_g * self.rhat_gv.T
+        return r_vg[:, None, None, :] * funcs_vig
+
+    @property
+    def num_funcs(self):
+        return len(self.psetup.nlist_i)
+
+    @property
+    def num_grids(self):
+        return self.rad_g.size
+
+    def setup_ovlpt(self):
+        rad_pfuncs_ng = pwutil.eval_cubic_spline(
+            self.psetup.pfuncs_ntp,
+            self.t_g,
+            self.dt_g,
+        )
+        rad_ffuncs_nj = pwutil.eval_cubic_spline(
+            self.psetup.ffuncs_jtp,
+            self.t_g,
+            self.dt_g,
+        )
+        lmax = self.psetup.lmax
+        Lmax = (lmax + 1) * (lmax + 1)
+        ylm = pwutil.recursive_sph_harm_t2(Lmax, self.rhat_gv)
+        pfuncs_ig = pwutil.eval_pasdw_funcs(
+            rad_pfuncs_ng,
+            np.ascontiguousarray(ylm.T),
+            self.psetup.nlist_i,
+            self.psetup.lmlist_i,
+        )
+        ffuncs_ig = pwutil.eval_pasdw_funcs(
+            rad_ffuncs_nj,
+            np.ascontiguousarray(ylm.T),
+            self.psetup.jlist_i,
+            self.psetup.lmlist_i,
+        )
+        ovlp_pf = np.einsum("pg,fg->pf", pfuncs_ig, ffuncs_ig) * self.dv
+        self.sinv_pf = np.linalg.solve(ovlp_pf.T, self.psetup.exact_ovlp_pf)
+
+    def get_ovlp_deriv(self, pfuncs_ig, pgrads_vig, stress=False):
+        ffuncs_ig = self.get_funcs(False)
+        fgrads_vig = self.get_grads(False)
+        if stress:
+            ovlp_pf = np.einsum("pg,fg->pf", pfuncs_ig, ffuncs_ig) * self.dv
+            dr_vg = self.rad_g * self.rhat_gv.T
+            dovlp_vvpf = np.einsum("ug,pg,vfg->uvpf", dr_vg, pfuncs_ig, fgrads_vig)
+            dovlp_vvpf += np.einsum("ug,vpg,fg->uvpf", dr_vg, pgrads_vig, ffuncs_ig)
+            dovlp_vvpf *= self.dv
+            for v in range(3):
+                dovlp_vvpf[v, v] += ovlp_pf
+            B_vvfq = -1 * np.einsum("uvpf,pq->uvfq", dovlp_vvpf, self.sinv_pf)
+            ni = ovlp_pf.shape[0]
+            X_vvpq = np.empty((3, 3, ni, ni))
+            for v1 in range(3):
+                for v2 in range(3):
+                    X_vvpq[v1, v2] = np.linalg.solve(ovlp_pf.T, B_vvfq[v1, v2])
+            return X_vvpq
+        else:
+            ovlp_pf = np.einsum("pg,fg->pf", pfuncs_ig, ffuncs_ig) * self.dv
+            dovlp_vpf = np.einsum("pg,vfg->vpf", pfuncs_ig, fgrads_vig) + np.einsum(
+                "vpg,fg->vpf", pgrads_vig, ffuncs_ig
+            )
+            dovlp_vpf *= self.dv
+            # d(sinv_pf)/dR = (ovlp_pf^T)^-1 * (d(ovlp_pf)/dR)^T * sinv_pf
+            B_vfq = -1 * np.einsum("vpf,pq->vfq", dovlp_vpf, self.sinv_pf)
+            ni = ovlp_pf.shape[0]
+            X_vpq = np.empty((3, ni, ni))
+            for v in range(3):
+                X_vpq[v] = np.linalg.solve(ovlp_pf.T, B_vfq[v])
+            return X_vpq
 
 
 class _PAWCiderContribs:

@@ -29,8 +29,8 @@ from gpaw.utilities import unpack_hermitian
 from gpaw.xc import XC
 from gpaw.xc.kernel import XCNull
 
-from ciderpress.gpaw.cider_paw import _CiderPASDW_MPRoutines
 from ciderpress.gpaw.fast_paw import _FastPASDW_MPRoutines
+from ciderpress.gpaw.old.cider_paw import _CiderPASDW_MPRoutines
 
 
 def non_self_consistent_eigenvalues(

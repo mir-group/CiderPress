@@ -24,13 +24,13 @@ from gpaw.xc.libxc import LibXC
 
 from ciderpress.dft.model_utils import load_cider_model
 from ciderpress.gpaw import fast_paw
-from ciderpress.gpaw.cider_fft import (
+from ciderpress.gpaw.old.cider_fft import (
     CiderGGA,
     CiderGGAHybridKernel,
     CiderMGGA,
     CiderMGGAHybridKernel,
 )
-from ciderpress.gpaw.cider_paw import (
+from ciderpress.gpaw.old.cider_paw import (
     CiderGGAPASDW,
     CiderMGGAPASDW,
     DiffGGA,
