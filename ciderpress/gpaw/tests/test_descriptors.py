@@ -11,31 +11,18 @@ from gpaw.xc import XC
 from numpy.testing import assert_almost_equal
 
 from ciderpress.gpaw.calculator import get_cider_functional
+from ciderpress.gpaw.descriptors import (
+    get_descriptors,
+    get_drho_df,
+    get_homo_lumo_fd_,
+    interpolate_drhodf,
+    run_constant_occ_calculation_,
+)
+from ciderpress.gpaw.interp_paw import DiffGGA
+from ciderpress.gpaw.interp_paw import DiffMGGA2 as DiffMGGA
 from ciderpress.gpaw.xc_tools import non_self_consistent_eigenvalues as nscfeig
 
-USE_FAST_CIDER = True
-
-if USE_FAST_CIDER:
-    from ciderpress.gpaw.fast_descriptors import (
-        get_descriptors,
-        get_drho_df,
-        get_homo_lumo_fd_,
-        interpolate_drhodf,
-        run_constant_occ_calculation_,
-    )
-    from ciderpress.gpaw.interp_paw import DiffGGA
-    from ciderpress.gpaw.interp_paw import DiffMGGA2 as DiffMGGA
-
-    get_features = get_descriptors
-else:
-    from ciderpress.gpaw.interp_paw import DiffGGA, DiffMGGA
-    from ciderpress.gpaw.old.descriptors import (
-        get_drho_df,
-        get_features,
-        get_homo_lumo_fd_,
-        interpolate_drhodf,
-        run_constant_occ_calculation_,
-    )
+get_features = get_descriptors
 
 
 def setUpModule():
@@ -61,7 +48,6 @@ def get_xc(fname, use_paw=True, force_nl=False):
         pasdw_ovlp_fit=True,
         pasdw_store_funcs=False,
         use_paw=use_paw,
-        fast=USE_FAST_CIDER,
         _force_nonlocal=force_nl,
     )
 
@@ -403,13 +389,10 @@ def run_nl_feature_test(xc, use_pp=False, spinpol=False, baseline="PBE"):
     )
 
     mlfunc = xc.cider_kernel.mlfunc
-    if USE_FAST_CIDER:
-        all_settings = [
-            mlfunc.settings.sl_settings,
-            mlfunc.settings.nldf_settings,
-        ]
-    else:
-        all_settings = [mlfunc.settings.nldf_settings]
+    all_settings = [
+        mlfunc.settings.sl_settings,
+        mlfunc.settings.nldf_settings,
+    ]
     kwargs = dict(
         settings=mlfunc.settings.nldf_settings,
         use_paw=not use_pp,

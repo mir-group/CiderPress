@@ -24,8 +24,8 @@ import numpy as np
 from gpaw.xc.gga import GGA
 from gpaw.xc.mgga import MGGA
 
-from ciderpress.gpaw.fast_atom_utils import FastAtomPASDWSlice, FastPASDWCiderKernel
-from ciderpress.gpaw.fast_fft import (
+from ciderpress.gpaw.atom_utils import FastAtomPASDWSlice, FastPASDWCiderKernel
+from ciderpress.gpaw.cider_fft import (
     CIDERPW_GRAD_MODE_FORCE,
     CIDERPW_GRAD_MODE_NONE,
     CIDERPW_GRAD_MODE_STRESS,
@@ -36,7 +36,7 @@ from ciderpress.gpaw.fast_fft import (
 from ciderpress.gpaw.nldf_interface import pwutil as libpwutil
 
 
-class _FastPASDW_MPRoutines:
+class CiderPASDW_MPRoutines:
     has_paw = True
 
     def get_D_asp(self):
@@ -464,7 +464,7 @@ class _FastPASDW_MPRoutines:
             return True
 
 
-class CiderGGAPASDW(_FastPASDW_MPRoutines, CiderGGA):
+class CiderGGAPASDW(CiderPASDW_MPRoutines, CiderGGA):
     def __init__(self, cider_kernel, **kwargs):
         CiderGGA.__init__(
             self,
@@ -496,7 +496,7 @@ class CiderGGAPASDW(_FastPASDW_MPRoutines, CiderGGA):
 
     def add_forces(self, F_av):
         GGA.add_forces(self, F_av)
-        _FastPASDW_MPRoutines.add_forces(self, F_av)
+        CiderPASDW_MPRoutines.add_forces(self, F_av)
 
     def stress_tensor_contribution(self, n_sg):
         return CiderGGA.stress_tensor_contribution(self, n_sg)
@@ -531,7 +531,7 @@ class CiderGGAPASDW(_FastPASDW_MPRoutines, CiderGGA):
             F_av[:] += Ftmp_av
 
 
-class CiderMGGAPASDW(_FastPASDW_MPRoutines, CiderMGGA):
+class CiderMGGAPASDW(CiderPASDW_MPRoutines, CiderMGGA):
     def __init__(self, cider_kernel, **kwargs):
         CiderMGGA.__init__(
             self,
@@ -563,7 +563,7 @@ class CiderMGGAPASDW(_FastPASDW_MPRoutines, CiderMGGA):
 
     def add_forces(self, F_av):
         MGGA.add_forces(self, F_av)
-        _FastPASDW_MPRoutines.add_forces(self, F_av)
+        CiderPASDW_MPRoutines.add_forces(self, F_av)
 
     def set_positions(self, spos_ac):
         MGGA.set_positions(self, spos_ac)

@@ -7,31 +7,13 @@ from numpy.testing import assert_almost_equal
 
 from ciderpress.gpaw.calculator import CiderGPAW, get_cider_functional
 
-USE_FAST_GPAW = True
 NKPT = 4
-if NKPT == 12 and not USE_FAST_GPAW:
-    REFERENCE_ENERGIES = {
-        "CIDER23X_SL_GGA": -12.868728302199766,
-        "CIDER23X_NL_GGA": -13.045337504398542,
-        "CIDER23X_SL_MGGA": -12.267997644473239,
-        "CIDER23X_NL_MGGA_DTR": -12.537128965314368,
-    }
-elif NKPT == 4 and not USE_FAST_GPAW:
-    REFERENCE_ENERGIES = {
-        "CIDER23X_SL_GGA": -12.86629098779017,
-        "CIDER23X_NL_GGA": -13.042463859210965,
-        "CIDER23X_SL_MGGA": -12.265893307629785,
-        "CIDER23X_NL_MGGA_DTR": -12.535482440595896,
-    }
-elif NKPT == 4 and USE_FAST_GPAW:
-    REFERENCE_ENERGIES = {
-        "CIDER23X_SL_GGA": -12.866290987790224,
-        "CIDER23X_NL_GGA": -13.046009774395415,
-        "CIDER23X_SL_MGGA": -12.265893307629582,
-        "CIDER23X_NL_MGGA_DTR": -12.530206623535573,
-    }
-else:
-    raise ValueError("Reference values not available")
+REFERENCE_ENERGIES = {
+    "CIDER23X_SL_GGA": -12.866290987790224,
+    "CIDER23X_NL_GGA": -13.046009774395415,
+    "CIDER23X_SL_MGGA": -12.265893307629582,
+    "CIDER23X_NL_MGGA_DTR": -12.530206623535573,
+}
 
 
 def run_calc(xc, spinpol, setups="paw"):
@@ -45,7 +27,6 @@ def run_calc(xc, spinpol, setups="paw"):
         pasdw_store_funcs=True,
         pasdw_ovlp_fit=True,  # not USE_FAST_GPAW,
         use_paw=False if setups == "sg15" else True,
-        fast=USE_FAST_GPAW,
     )
 
     atoms.calc = CiderGPAW(

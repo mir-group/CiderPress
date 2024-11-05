@@ -87,7 +87,6 @@ class TestForce(unittest.TestCase):
                 pasdw_ovlp_fit=True,
                 pasdw_store_funcs=True,
                 use_paw=False,
-                fast=True,
             )
 
         run_cider_forces(get_xc())
@@ -103,7 +102,6 @@ class TestForce(unittest.TestCase):
                 pasdw_ovlp_fit=True,
                 pasdw_store_funcs=False,
                 use_paw=False,
-                fast=True,
             )
 
         run_cider_forces(get_xc())

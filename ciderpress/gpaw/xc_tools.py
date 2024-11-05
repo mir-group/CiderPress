@@ -29,8 +29,7 @@ from gpaw.utilities import unpack_hermitian
 from gpaw.xc import XC
 from gpaw.xc.kernel import XCNull
 
-from ciderpress.gpaw.fast_paw import _FastPASDW_MPRoutines
-from ciderpress.gpaw.old.cider_paw import _CiderPASDW_MPRoutines
+from ciderpress.gpaw.cider_paw import CiderPASDW_MPRoutines
 
 
 def non_self_consistent_eigenvalues(
@@ -166,7 +165,7 @@ def vxc(gs, xc=None, coredensity=True, n1=0, n2=0):
 
     # ... and PAW corrections:
     dvxc_asii = {}
-    if isinstance(xc, (_CiderPASDW_MPRoutines, _FastPASDW_MPRoutines)):
+    if isinstance(xc, CiderPASDW_MPRoutines):
         xc._collect_paw_corrections()
     for a, D_sp in dens.D_asp.items():
         dvxc_sp = np.zeros_like(D_sp)
@@ -250,7 +249,7 @@ def vxc_mat(gs, xc=None, coredensity=True, n1=0, n2=0):
 
     # ... and PAW corrections:
     dvxc_asii = {}
-    if isinstance(xc, (_CiderPASDW_MPRoutines, _FastPASDW_MPRoutines)):
+    if isinstance(xc, CiderPASDW_MPRoutines):
         xc._collect_paw_corrections()
     for a, D_sp in dens.D_asp.items():
         dvxc_sp = np.zeros_like(D_sp)

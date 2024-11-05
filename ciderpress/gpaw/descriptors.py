@@ -33,13 +33,13 @@ from ciderpress.dft.settings import (
     SDMXBaseSettings,
     SemilocalSettings,
 )
-from ciderpress.gpaw.calculator import CiderGGAHybridKernel, CiderMGGAHybridKernel
-from ciderpress.gpaw.fast_atom_descriptor_utils import (
+from ciderpress.gpaw.atom_descriptor_utils import (
     PASDWCiderFeatureKernel,
     calculate_paw_sl_features,
     calculate_paw_sl_features_deriv,
 )
-from ciderpress.gpaw.fast_paw import CiderGGA, CiderGGAPASDW, CiderMGGA, CiderMGGAPASDW
+from ciderpress.gpaw.calculator import CiderGGAHybridKernel, CiderMGGAHybridKernel
+from ciderpress.gpaw.cider_paw import CiderGGA, CiderGGAPASDW, CiderMGGA, CiderMGGAPASDW
 
 
 class RhoVectorSettings(SemilocalSettings):
