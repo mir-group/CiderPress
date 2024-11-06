@@ -14,6 +14,7 @@ REFERENCE_ENERGIES = {
     "CIDER23X_SL_MGGA": -12.265893307629582,
     "CIDER23X_NL_MGGA_DTR": -12.530206623535573,
 }
+USE_AUGMENT_GRIDS = True
 
 
 def run_calc(xc, spinpol, setups="paw"):
@@ -39,7 +40,7 @@ def run_calc(xc, spinpol, setups="paw"):
         convergence={"energy": 1e-7},  # convergence energy in eV/electron
         spinpol=spinpol,
         setups=setups,
-        parallel={"augment_grids": True},
+        parallel={"augment_grids": USE_AUGMENT_GRIDS},
     )
     etot = atoms.get_potential_energy()  # run the calculation
     return etot

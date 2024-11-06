@@ -71,7 +71,7 @@ class CiderPASDW_MPRoutines:
         self.paw_kernel = FastPASDWCiderKernel(
             cider_kernel_inp,
             self._plan,
-            self.gd,
+            self.aux_gd,
             self.cut_xcgrid,
         )
         self.paw_kernel.initialize(
@@ -91,7 +91,7 @@ class CiderPASDW_MPRoutines:
         comm = self.atom_partition.comm
         for a in range(len(self.setups)):
             args = [
-                self.gd,
+                self.aux_gd,
                 self.spos_ac[a],
                 self.setups[a].ps_setup,
                 self.fft_obj,

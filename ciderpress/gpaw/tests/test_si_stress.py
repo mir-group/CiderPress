@@ -8,6 +8,7 @@ from gpaw import GPAW, PW, Mixer
 from ciderpress.gpaw.calculator import get_cider_functional
 
 USE_STORED_REF = True
+USE_AUGMENT_GRIDS = True
 
 
 def _run_pw_si_stress(xc, use_pp=False, s_numerical=None):
@@ -20,7 +21,7 @@ def _run_pw_si_stress(xc, use_pp=False, s_numerical=None):
         xc=xc,
         kpts=(k, k, k),
         convergence={"energy": 1e-8},
-        parallel={"augment_grids": True},
+        parallel={"augment_grids": USE_AUGMENT_GRIDS},
         setups="sg15" if use_pp else "paw",
         txt="si.txt",
     )
@@ -58,7 +59,6 @@ def get_xc(fname, use_paw=True):
         pasdw_ovlp_fit=False,
         pasdw_store_funcs=True,
         use_paw=use_paw,
-        fast=True,
     )
 
 

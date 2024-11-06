@@ -61,7 +61,6 @@ def get_xc(fname, use_paw=True):
         pasdw_ovlp_fit=False,
         pasdw_store_funcs=True,
         use_paw=use_paw,
-        fast=True,
     )
 
 

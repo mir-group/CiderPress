@@ -78,6 +78,8 @@ class _CiderBase:
         self.c_asiq = None
         self._save_c_asiq = None
         self._save_v_avsiq = None
+        self._global_redistributor = None
+        self.aux_gd = None
 
         self.setup_name = "PBE"
 
@@ -96,19 +98,31 @@ class _CiderBase:
         return {
             "kernel_params": kernel_params,
             "xc_params": xc_params,
-            "_cider_fast": True,
         }
 
     def _check_parallelization(self, wfs):
         if wfs.world.size > self.gd.comm.size:
-            raise ValueError(
-                "You are using Cider with only "
-                "%d out of %d available cores.  This is not "
-                "supported currently and can lead to incorrect "
-                "results due to parallelization issues.  Please use "
-                "parallel={'augment_grids': True}."
+            import warnings
+
+            from gpaw.utilities.grid import GridRedistributor
+
+            self.aux_gd = self.gd.new_descriptor(comm=wfs.world)
+            self._global_redistributor = GridRedistributor(
+                wfs.world, wfs.kptband_comm, self.gd, self.aux_gd
+            )
+            self.distribution = FFTDistribution(
+                self.aux_gd, [self.aux_gd.comm.size, 1, 1]
+            )
+            warnings.warn(
+                "You are using Cider with only %d out of %d available cores. "
+                "The internal Cider routines will redistribute the density "
+                "so that all cores can be used. Setting augment_grids=True in "
+                "the parallel option is recommended and might be more efficient."
                 % (self.gd.comm.size, wfs.world.size)
             )
+        else:
+            self.aux_gd = self.gd
+            self._global_redistributor = None
 
     def initialize(self, density, hamiltonian, wfs):
         if self.type == "GGA":
@@ -121,6 +135,7 @@ class _CiderBase:
         self.world = wfs.world
         self.dens = density
         self._plan = None
+        self.aux_gd = None
         self._check_parallelization(wfs)
 
     def _setup_plan(self):
@@ -138,7 +153,7 @@ class _CiderBase:
                 alpha_formula="etb",
             )
         self.fft_obj = LibCiderPW(
-            self.gd.N_c, self.gd.cell_cv, self.gd.comm, plan=self._plan
+            self.aux_gd.N_c, self.aux_gd.cell_cv, self.aux_gd.comm, plan=self._plan
         )
 
     def set_grid_descriptor(self, gd):
@@ -385,13 +400,21 @@ class _CiderBase:
         return fs
 
     def _distribute_to_cider_grid(self, n_xg):
+        if self._global_redistributor is not None:
+            n_xg = self._global_redistributor.distribute(n_xg)
         shape = n_xg.shape[:-3]
         ndist_xg = self.distribution.block_zeros(shape)
         self.distribution.gd2block(n_xg, ndist_xg)
         return ndist_xg
 
     def _add_from_cider_grid(self, d_xg, ddist_xg):
-        self.distribution.block2gd_add(ddist_xg, d_xg)
+        if self._global_redistributor is not None:
+            shape = d_xg.shape[:-3]
+            tmp_xg = self._global_redistributor.aux_gd.zeros(shape)
+            self.distribution.block2gd_add(ddist_xg, tmp_xg)
+            d_xg[:] += self._global_redistributor.collect(tmp_xg)
+        else:
+            self.distribution.block2gd_add(ddist_xg, d_xg)
 
     def _get_taut(self, n_sg):
         if self.type == "MGGA":

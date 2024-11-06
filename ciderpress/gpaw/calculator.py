@@ -48,7 +48,6 @@ def get_cider_functional(
     qmax=300,
     lambd=1.8,
     _force_nonlocal=False,
-    fast=False,
 ):
     """
     Initialize a CIDER surrogate hybrid XC functional of the form
