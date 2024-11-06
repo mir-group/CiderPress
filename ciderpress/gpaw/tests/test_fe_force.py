@@ -71,7 +71,6 @@ class TestForce(unittest.TestCase):
                 xmix=0.25,
                 pasdw_ovlp_fit=False,
                 pasdw_store_funcs=False,
-                fast=True,
             )
 
         run_cider_forces(get_xc())

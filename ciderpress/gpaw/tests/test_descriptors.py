@@ -11,31 +11,16 @@ from gpaw.xc import XC
 from numpy.testing import assert_almost_equal
 
 from ciderpress.gpaw.calculator import get_cider_functional
+from ciderpress.gpaw.descriptors import (
+    get_descriptors,
+    get_drho_df,
+    get_homo_lumo_fd_,
+    interpolate_drhodf,
+    run_constant_occ_calculation_,
+)
+from ciderpress.gpaw.interp_paw import DiffGGA
+from ciderpress.gpaw.interp_paw import DiffMGGA2 as DiffMGGA
 from ciderpress.gpaw.xc_tools import non_self_consistent_eigenvalues as nscfeig
-
-USE_FAST_CIDER = True
-
-if USE_FAST_CIDER:
-    from ciderpress.gpaw.fast_descriptors import (
-        get_descriptors,
-        get_drho_df,
-        get_homo_lumo_fd_,
-        interpolate_drhodf,
-        run_constant_occ_calculation_,
-    )
-    from ciderpress.gpaw.interp_paw import DiffGGA
-    from ciderpress.gpaw.interp_paw import DiffMGGA2 as DiffMGGA
-
-    get_features = get_descriptors
-else:
-    from ciderpress.gpaw.descriptors import (
-        get_drho_df,
-        get_features,
-        get_homo_lumo_fd_,
-        interpolate_drhodf,
-        run_constant_occ_calculation_,
-    )
-    from ciderpress.gpaw.interp_paw import DiffGGA, DiffMGGA
 
 
 def setUpModule():
@@ -61,7 +46,6 @@ def get_xc(fname, use_paw=True, force_nl=False):
         pasdw_ovlp_fit=True,
         pasdw_store_funcs=False,
         use_paw=use_paw,
-        fast=USE_FAST_CIDER,
         _force_nonlocal=force_nl,
     )
 
@@ -75,10 +59,10 @@ def _get_features(calc, all_settings, p_i=None, **kwargs):
     for settings in all_settings:
         kwargs["settings"] = settings
         if p_i is None:
-            feat, wt = get_features(calc, **kwargs)
+            feat, wt = get_descriptors(calc, **kwargs)
             feats.append(feat)
         else:
-            feat, dfeat, wt = get_features(calc, p_i=p_i, **kwargs)
+            feat, dfeat, wt = get_descriptors(calc, p_i=p_i, **kwargs)
             feats.append(feat)
             dfeats.append(dfeat)
     feat = np.concatenate(feats, axis=1)
@@ -118,20 +102,21 @@ def _rotate_orbs_(calc, s, k, n1, n2, delta):
         kpt = wfs.kpt_u[u]
         assert kpt.s == s
         assert kpt.k == k
-    else:
-        return None, None, None
-    # TODO not sure if indexing is correct for band parallelization
-    psi1 = kpt.psit_nG[n1].copy()
-    psi2 = kpt.psit_nG[n2].copy()
-    norm = np.sqrt(1 + delta * delta)
-    kpt.psit_nG[n1] += delta * psi2
-    kpt.psit_nG[n2] -= delta * psi1
-    kpt.psit_nG[n1] /= norm
-    kpt.psit_nG[n2] /= norm
+        psi1 = kpt.psit_nG[n1].copy()
+        psi2 = kpt.psit_nG[n2].copy()
+        norm = np.sqrt(1 + delta * delta)
+        # TODO not sure if indexing is correct for band parallelization
+        kpt.psit_nG[n1] += delta * psi2
+        kpt.psit_nG[n2] -= delta * psi1
+        kpt.psit_nG[n1] /= norm
+        kpt.psit_nG[n2] /= norm
     calc.wfs.calculate_atomic_density_matrices(calc.density.D_asp)
     calc.density.calculate_pseudo_density(calc.wfs)
     calc.density.interpolate_pseudo_density()
-    return psi1, psi2, 2 * kpt.weight
+    if wfs.kd.comm.rank == rank:
+        return psi1, psi2, 2 * kpt.weight
+    else:
+        return None, None, None
 
 
 def _reset_orbs_(calc, s, k, n1, n2, psi1, psi2):
@@ -143,10 +128,8 @@ def _reset_orbs_(calc, s, k, n1, n2, psi1, psi2):
         kpt = wfs.kpt_u[u]
         assert kpt.s == s
         assert kpt.k == k
-    else:
-        return
-    kpt.psit_nG[n1] = psi1
-    kpt.psit_nG[n2] = psi2
+        kpt.psit_nG[n1] = psi1
+        kpt.psit_nG[n2] = psi2
     calc.wfs.calculate_atomic_density_matrices(calc.density.D_asp)
     calc.density.calculate_pseudo_density(calc.wfs)
     calc.density.interpolate_pseudo_density()
@@ -196,7 +179,7 @@ def run_vxc_test(xc0, xc1, spinpol=False, use_pp=False, safe=True):
         xc=xc0,
         kpts=(k, k, k),
         convergence={"energy": 1e-8, "density": 1e-10},
-        parallel={"domain": min(2, world.size), "augment_grids": True},
+        parallel={"domain": min(2, world.size), "augment_grids": False},
         occupations={"name": "fermi-dirac", "width": 0.0},
         spinpol=spinpol,
         setups="sg15" if use_pp else "paw",
@@ -241,14 +224,16 @@ def run_vxc_test(xc0, xc1, spinpol=False, use_pp=False, safe=True):
     ediff1 = ediff11 - ediff10
 
     fd_eigdiff_vbm = (ediff0 - ediff1) / delta
-    parprint(eigdiff_vbm.real, fd_eigdiff_vbm / wt)
+    if wt is not None:
+        parprint(eigdiff_vbm.real, fd_eigdiff_vbm / wt)
     if use_pp:
         # TODO for some reason precision is lower on pseudopp vxc,
         # is this just due to pseudos or is it some kind of bug?
         prec = 6
     else:
         prec = 7
-    assert_almost_equal(eigdiff_vbm.real, fd_eigdiff_vbm / wt, prec)
+    if wt is not None:
+        assert_almost_equal(eigdiff_vbm.real, fd_eigdiff_vbm / wt, prec)
 
 
 def run_nscf_eigval_test(xc0, xc1, spinpol=False, use_pp=False, safe=True):
@@ -266,7 +251,7 @@ def run_nscf_eigval_test(xc0, xc1, spinpol=False, use_pp=False, safe=True):
         xc=xc0,
         kpts=(k, k, k),
         convergence={"energy": 1e-8, "density": 1e-10},
-        parallel={"domain": min(2, world.size), "augment_grids": True},
+        parallel={"domain": min(2, world.size), "augment_grids": False},
         occupations={"name": "fermi-dirac", "width": 0.0},
         spinpol=spinpol,
         setups="sg15" if use_pp else "paw",
@@ -339,6 +324,9 @@ def run_nscf_eigval_test(xc0, xc1, spinpol=False, use_pp=False, safe=True):
 
 
 def run_drho_test(spinpol=False, use_pp=False):
+    # NOTE: This test does not work if augment_grids=True
+    # because the interpolate_drhodf call will not use
+    # the right grid.
     k = 3
     si = bulk("Si")
     si.calc = GPAW(
@@ -347,7 +335,7 @@ def run_drho_test(spinpol=False, use_pp=False):
         xc="PBE",
         kpts=(k, k, k),
         convergence={"energy": 1e-8, "density": 1e-10},
-        parallel={"domain": min(2, world.size), "augment_grids": True},
+        parallel={"domain": min(2, world.size), "augment_grids": False},
         occupations={"name": "fermi-dirac", "width": 0.0},
         spinpol=spinpol,
         setups="sg15" if use_pp else "paw",
@@ -395,7 +383,7 @@ def run_nl_feature_test(xc, use_pp=False, spinpol=False, baseline="PBE"):
         xc=xc,
         kpts=(k, k, k),
         convergence={"energy": 1e-8, "density": 1e-10},
-        parallel={"domain": min(2, world.size), "augment_grids": True},
+        parallel={"domain": min(2, world.size), "augment_grids": False},
         occupations={"name": "fermi-dirac", "width": 0.0},
         spinpol=spinpol,
         setups="sg15" if use_pp else "paw",
@@ -403,13 +391,10 @@ def run_nl_feature_test(xc, use_pp=False, spinpol=False, baseline="PBE"):
     )
 
     mlfunc = xc.cider_kernel.mlfunc
-    if USE_FAST_CIDER:
-        all_settings = [
-            mlfunc.settings.sl_settings,
-            mlfunc.settings.nldf_settings,
-        ]
-    else:
-        all_settings = [mlfunc.settings.nldf_settings]
+    all_settings = [
+        mlfunc.settings.sl_settings,
+        mlfunc.settings.nldf_settings,
+    ]
     kwargs = dict(
         settings=mlfunc.settings.nldf_settings,
         use_paw=not use_pp,
@@ -523,7 +508,7 @@ def run_sl_feature_test(use_pp=False, spinpol=False):
         xc=xc0,
         kpts=(k, k, k),
         convergence={"energy": 1e-8, "density": 1e-10},
-        parallel={"domain": min(2, world.size), "augment_grids": True},
+        parallel={"domain": min(2, world.size), "augment_grids": False},
         occupations={"name": "fermi-dirac", "width": 0.0},
         spinpol=spinpol,
         setups="sg15" if use_pp else "paw",
@@ -542,8 +527,8 @@ def run_sl_feature_test(use_pp=False, spinpol=False):
     # etot = si.get_potential_energy() / Ha
 
     ediff = si.calc.get_xc_difference(xc1) / Ha
-    feat0, wt0 = get_features(si.calc, **kwargs)
-    feat, dfeat_j, wt = get_features(si.calc, p_i=[p_vbm, p_cbm], **kwargs)
+    feat0, wt0 = get_descriptors(si.calc, **kwargs)
+    feat, dfeat_j, wt = get_descriptors(si.calc, p_i=[p_vbm, p_cbm], **kwargs)
 
     from pyscf.dft.numint import NumInt
 

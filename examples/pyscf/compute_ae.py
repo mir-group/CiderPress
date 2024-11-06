@@ -90,7 +90,6 @@ def run_calc(mol, spinpol):
             xkernel="GGA_X_PBE",
             ckernel="GGA_C_PBE",
         )
-        ks.small_rho_cutoff = 0.0
     else:
         ks.xc = functional
     ks.grids.level = 3

@@ -34,10 +34,6 @@ xc = get_cider_functional(
     # pasdw_ovlp_fit=True (default) uses overlap fitting to improve precision
     # of PAW correction terms of features. Usually not needed.
     pasdw_ovlp_fit=False,
-    # Use the fast parameter to use the new, faster GPAW interface.
-    # Note that the new version only runs in parallel if CiderPress
-    # is compiled with OpenMPI.
-    fast=True,
 )
 
 # Using CiderGPAW instead of the default GPAW calculator allows calculations

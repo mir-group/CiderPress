@@ -24,8 +24,8 @@ from ase.units import Bohr, Ha
 from gpaw.occupations import FixedOccupationNumbers, OccupationNumberCalculator
 from gpaw.pw.density import ReciprocalSpaceDensity
 from gpaw.sphere.lebedev import Y_nL, weight_n
-from gpaw.xc.gga import calculate_sigma
 
+from ciderpress.dft.plans import SemilocalPlan
 from ciderpress.dft.settings import (
     FeatureSettings,
     FracLaplSettings,
@@ -34,52 +34,33 @@ from ciderpress.dft.settings import (
     SemilocalSettings,
 )
 from ciderpress.gpaw.atom_descriptor_utils import (
-    calculate_paw_cider_features_p1,
-    calculate_paw_cider_features_p2,
-    calculate_paw_cider_features_p2_noderiv,
+    PASDWCiderFeatureKernel,
     calculate_paw_sl_features,
     calculate_paw_sl_features_deriv,
-    get_features_with_sl_noderiv,
-    get_features_with_sl_part,
 )
-from ciderpress.gpaw.cider_paw import (
-    CiderGGA,
-    CiderGGAHybridKernel,
-    CiderGGAPASDW,
-    CiderMGGA,
-    CiderMGGAHybridKernel,
-    CiderMGGAPASDW,
-)
+from ciderpress.gpaw.calculator import CiderGGAHybridKernel, CiderMGGAHybridKernel
+from ciderpress.gpaw.cider_paw import CiderGGA, CiderGGAPASDW, CiderMGGA, CiderMGGAPASDW
 
 
-class XCShell:
-    def __init__(self, settings):
-        if isinstance(settings, SemilocalSettings):
-            self.settings = FeatureSettings(sl_settings=settings)
-        elif isinstance(settings, NLDFSettings):
-            if settings.sl_level == "MGGA":
-                sl_settings = SemilocalSettings("npa")
-            else:
-                sl_settings = SemilocalSettings("np")
-            self.settings = FeatureSettings(
-                sl_settings=sl_settings,
-                nldf_settings=settings,
-            )
-        elif isinstance(settings, FracLaplSettings):
-            self.settings = FeatureSettings(
-                sl_settings=SemilocalSettings("npa"),
-                nlof_settings=settings,
-            )
-        elif isinstance(settings, SDMXBaseSettings):
-            self.settings = FeatureSettings(
-                sl_settings=SemilocalSettings("npa"),
-                sdmx_settings=settings,
-            )
-        else:
-            raise ValueError("Unsupported settings")
+class RhoVectorSettings(SemilocalSettings):
+    def __init__(self):
+        self.level = "MGGA"
+        self.mode = "l"
+
+    @property
+    def nfeat(self):
+        return 5
+
+    @property
+    def get_feat_usps(self):
+        return [3, 4, 4, 4, 5]
+
+    def ueg_vector(self, rho=1):
+        tau0 = 0.3 * (3 * np.pi**2) ** (2.0 / 3) * rho ** (5.0 / 3)
+        return np.array([rho, 0, 0, 0, tau0])
 
 
-def get_features(
+def get_descriptors(
     calc,
     settings,
     p_i=None,
@@ -94,12 +75,14 @@ def get_features(
 
     Args:
         calc: a converged GPAW calculation
+        settings (BaseSettings): A settings object specifying
+            which features to compute.
         p_i (optional): A list of (s, k, n) indexes for orbitals
             for which to differentiate features with respect to
             occupation
         use_paw (bool, True): Whether to use PAW corrections.
-        version (str, 'b'): Descriptor version b, d, or l.
-            l stands for local.
+        screen_dens (bool, True): Whether to remove low-density
+            grids from the return feature vectors.
 
     Returns:
         if p_i is None:
@@ -107,24 +90,35 @@ def get_features(
         else:
             weights, features, [list of feature derivatives]
     """
+    if (
+        hasattr(calc.hamiltonian.xc, "setups")
+        and calc.hamiltonian.xc.setups is not None
+    ):
+        reset_setups = True
+        contribs = []
+        xccs = []
+        for setup in calc.hamiltonian.xc.setups:
+            xccs.append(setup.xc_correction)
+            if hasattr(setup, "cider_contribs"):
+                contribs.append(setup.cider_contribs)
+            else:
+                contribs.append(None)
+    else:
+        reset_setups = False
     if isinstance(settings, str):
         if settings != "l":
             raise ValueError("Settings must be Settings object or letter l")
         kcls = CiderMGGAHybridKernel
-        cls = FeatSLPAW if use_paw else FeatSL
-        # TODO this part is messy/unncessary, should refactor to avoid
-        cider_kernel = kcls(
-            XCShell(SemilocalSettings("nst")), 0, "GGA_X_PBE", "GGA_C_PBE"
-        )
+        cls = FeatSLMGGAPAW if use_paw else FeatSLMGGA
+        cider_kernel = kcls(XCShell(RhoVectorSettings()), 0, "GGA_X_PBE", "GGA_C_PBE")
     elif isinstance(settings, SemilocalSettings):
         if settings.level == "MGGA":
             kcls = CiderMGGAHybridKernel
-            cls = FeatSLPAW if use_paw else FeatSL
+            cls = FeatSLMGGAPAW if use_paw else FeatSLMGGA
         else:
             kcls = CiderGGAHybridKernel
-            cls = FeatSLPAW if use_paw else FeatSL
-        # TODO this part is messy/unncessary, should refactor to avoid
-        cider_kernel = kcls(None, 0, "GGA_X_PBE", "GGA_C_PBE")
+            cls = FeatSLGGAPAW if use_paw else FeatSLGGA
+        cider_kernel = kcls(XCShell(settings), 0, "GGA_X_PBE", "GGA_C_PBE")
     elif isinstance(settings, NLDFSettings):
         if settings.sl_level == "MGGA":
             kcls = CiderMGGAHybridKernel
@@ -143,7 +137,7 @@ def get_features(
         )
     else:
         raise ValueError("Unsupported settings")
-    # TOD clean this up a bit
+    # TODO clean this up a bit
     kwargs["xmix"] = 0.0
     kwargs["encut"] = kwargs.get("qmax") or kwargs.get("encut") or 300
     kwargs["lambd"] = kwargs.get("lambd") or 1.8
@@ -153,7 +147,7 @@ def get_features(
         pasdw_store_funcs=False,
         **kwargs,
     )
-    empty_xc.set_grid_descriptor(calc.density.finegd)
+    empty_xc.set_grid_descriptor(calc.hamiltonian.xc.gd)
     empty_xc.initialize(calc.density, calc.hamiltonian, calc.wfs)
     empty_xc.set_positions(calc.spos_ac)
     if calc.density.nt_sg is None:
@@ -182,7 +176,38 @@ def get_features(
             DD_aop=DD_aop,
             screen_dens=screen_dens,
         )
+    if reset_setups:
+        for a, setup in enumerate(calc.hamiltonian.xc.setups):
+            setup.xc_correction = xccs[a]
+            if contribs[a] is None:
+                setup.cider_contribs = None
+            else:
+                setup.cider_contribs = contribs[a]
     return res
+
+
+class XCShell:
+    def __init__(self, settings):
+        if isinstance(settings, SemilocalSettings):
+            self.settings = FeatureSettings(sl_settings=settings)
+        elif isinstance(settings, NLDFSettings):
+            sl_settings = SemilocalSettings(
+                "npa" if settings.sl_level == "MGGA" else "np"
+            )
+            self.settings = FeatureSettings(
+                sl_settings=sl_settings,
+                nldf_settings=settings,
+            )
+        elif isinstance(settings, FracLaplSettings):
+            self.settings = FeatureSettings(
+                nlof_settings=settings,
+            )
+        elif isinstance(settings, SDMXBaseSettings):
+            self.settings = FeatureSettings(
+                sdmx_settings=settings,
+            )
+        else:
+            raise ValueError("Unsupported settings")
 
 
 def calc_fixed(bd, fref_sqn, f_qn):
@@ -234,8 +259,6 @@ def calculate_single_orbital_atomic_density_matrix(self, D_aop, p_o, nspin):
                 assert kpt.k == p[1]
                 D_op[o] = self.get_orbital_density_matrix(a, kpt, p[2])[s]
         self.kptband_comm.sum(D_op)
-
-    # self.symmetrize_atomic_density_matrices(D_aop)
 
 
 def get_empty_atomic_matrix(dens, norb):
@@ -358,28 +381,6 @@ def perturb_occ_(calc, p, delta):
 
 
 def evaluate_perturbed_energy(calc, p, delta=1e-6, store_initial=False, reset=True):
-    """
-    def _get_energy():
-        dens = calc.density
-        #e_entropy = calc.wfs.calculate_occupation_numbers(dens.fixed)
-        calc.wfs.calculate_occupation_numbers()
-        e_entropy = 0.0
-        dens.update(calc.wfs)
-        dens.initialize_from_wavefunctions(calc.wfs)
-        calc.hamiltonian.initialize()
-        dens.calculate_pseudo_density(calc.wfs)
-        dens.interpolate_pseudo_density()
-        dens.calculate_pseudo_charge()
-        calc.hamiltonian.update(
-            dens,
-            wfs=calc.wfs,
-            kin_en_using_band=True,
-        )
-        return calc.hamiltonian.get_energy(
-            e_entropy, calc.wfs, kin_en_using_band=True
-        )
-    """
-
     def _get_energy():
         calc.calculate(properties=["energy"])
         return calc.get_potential_energy() / Ha
@@ -426,17 +427,18 @@ def get_homo_lumo_fd_(calc, delta=1e-6):
     return gap, e_vbm, e_cbm, dev, dec, p_vbm, p_cbm
 
 
+def get_atom_wt(functional, a):
+    dv_g = functional.setups[a].xc_correction.rgd.dv_g
+    weight_gn = dv_g[:, None] * weight_n
+    return weight_gn.ravel()
+
+
 def get_atom_feat_wt(functional):
     ae_feat, ps_feat = functional.calculate_paw_features()
     for a in range(len(ae_feat)):
+        wt = get_atom_wt(functional, a)
         for feat, sgn in [(ae_feat[a], 1), (ps_feat[a], -1)]:
-            # feat = np.einsum('sigL,nL->sign', feat, Y_nL)
-            nspin, nfeat = feat.shape[:2]
-            dv_g = functional.setups[a].xc_correction.rgd.dv_g
-            weight_gn = dv_g * weight_n[:, np.newaxis]
-            assert dv_g.size == feat.shape[-1]
-            feat = feat.reshape(nspin, nfeat, -1)
-            wt = weight_gn.reshape(-1)
+            assert wt.size == feat.shape[-1]
             yield feat, sgn * wt
 
 
@@ -444,23 +446,17 @@ def get_atom_feat_wt_deriv(functional, DD_aop, p_o):
     ae_feat, ps_feat, ae_dfeat, ps_dfeat = functional.calculate_paw_features_deriv(
         DD_aop, p_o
     )
-    norb = len(p_o)
     for a in range(len(ae_feat)):
         lst = [(ae_feat[a], ae_dfeat[a], 1), (ps_feat[a], ps_dfeat[a], -1)]
+        wt = get_atom_wt(functional, a)
         for feat, dfeat, sgn in lst:
-            nspin, nfeat = feat.shape[:2]
-            dv_g = functional.setups[a].xc_correction.rgd.dv_g
-            weight_gn = dv_g * weight_n[:, np.newaxis]
-            assert dv_g.size == feat.shape[-1]
-            feat = feat.reshape(nspin, nfeat, -1)
-            dfeat = dfeat.reshape(norb, nfeat, -1)
-            wt = weight_gn.reshape(-1)
+            assert wt.size == feat.shape[-1] == dfeat.shape[-1]
             yield feat, dfeat, sgn * wt
 
 
 def get_features_and_weights(calc, xc, screen_dens=True):
     vol = calc.atoms.get_volume()
-    ae_feat = xc.get_features_on_grid(include_density=True)
+    ae_feat = xc.get_features_on_grid()
     nspin, nfeat = ae_feat.shape[:2]
     size = np.prod(ae_feat.shape[2:])
     all_wt = np.ones(size) / size * vol / Bohr**3
@@ -474,20 +470,10 @@ def get_features_and_weights(calc, xc, screen_dens=True):
     assert all_wt.size == ae_feat.shape[-1]
 
     if xc.has_paw:
-        for (
-            ft,
-            wt,
-        ) in get_atom_feat_wt(xc):
+        for ft, wt in get_atom_feat_wt(xc):
             assert wt.shape[-1] == ft.shape[-1]
             ae_feat = np.append(ae_feat, ft, axis=-1)
             all_wt = np.append(all_wt, wt, axis=-1)
-
-    if not isinstance(xc, _SLFeatMixin):
-        # TODO make this safer
-        ae_feat[:, 0, :] *= nspin
-        ae_feat[:, 1, :] /= nspin ** (2.0 / 3)
-        if ae_feat.shape[1] == 6:
-            ae_feat[:, 2, :] /= nspin ** (2.0 / 3)
     return ae_feat, all_wt
 
 
@@ -518,15 +504,6 @@ def get_features_and_weights_deriv(
             feat_sig = np.append(feat_sig, ft, axis=-1)
             dfeat_jig = np.append(dfeat_jig, dft, axis=-1)
             all_wt = np.append(all_wt, wt, axis=-1)
-
-    if not isinstance(xc, _SLFeatMixin):
-        feat_sig[:, 0, :] *= nspin
-        dfeat_jig[:, 0, :] *= nspin
-        feat_sig[:, 1, :] /= nspin ** (2.0 / 3)
-        dfeat_jig[:, 1, :] /= nspin ** (2.0 / 3)
-        if feat_sig.shape[1] == 6:
-            feat_sig[:, 2, :] /= nspin ** (2.0 / 3)
-            dfeat_jig[:, 2, :] /= nspin ** (2.0 / 3)
     return feat_sig, dfeat_jig, all_wt
 
 
@@ -575,86 +552,142 @@ def get_drho_df(calc, p_i):
     return drhodf_ixR
 
 
-# noinspection PyUnresolvedReferences
+def interpolate_drhodf(gd, interp, drhodf_ixR):
+    drhodf_ixg = gd.zeros(drhodf_ixR.shape[:2])
+    for i in range(drhodf_ixR.shape[0]):
+        for x in range(drhodf_ixR.shape[1]):
+            interp(drhodf_ixR[i, x], drhodf_ixg[i, x])
+    return drhodf_ixg
+
+
 class _FeatureMixin:
-    def get_features_on_grid(self, include_density=False):
-        nt_sg = self.dens.nt_sg
-        self.nspin = nt_sg.shape[0]
-        self.gd
-        if self.rbuf_ag is None:
-            self.initialize_more_things()
-        sigma_xg, _ = calculate_sigma(self.gd, self.grad_v, nt_sg)
+    def get_D_asp(self):
+        return self.atomdist.to_work(self.dens.D_asp)
 
-        if self.type == "MGGA":
-            taut_sG = self.wfs.calculate_kinetic_energy_density()
-            if taut_sG is None:
-                taut_sG = self.wfs.gd.zeros(len(nt_sg))
-
-            taut_sg = np.empty_like(nt_sg)
-
-            for taut_G, taut_g in zip(taut_sG, taut_sg):
-                if self.has_paw:
-                    taut_G += 1.0 / self.wfs.nspins * self.tauct_G
-                self.distribute_and_interpolate(taut_G, taut_g)
-            tau_sg = taut_sg
-        else:
-            tau_sg = None
-
-        nspin = nt_sg.shape[0]
-        feat, dfeat, p_iag, q_ag, dq_ag = {}, {}, {}, {}, {}
-        cider_nt_sg, ascale, ascale_derivs = self._get_conv_terms(
-            nt_sg, sigma_xg, tau_sg
+    def initialize_paw_kernel(self, cider_kernel_inp, Nalpha_atom, encut_atom):
+        self.paw_kernel = PASDWCiderFeatureKernel(
+            cider_kernel_inp,
+            self._plan,
+            self.gd,
+            self.cut_xcgrid,
         )
+        self.paw_kernel.initialize(
+            self.dens, self.atomdist, self.atom_partition, self.setups
+        )
+        self.paw_kernel.initialize_more_things(self.setups)
+        self.paw_kernel.interpolate_dn1 = self.interpolate_dn1
+        self.atom_slices_s = None
 
+    def _collect_feat(self, feat_xg):
+        # TODO this has some redundant communication
+        xshape = feat_xg.shape[:-3]
+        gshape_out = tuple(self.gd.n_c)
+        _feat_xg = np.zeros(xshape + gshape_out)
+        self._add_from_cider_grid(_feat_xg, feat_xg)
+        feat_xg = self.gd.collect(_feat_xg, broadcast=True)
+        feat_xg.shape = xshape + (-1,)
+        return feat_xg
+
+    def _get_features_on_grid(self, rho_sxg):
+        nspin = len(rho_sxg)
+        self.nspin = nspin
+        self._DD_aop = None
+        if not self.is_initialized:
+            self._setup_plan()
+            self.fft_obj.initialize_backend()
+            self.initialize_more_things()
+        plan = self._plan
+        rho_tuple = plan.get_rho_tuple(rho_sxg, with_spin=True)
+        feat_sig = self.call_fwd(rho_tuple)[0]
+        # TODO version i features
+        feat_sig[:] *= plan.nspin
+        return feat_sig
+
+    def _get_pseudo_density(self):
+        nt_sg = self.dens.nt_sg
+        redist = self._hamiltonian.xc_redistributor
+        if redist is not None:
+            nt_sg = redist.distribute(nt_sg)
+        return nt_sg
+
+    def get_features_on_grid(self):
+        nt_sg = self._get_pseudo_density()
+        taut_sg = self._get_taut(nt_sg)[0]
+        self.timer.start("Reorganize density")
+        rho_sxg = self._get_cider_inputs(nt_sg, taut_sg)[1]
+        self.timer.stop()
+        feat = self._get_features_on_grid(rho_sxg)
+        return self._collect_feat(feat)
+
+    def _set_paw_terms(self):
+        pass
+
+    def _get_features_on_grid_deriv(self, p_j, rho_sxg, drhodf_jxg, DD_aop=None):
+        nspin = len(rho_sxg)
+        self.nspin = nspin
+        self._p_o = p_j
+        if not self.is_initialized:
+            self._setup_plan()
+            self.fft_obj.initialize_backend()
+            self.initialize_more_things()
         if self.has_paw:
-            c_sabi, df_asbLg = self.paw_kernel.calculate_paw_feat_corrections(
-                self.setups, self.get_D_asp()
-            )
-            if len(c_sabi.keys()) == 0:
-                c_sabi = {s: {} for s in range(nspin)}
-            D_sabi = {}
-            for s in range(nspin):
-                (
-                    feat[s],
-                    dfeat[s],
-                    p_iag[s],
-                    q_ag[s],
-                    dq_ag[s],
-                    D_sabi[s],
-                ) = self.calculate_6d_integral_fwd(
-                    cider_nt_sg[s], ascale[s], c_abi=c_sabi[s]
-                )
-            self.D_sabi = D_sabi
-            self.y_asbLg = df_asbLg
-            self.y_asbLk = None
+            self._DD_aop = self.atomdist.to_work(DD_aop)
         else:
-            for s in range(nspin):
-                (
-                    feat[s],
-                    dfeat[s],
-                    p_iag[s],
-                    q_ag[s],
-                    dq_ag[s],
-                ) = self.calculate_6d_integral_fwd(cider_nt_sg[s], ascale[s])
+            self._DD_aop = None
+        plan = self._plan
+        rho_tuple = plan.get_rho_tuple(rho_sxg, with_spin=True)
+        drhodf_j_tuple = []
+        for j, drhodf_xg in enumerate(drhodf_jxg):
+            drhodf_j_tuple.append(plan.get_drhodf_tuple(rho_sxg[p_j[j][0]], drhodf_xg))
+        feat_sig, dfeat_sig = self.call_fwd(rho_tuple)[:2]
+        # TODO version i features
+        feat_sig[:] *= plan.nspin
+        dfeatdf_jig = []
+        for j, drhodf_tuple in enumerate(drhodf_j_tuple):
+            s = p_j[j][0]
+            _rho_tuple = tuple([r[s] for r in rho_tuple])
+            dfeatdf_ig = self.call_feat_deriv(j, _rho_tuple, drhodf_tuple, dfeat_sig[s])
+            dfeatdf_jig.append(dfeatdf_ig)
+        dfeatdf_jig = np.ascontiguousarray(dfeatdf_jig)
+        dfeatdf_jig[:] *= plan.nspin
 
-        if include_density:
-            if self.type == "GGA":
-                tau_sg = None
-            feat = get_features_with_sl_noderiv(feat, nt_sg, sigma_xg, tau_sg)
+        return feat_sig, dfeatdf_jig
 
-        feat_out = self.gd.empty(n=feat.shape[:2], global_array=True)
-        for s in range(feat_out.shape[0]):
-            for i in range(feat_out.shape[1]):
-                feat_out[s, i] = self.gd.collect(feat[s, i], broadcast=True)
+    def get_features_on_grid_deriv(self, p_j, drhodf_jxg, DD_aop=None):
+        """
+        Get the pseudo-features on the uniform FFT grid used
+        to integrate the XC energy, along with the derivatives
+        of the features with respect to orbital occupation.
 
-        return feat_out
+        Args:
+            self: CiderFunctional
+            p_j: List of (s, k, n) band indexes
+            drhodf_jxg: (norb, 5, ngrid):
+                Derivatives of the density (0), gradient (1,2,3),
+                and kinetic energy density (4) with respect to orbital
+                occupation number.
+            DD_aop (dict of numpy array): derivatives of atomic density
+                matrices with respect to orbital occupation.
 
-    def communicate_paw_features(self, ae_feat, ps_feat, ncomponents, nfeat=None):
-        if nfeat is None:
-            nfeat = 6 if self.type == "MGGA" else 5
+        Returns:
+            feat_sig, dfeatdf_jig
+        """
+        nt_sg = self._get_pseudo_density()
+        taut_sg = self._get_taut(nt_sg)[0]
+        self.timer.start("Reorganize density")
+        rho_sxg = self._get_cider_inputs(nt_sg, taut_sg)[1]
+        drhodf_jxg = self._distribute_to_cider_grid(drhodf_jxg)
+        self.timer.stop()
+        nx = rho_sxg.shape[1]
+        feat, dfeat = self._get_features_on_grid_deriv(
+            p_j, rho_sxg, drhodf_jxg[:, :nx], DD_aop=DD_aop
+        )
+        return self._collect_feat(feat), self._collect_feat(dfeat)
+
+    def communicate_paw_features(self, ae_feat, ps_feat, ncomponents, nfeat):
         assert len(ae_feat) == len(ps_feat)
         feat_shapes = [
-            (ncomponents, nfeat, Y_nL.shape[0], setup.xc_correction.rgd.N)
+            (ncomponents, nfeat, Y_nL.shape[0] * setup.xc_correction.rgd.N)
             for setup in self.setups
         ]
         ae_feat_glob = self.atom_partition.arraydict(feat_shapes, float)
@@ -687,10 +720,6 @@ class _FeatureMixin:
                     ps_feat_glob[a] = np.empty(feat_shapes[a])
                     atom_comm.receive(ae_feat_glob[a], src, tag=2 * a)
                     atom_comm.receive(ps_feat_glob[a], src, tag=2 * a + 1)
-            # if a not in ae_feat_glob:
-            #    assert dist.atom_partition.comm.rank != 0
-            #    ae_feat_glob[a] = np.empty(feat_shapes[a])
-            #    ps_feat_glob[a] = np.empty(feat_shapes[a])
             if atom_comm.rank != 0:
                 ae_feat_glob[a] = np.empty(feat_shapes[a])
                 ps_feat_glob[a] = np.empty(feat_shapes[a])
@@ -698,385 +727,267 @@ class _FeatureMixin:
             atom_comm.broadcast(ps_feat_glob[a], 0)
         return ae_feat_glob, ps_feat_glob
 
+    def call_feat_deriv(self, j, rho_tuple, drhodf_tuple, dfeat_ig):
+        p, dp = None, None
+        plan = self._plan
+        arg_g, darg_g = plan.get_interpolation_arguments(rho_tuple, i=-1)
+        fun_g, dfun_g = plan.get_function_to_convolve(rho_tuple)
+        dargdf_g = 0
+        dfundf_g = 0
+        for darg, dfun, drho in zip(darg_g, dfun_g, drhodf_tuple):
+            dargdf_g += darg * drho
+            dfundf_g += dfun * drho
+        p, dp = plan.get_interpolation_coefficients(arg_g, i=-1, vbuf=p, dbuf=dp)
+        p.shape = arg_g.shape + (p.shape[-1],)
+        dp.shape = arg_g.shape + (p.shape[-1],)
+        dthetadf = dfundf_g[..., None] * p + (fun_g * dargdf_g)[..., None] * dp
+        self.fft_obj.set_work(np.ones_like(fun_g), dthetadf)
+        self.set_fft_work(self.nspin + j)
+        self.fft_obj.compute_forward_convolution()
+        self.get_fft_work(self.nspin + j)
+        shape = (plan.nldf_settings.nfeat,) + arg_g.shape
+        dfeatdf_ig = np.zeros(shape)
+        for i in range(plan.num_vj):
+            a_g, da_g = plan.get_interpolation_arguments(rho_tuple, i=i)
+            p, dp = plan.get_interpolation_coefficients(a_g, i=i, vbuf=p, dbuf=dp)
+            if False:  # TODO might need this later. Or can it be removed?
+                coeff_multipliers = None
+                p[:] *= coeff_multipliers
+                dp[:] *= coeff_multipliers
+            if False:  # TODO might need this later
+                plan.get_transformed_interpolation_terms(p, i=i, fwd=True, inplace=True)
+                plan.get_transformed_interpolation_terms(
+                    dp, i=i, fwd=True, inplace=True
+                )
+            p.shape = a_g.shape + (plan.nalpha,)
+            self.fft_obj.fill_vj_feature_(dfeatdf_ig[i], p)
+            dadf_g = 0
+            for darg, drho in zip(da_g, drhodf_tuple):
+                dadf_g += darg * drho
+            dfeatdf_ig[i] += dadf_g * dfeat_ig[i]
+        return dfeatdf_ig
+
     def calculate_paw_features(self):
-        ae_feat, ps_feat = calculate_paw_cider_features_p2_noderiv(
-            self.paw_kernel, self.setups, self.get_D_asp(), self.D_sabi, self.y_asbLg
+        ae_feat, ps_feat = self.paw_kernel.calculate_paw_cider_features_p2(
+            self.setups, self.D_asp, self.c_asiq, None, None
         )
-        return self.communicate_paw_features(ae_feat, ps_feat, self.nspin)
+        nfeat = self.cider_kernel.mlfunc.settings.nldf_settings.nfeat
+        return self.communicate_paw_features(ae_feat, ps_feat, self.nspin, nfeat)
 
     def calculate_paw_features_deriv(self, DD_aop, p_o):
-        ae_feat, ps_feat, ae_dfeat, ps_dfeat = calculate_paw_cider_features_p2(
-            self.paw_kernel,
-            self.setups,
-            self.get_D_asp(),
-            DD_aop,
-            p_o,
-            self.D_oabi,
-            self.y_aobLg,
+        res = self.paw_kernel.calculate_paw_cider_features_p2(
+            self.setups, self.D_asp, self.c_asiq, DD_aop, p_o
         )
-        ae_feat, ps_feat = self.communicate_paw_features(ae_feat, ps_feat, self.nspin)
-        ae_dfeat, ps_dfeat = self.communicate_paw_features(ae_dfeat, ps_dfeat, len(p_o))
+        ae_feat, ps_feat, ae_dfeat, ps_dfeat = res
+        nfeat = self.cider_kernel.mlfunc.settings.nldf_settings.nfeat
+        ae_feat, ps_feat = self.communicate_paw_features(
+            ae_feat, ps_feat, self.nspin, nfeat
+        )
+        ae_dfeat, ps_dfeat = self.communicate_paw_features(
+            ae_dfeat, ps_dfeat, len(p_o), nfeat
+        )
         return ae_feat, ps_feat, ae_dfeat, ps_dfeat
 
-    def calculate_6d_integral_deriv(
-        self, n_g, dndf_g, dcider_exp, q_ag, dq_ag, p_iag, c_abi=None
-    ):
 
-        dascaledf_ig = self.domain_world2cider(dcider_exp)
-
-        if c_abi is not None:
-            self.write_augfeat_to_rbuf(c_abi)
-        else:
-            for a in self.alphas:
-                self.rbuf_ag[a][:] = 0.0
-        self.timer.start("COEFS")
-        for ind, a in enumerate(self.alphas):
-            self.rbuf_ag[a][:] += dndf_g * q_ag[a]
-            self.rbuf_ag[a][:] += n_g * dq_ag[a] * dascaledf_ig[-1]
-        self.timer.stop()
-
-        self.calculate_6d_integral()
-
-        if self.has_paw:
-            self.timer.start("atom interp")
-            D_abi = self.interpolate_rbuf_onto_atoms(pot=False)
-            self.timer.stop()
-
-        if n_g is not None:
-            dfeatdf = np.zeros([self._plan.num_vj] + list(n_g.shape))
-        for i in range(self._plan.num_vj):
-            for ind, a in enumerate(self.alphas):
-                dfeatdf[i, :] += p_iag[i, a] * self.rbuf_ag[a]
-
-        self.timer.start("6d comm fwd")
-        if n_g is not None:
-            self.a_comm.sum(dfeatdf, root=0)
-            if self.a_comm is not None and self.a_comm.rank == 0:
-                dfeatdf = self.gdfft.collect(dfeatdf)
-                if self.gdfft.rank != 0:
-                    dfeatdf = None
-            else:
-                dfeatdf = None
-        else:
-            dfeatdf = None
-        dfeatdf = self.domain_root2xc(dfeatdf, n=(3,))
-        self.timer.stop()
-
-        if self.has_paw:
-            return dfeatdf, D_abi
-        else:
-            return dfeatdf
-
-    def get_features_on_grid_deriv(self, p_j, drhodf_jxg, DD_aop=None):
-        """
-
-        Args:
-            self: CiderFunctional
-            p_j: List of (s, k, n) band indexes
-            drhodf_jxg: (norb, 5, ngrid):
-                Derivatives of the density (0), gradient (1,2,3),
-                and kinetic energy density (4) with respect to orbital
-                occupation number.
-            DD_aop (dict of numpy array): derivatives of atomic density
-                matrices with respect to orbital occupation.
-
-        Returns:
-
-        """
-        include_density = True
-        nt_sg = self.dens.nt_sg
-        self.nspin = nt_sg.shape[0]
-        self.gd
-        if self.rbuf_ag is None:
-            self.initialize_more_things()
-
-        if DD_aop is not None:
-            DD_aop = self.atomdist.to_work(DD_aop)
-
-        sigma_xg, grad_svg = calculate_sigma(self.gd, self.grad_v, nt_sg)
-        drhodf_jg = np.ascontiguousarray(drhodf_jxg[:, 0, :])
-        dsigmadf_jg = np.zeros_like(drhodf_jg)
-        nj = len(drhodf_jxg)
-        for j in range(nj):
-            dsigmadf_jg[j] = 2 * np.einsum(
-                "v...,v...->...", grad_svg[p_j[j][0]], drhodf_jxg[j, 1:4]
+class _PAWFeatureMixin(_FeatureMixin):
+    def _set_paw_terms(self):
+        if not hasattr(self, "setups") or self.setups is None:
+            return
+        if self._DD_aop is None:
+            D_asp = self.get_D_asp()
+            if not (D_asp.partition.rank_a == self.atom_partition.rank_a).all():
+                raise ValueError("rank_a mismatch")
+            self.c_asiq, self.df_asgLq = self.paw_kernel.calculate_paw_feat_corrections(
+                self.setups, D_asp
             )
-        dtaudf_jg = np.ascontiguousarray(drhodf_jxg[:, 4, :])
-
-        if self.type == "MGGA":
-            taut_sG = self.wfs.calculate_kinetic_energy_density()
-            if taut_sG is None:
-                taut_sG = self.wfs.gd.zeros(len(nt_sg))
-
-            taut_sg = np.empty_like(nt_sg)
-
-            for taut_G, taut_g in zip(taut_sG, taut_sg):
-                if self.has_paw:
-                    taut_G += 1.0 / self.wfs.nspins * self.tauct_G
-                self.distribute_and_interpolate(taut_G, taut_g)
-            tau_sg = taut_sg
+            self.D_asp = D_asp
         else:
-            tau_sg = None
-
-        nspin = nt_sg.shape[0]
-        feat, dfeat, p_iag, q_ag, dq_ag = {}, {}, {}, {}, {}
-        dfeatdf_jig = {}
-        cider_drhodf_jg = self.domain_world2cider(drhodf_jg)
-        # TODO need to account for conv func != rho
-        if cider_drhodf_jg is None:
-            cider_drhodf_jg = {j: None for j in range(nj)}
-        cider_nt_sg, ascale, ascale_derivs = self._get_conv_terms(
-            nt_sg, sigma_xg, tau_sg
-        )
-        dascaledf_jig = np.empty((nj,) + ascale.shape[1:], dtype=ascale.dtype)
-        for j in range(nj):
-            s = p_j[j][0]
-            dascaledf_jig[j] = ascale_derivs[0][s] * drhodf_jg[j]
-            dascaledf_jig[j] += ascale_derivs[1][s] * dsigmadf_jg[j]
-            if self.type == "MGGA":
-                dascaledf_jig[j] += ascale_derivs[2][s] * dtaudf_jg[j]
-
-        if self.has_paw:
-            assert DD_aop is not None
-            c_oabi, df_aobLg = calculate_paw_cider_features_p1(
-                self.paw_kernel, self.setups, self.get_D_asp(), DD_aop, p_j
+            D_asp = self.get_D_asp()
+            if not (D_asp.partition.rank_a == self.atom_partition.rank_a).all():
+                raise ValueError("rank_a mismatch")
+            res = self.paw_kernel.calculate_paw_cider_features_p1(
+                self.setups, D_asp, self._DD_aop, self._p_o
             )
-            if len(c_oabi.keys()) == 0:
-                c_oabi = {o: {} for o in range(nspin + len(p_j))}
-            D_oabi = {}
-            for s in range(nspin):
-                (
-                    feat[s],
-                    dfeat[s],
-                    p_iag[s],
-                    q_ag[s],
-                    dq_ag[s],
-                    D_oabi[s],
-                ) = self.calculate_6d_integral_fwd(
-                    cider_nt_sg[s], ascale[s], c_abi=c_oabi[s]
-                )
-            for j in range(nj):
-                s = p_j[j][0]
-                dfeatdf_jig[j], D_oabi[nspin + j] = self.calculate_6d_integral_deriv(
-                    cider_nt_sg[s],
-                    cider_drhodf_jg[j],
-                    dascaledf_jig[j],
-                    q_ag[s],
-                    dq_ag[s],
-                    p_iag[s],
-                    c_abi=c_oabi[nspin + j],
-                )
-                dfeatdf_jig[j] += dascaledf_jig[j, :-1] * dfeat[s]
-            self.D_oabi = D_oabi
-            self.y_aobLg = df_aobLg
-            self.y_aobLk = None
-        else:
-            for s in range(nspin):
-                (
-                    feat[s],
-                    dfeat[s],
-                    p_iag[s],
-                    q_ag[s],
-                    dq_ag[s],
-                ) = self.calculate_6d_integral_fwd(cider_nt_sg[s], ascale[s])
-            for j in range(nj):
-                s = p_j[j][0]
-                dfeatdf_jig[j] = self.calculate_6d_integral_deriv(
-                    cider_nt_sg[s],
-                    cider_drhodf_jg[j],
-                    dascaledf_jig[j],
-                    q_ag[s],
-                    dq_ag[s],
-                    p_iag[s],
-                )
-                dfeatdf_jig[j] += dascaledf_jig[j, :-1] * dfeat[s]
-
-        if include_density:
-            if self.type == "GGA":
-                tau_sg = None
-                dtaudf_jg = None
-            feat, dfeatdf_jig = get_features_with_sl_part(
-                p_j,
-                feat,
-                dfeatdf_jig,
-                nt_sg,
-                sigma_xg,
-                drhodf_jg,
-                dsigmadf_jg,
-                tau_sg,
-                dtaudf_jg,
-            )
-
-        # feat = self.gd.collect(feat, broadcast=True)
-        feat_out = self.gd.empty(n=feat.shape[:2], global_array=True)
-        for s in range(feat_out.shape[0]):
-            for i in range(feat_out.shape[1]):
-                feat_out[s, i] = self.gd.collect(feat[s, i], broadcast=True)
-
-        # dfeatdf_jig = self.gd.collect(dfeatdf_jig, broadcast=True)
-        dfeat_out = self.gd.empty(n=dfeatdf_jig.shape[:2], global_array=True)
-        for j in range(dfeatdf_jig.shape[0]):
-            for i in range(dfeatdf_jig.shape[1]):
-                dfeat_out[j, i] = self.gd.collect(dfeatdf_jig[j, i], broadcast=True)
-
-        return feat_out, dfeat_out
+            self.c_asiq, self.df_asgLq = res
+            self.D_asp = D_asp
 
 
 class _SLFeatMixin(_FeatureMixin):
-    def calculate_6d_integral_deriv(
-        self, n_g, dndf_g, dcider_exp, q_ag, dq_ag, p_iag, c_abi=None
-    ):
-        raise NotImplementedError
-
     def calculate_paw_features(self):
+        settings = self.cider_kernel.mlfunc.settings.sl_settings
         ae_feat, ps_feat = calculate_paw_sl_features(
-            self.paw_kernel, self.setups, self.get_D_asp()
+            self.setups, self.get_D_asp(), settings.level == "MGGA"
         )
-        return self.communicate_paw_features(ae_feat, ps_feat, self.nspin, 5)
+        if settings.mode != "l":
+            plan = SemilocalPlan(settings, self.nspin)
+            for a in list(ae_feat.keys()):
+                ae_feat[a] = plan.get_feat(ae_feat[a])
+                ps_feat[a] = plan.get_feat(ps_feat[a])
+        return self.communicate_paw_features(
+            ae_feat, ps_feat, self.nspin, settings.nfeat
+        )
 
     def calculate_paw_features_deriv(self, DD_aop, p_o):
-        ae_feat, ps_feat, ae_dfeat, ps_dfeat = calculate_paw_sl_features_deriv(
-            self.paw_kernel, self.setups, self.get_D_asp(), DD_aop, p_o
+        settings = self.cider_kernel.mlfunc.settings.sl_settings
+        _ae_rho, _ps_rho, _ae_drho, _ps_drho = calculate_paw_sl_features_deriv(
+            self.setups, self.get_D_asp(), DD_aop, p_o, settings.level == "MGGA"
         )
+
+        if settings.mode != "l":
+            ae_feat = {}
+            ae_dfeat = {}
+            ps_feat = {}
+            ps_dfeat = {}
+            plan = SemilocalPlan(settings, self.nspin)
+            for a in list(_ae_rho.keys()):
+                ae_drho = _ae_drho[a]
+                ae_rho = _ae_rho[a]
+                ps_drho = _ps_drho[a]
+                ps_rho = _ps_rho[a]
+                ae_dfeat[a] = np.empty((len(p_o), settings.nfeat) + ae_drho.shape[2:])
+                for j, p in enumerate(p_o):
+                    ae_dfeat[a][j : j + 1] = plan.get_occd(
+                        ae_rho[p[0] : p[0] + 1], ae_drho[j : j + 1]
+                    )[1]
+                ae_feat[a] = plan.get_feat(ae_rho)
+                ps_dfeat[a] = np.empty((len(p_o), settings.nfeat) + ps_drho.shape[2:])
+                for j, p in enumerate(p_o):
+                    ps_dfeat[a][j : j + 1] = plan.get_occd(
+                        ps_rho[p[0] : p[0] + 1], ps_drho[j : j + 1]
+                    )[1]
+                ps_feat[a] = plan.get_feat(ps_rho)
+        else:
+            ae_feat = _ae_rho
+            ae_dfeat = _ae_drho
+            ps_feat = _ps_rho
+            ps_dfeat = _ps_drho
+
         ae_feat, ps_feat = self.communicate_paw_features(
-            ae_feat, ps_feat, self.nspin, 5
+            ae_feat, ps_feat, self.nspin, settings.nfeat
         )
         ae_dfeat, ps_dfeat = self.communicate_paw_features(
-            ae_dfeat, ps_dfeat, len(p_o), 5
+            ae_dfeat, ps_dfeat, len(p_o), settings.nfeat
         )
         return ae_feat, ps_feat, ae_dfeat, ps_dfeat
 
-    def get_features_on_grid(self, include_density=True):
-        nt_sg = self.dens.nt_sg
-        self.nspin = nt_sg.shape[0]
-        _, gradn_svg = calculate_sigma(self.gd, self.grad_v, nt_sg)
-        if self.rbuf_ag is None:
-            self.initialize_more_things()
+    def _collect_feat(self, feat_xg):
+        # TODO this has some redundant communication
+        xshape = feat_xg.shape[:-1]
+        gshape_out = tuple(self.gd.n_c)
+        gshape_in = tuple(self.distribution.local_output_size_c)
+        feat_xg = feat_xg.view()
+        feat_xg.shape = xshape + gshape_in
+        _feat_xg = np.zeros(xshape + gshape_out)
+        self._add_from_cider_grid(_feat_xg, feat_xg)
+        feat_xg = self.gd.collect(_feat_xg, broadcast=True)
+        feat_xg.shape = xshape + (-1,)
+        return feat_xg
 
-        taut_sG = self.wfs.calculate_kinetic_energy_density()
-        if taut_sG is None:
-            taut_sG = self.wfs.gd.zeros(len(nt_sg))
-
-        taut_sg = np.empty_like(nt_sg)
-
-        for taut_G, taut_g in zip(taut_sG, taut_sg):
-            if self.has_paw:
-                taut_G += 1.0 / self.wfs.nspins * self.tauct_G
-            self.distribute_and_interpolate(taut_G, taut_g)
-        tau_sg = taut_sg
-
-        feat = np.concatenate(
-            [nt_sg[:, np.newaxis], gradn_svg, tau_sg[:, np.newaxis]], axis=1
-        )
-        feat = self.gd.collect(feat, broadcast=True)
-        return feat
+    def get_features_on_grid(self):
+        nt_sg = self._get_pseudo_density()
+        taut_sg = self._get_taut(nt_sg)[0]
+        rho_sxg = self._get_cider_inputs(nt_sg, taut_sg)[1]
+        settings = self.cider_kernel.mlfunc.settings.sl_settings
+        rho_sxg = rho_sxg.view()
+        rho_sxg.shape = rho_sxg.shape[:2] + (-1,)
+        if settings.mode != "l":
+            plan = SemilocalPlan(settings, self.nspin)
+            feat_sig = plan.get_feat(rho_sxg)
+        else:
+            feat_sig = rho_sxg
+        return self._collect_feat(feat_sig)
 
     def get_features_on_grid_deriv(self, p_j, drhodf_jxg, DD_aop=None):
-        nt_sg = self.dens.nt_sg
-        self.nspin = nt_sg.shape[0]
-        _, gradn_svg = calculate_sigma(self.gd, self.grad_v, nt_sg)
-        if self.rbuf_ag is None:
-            self.initialize_more_things()
+        nt_sg = self._get_pseudo_density()
+        taut_sg = self._get_taut(nt_sg)[0]
+        self.timer.start("Reorganize density")
+        rho_sxg = self._get_cider_inputs(nt_sg, taut_sg)[1]
+        drhodf_jxg = self._distribute_to_cider_grid(drhodf_jxg)
+        self.timer.stop()
+        rho_sxg = rho_sxg.view()
+        drhodf_jxg = drhodf_jxg.view()
+        rho_sxg.shape = rho_sxg.shape[:2] + (-1,)
+        drhodf_jxg.shape = drhodf_jxg.shape[:2] + (-1,)
+        settings = self.cider_kernel.mlfunc.settings.sl_settings
+        if settings.mode != "l":
+            plan = SemilocalPlan(settings, self.nspin)
+            dfeat_jig = np.empty((len(p_j), settings.nfeat) + rho_sxg.shape[2:])
+            for j, p in enumerate(p_j):
+                dfeat_jig[j : j + 1] = plan.get_occd(
+                    rho_sxg[p[0] : p[0] + 1], drhodf_jxg[j : j + 1]
+                )[1]
+            feat_sig = plan.get_feat(rho_sxg)
+        else:
+            feat_sig = rho_sxg
+            dfeat_jig = drhodf_jxg
+        return self._collect_feat(feat_sig), self._collect_feat(dfeat_jig)
 
-        taut_sG = self.wfs.calculate_kinetic_energy_density()
-        if taut_sG is None:
-            taut_sG = self.wfs.gd.zeros(len(nt_sg))
 
-        taut_sg = np.empty_like(nt_sg)
+def _initialize_gga_feat(self, density, hamiltonian, wfs):
+    """
+    GGAs do not automatically define these distribute and restrict
+    functions, which we need for feature generation, so this initializer
+    takes care of that.
+    """
+    super(self.__class__, self).initialize(density, hamiltonian, wfs)
+    self.wfs = wfs
+    self.atomdist = hamiltonian.atomdist
+    self.setups = hamiltonian.setups
+    self.atom_partition = self.get_D_asp().partition
+    self._hamiltonian = hamiltonian
+    if (not hasattr(hamiltonian, "xc_redistributor")) or (
+        hamiltonian.xc_redistributor is None
+    ):
+        self.restrict_and_collect = hamiltonian.restrict_and_collect
+        self.distribute_and_interpolate = density.distribute_and_interpolate
+    else:
 
-        for taut_G, taut_g in zip(taut_sG, taut_sg):
-            if self.has_paw:
-                taut_G += 1.0 / self.wfs.nspins * self.tauct_G
-            self.distribute_and_interpolate(taut_G, taut_g)
-        tau_sg = taut_sg
+        def _distribute_and_interpolate(in_xR, out_xR=None):
+            tmp_xR = density.interpolate(in_xR)
+            if hamiltonian.xc_redistributor.enabled:
+                out_xR = hamiltonian.xc_redistributor.distribute(tmp_xR, out_xR)
+            elif out_xR is None:
+                out_xR = tmp_xR
+            else:
+                out_xR[:] = tmp_xR
+            return out_xR
 
-        feat = np.concatenate(
-            [nt_sg[:, np.newaxis], gradn_svg, tau_sg[:, np.newaxis]], axis=1
-        )
-        feat = self.gd.collect(feat, broadcast=True)
-        dfeat = self.gd.collect(drhodf_jxg, broadcast=True)
-        return feat, dfeat
+        def _restrict_and_collect(in_xR, out_xR=None):
+            if hamiltonian.xc_redistributor.enabled:
+                in_xR = hamiltonian.xc_redistributor.collect(in_xR)
+            return hamiltonian.restrict(in_xR, out_xR)
+
+        self.restrict_and_collect = _restrict_and_collect
+        self.distribute_and_interpolate = _distribute_and_interpolate
 
 
 class FeatGGA(_FeatureMixin, CiderGGA):
-    def initialize(self, density, hamiltonian, wfs):
-        super(FeatGGA, self).initialize(density, hamiltonian, wfs)
-        self.wfs = wfs
-        if (not hasattr(hamiltonian, "xc_redistributor")) or (
-            hamiltonian.xc_redistributor is None
-        ):
-            self.restrict_and_collect = hamiltonian.restrict_and_collect
-            self.distribute_and_interpolate = density.distribute_and_interpolate
-        else:
-
-            def _distribute_and_interpolate(in_xR, out_xR=None):
-                tmp_xR = density.interpolate(in_xR)
-                if hamiltonian.xc_redistributor.enabled:
-                    out_xR = hamiltonian.xc_redistributor.distribute(tmp_xR, out_xR)
-                elif out_xR is None:
-                    out_xR = tmp_xR
-                else:
-                    out_xR[:] = tmp_xR
-                return out_xR
-
-            def _restrict_and_collect(in_xR, out_xR=None):
-                if hamiltonian.xc_redistributor.enabled:
-                    in_xR = hamiltonian.xc_redistributor.collect(in_xR)
-                return hamiltonian.restrict(in_xR, out_xR)
-
-            self.restrict_and_collect = _restrict_and_collect
-            self.distribute_and_interpolate = _distribute_and_interpolate
+    initialize = _initialize_gga_feat
 
 
 class FeatMGGA(_FeatureMixin, CiderMGGA):
+    initialize = _initialize_gga_feat
+
+
+class FeatGGAPAW(_PAWFeatureMixin, CiderGGAPASDW):
+    initialize = _initialize_gga_feat
+
+
+class FeatMGGAPAW(_PAWFeatureMixin, CiderMGGAPASDW):
     pass
 
 
-class FeatGGAPAW(_FeatureMixin, CiderGGAPASDW):
-    def initialize(self, density, hamiltonian, wfs):
-        super(FeatGGAPAW, self).initialize(density, hamiltonian, wfs)
-        self.wfs = wfs
-        if (not hasattr(hamiltonian, "xc_redistributor")) or (
-            hamiltonian.xc_redistributor is None
-        ):
-            self.restrict_and_collect = hamiltonian.restrict_and_collect
-            self.distribute_and_interpolate = density.distribute_and_interpolate
-        else:
-
-            def _distribute_and_interpolate(in_xR, out_xR=None):
-                tmp_xR = density.interpolate(in_xR)
-                if hamiltonian.xc_redistributor.enabled:
-                    out_xR = hamiltonian.xc_redistributor.distribute(tmp_xR, out_xR)
-                elif out_xR is None:
-                    out_xR = tmp_xR
-                else:
-                    out_xR[:] = tmp_xR
-                return out_xR
-
-            def _restrict_and_collect(in_xR, out_xR=None):
-                if hamiltonian.xc_redistributor.enabled:
-                    in_xR = hamiltonian.xc_redistributor.collect(in_xR)
-                return hamiltonian.restrict(in_xR, out_xR)
-
-            self.restrict_and_collect = _restrict_and_collect
-            self.distribute_and_interpolate = _distribute_and_interpolate
+class FeatSLGGA(_SLFeatMixin, CiderGGA):
+    initialize = _initialize_gga_feat
 
 
-class FeatMGGAPAW(_FeatureMixin, CiderMGGAPASDW):
-    pass
+class FeatSLMGGA(_SLFeatMixin, CiderMGGA):
+    initialize = _initialize_gga_feat
 
 
-class FeatSL(_SLFeatMixin, CiderMGGA):
-    pass
+class FeatSLGGAPAW(_SLFeatMixin, CiderGGAPASDW):
+    initialize = _initialize_gga_feat
 
 
-class FeatSLPAW(_SLFeatMixin, CiderMGGAPASDW):
-    pass
-
-
-def interpolate_drhodf(gd, interp, drhodf_ixR):
-    drhodf_ixg = gd.zeros(drhodf_ixR.shape[:2])
-    for i in range(drhodf_ixR.shape[0]):
-        for x in range(drhodf_ixR.shape[1]):
-            interp(drhodf_ixR[i, x], drhodf_ixg[i, x])
-    return drhodf_ixg
+class FeatSLMGGAPAW(_SLFeatMixin, CiderMGGAPASDW):
+    initialize = _initialize_gga_feat

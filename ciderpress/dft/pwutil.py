@@ -128,7 +128,7 @@ def eval_cubic_interp_noderiv(i_g, t_g, c_ip):
     return _eval_cubic_interp(i_g, t_g, c_ip, False)
 
 
-def recursive_sph_harm_t2(nlm, rhat_gv):
+def recursive_sph_harm(nlm, rhat_gv):
     n = rhat_gv.shape[0]
     res = np.empty((n, nlm), order="C")
     assert rhat_gv.flags.c_contiguous
@@ -141,7 +141,7 @@ def recursive_sph_harm_t2(nlm, rhat_gv):
     return res
 
 
-def recursive_sph_harm_t2_deriv(nlm, rhat_gv):
+def recursive_sph_harm_deriv(nlm, rhat_gv):
     n = rhat_gv.shape[0]
     res = np.empty((n, nlm), order="C")
     dres = np.empty((n, 3, nlm), order="C")

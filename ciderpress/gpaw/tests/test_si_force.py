@@ -7,6 +7,8 @@ from gpaw import GPAW, PW, FermiDirac, Mixer
 from ciderpress.gpaw.calculator import get_cider_functional
 from ciderpress.gpaw.tests import equal
 
+USE_AUGMENT_GRIDS = True
+
 
 def numeric_force(atoms, a, i, d=0.001, get_xc=None):
     """Compute numeric force on atom with index a, Cartesian component i,
@@ -41,22 +43,18 @@ def _run_cider_forces(functional, get_xc=None):
         pbc=True,
     )
     bulk.set_cell((a, a, a), scale_atoms=True)
-    bulk.set_cell(
-        np.dot(bulk.cell, [[1.02, 0, 0.03], [0, 0.99, -0.02], [0.2, -0.01, 1.03]]),
-        scale_atoms=True,
-    )
     if get_xc is not None:
         functional = get_xc()
     calc = GPAW(
-        h=0.2,
+        h=0.20,
         mode=PW(350),
         xc=functional,
         nbands="150%",
         occupations=FermiDirac(width=0.01),
         kpts=(3, 3, 3),
-        convergence={"energy": 1e-7},
-        parallel={"augment_grids": True},
+        convergence={"energy": 1e-8},
         mixer=Mixer(0.7, 8, 50),
+        parallel={"augment_grids": USE_AUGMENT_GRIDS},
     )
     bulk.calc = calc
     f1 = bulk.get_forces()[0, 2]
@@ -64,7 +62,7 @@ def _run_cider_forces(functional, get_xc=None):
 
     f2 = numeric_force(bulk, 0, 2, 0.001, get_xc=get_xc)
     print((f1, f2, f1 - f2))
-    equal(f1, f2, 0.005)
+    equal(f1, f2, 0.001)
 
 
 def run_cider_forces(functional, get_xc=None):
