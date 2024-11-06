@@ -581,7 +581,7 @@ class _FeatureMixin:
     def _collect_feat(self, feat_xg):
         # TODO this has some redundant communication
         xshape = feat_xg.shape[:-3]
-        gshape_out = tuple(self.distribution.input_gd.n_c)
+        gshape_out = tuple(self.gd.n_c)
         _feat_xg = np.zeros(xshape + gshape_out)
         self._add_from_cider_grid(_feat_xg, feat_xg)
         feat_xg = self.gd.collect(_feat_xg, broadcast=True)
@@ -871,9 +871,15 @@ class _SLFeatMixin(_FeatureMixin):
         return ae_feat, ps_feat, ae_dfeat, ps_dfeat
 
     def _collect_feat(self, feat_xg):
+        # TODO this has some redundant communication
         xshape = feat_xg.shape[:-1]
-        feat_xg.shape = xshape + tuple(self.gd.n_c)
-        feat_xg = self.gd.collect(feat_xg, broadcast=True)
+        gshape_out = tuple(self.gd.n_c)
+        gshape_in = tuple(self.distribution.local_output_size_c)
+        feat_xg = feat_xg.view()
+        feat_xg.shape = xshape + gshape_in
+        _feat_xg = np.zeros(xshape + gshape_out)
+        self._add_from_cider_grid(_feat_xg, feat_xg)
+        feat_xg = self.gd.collect(_feat_xg, broadcast=True)
         feat_xg.shape = xshape + (-1,)
         return feat_xg
 
