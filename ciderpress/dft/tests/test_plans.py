@@ -250,6 +250,11 @@ class TestNLDFGaussianPlan(unittest.TestCase):
         cls.lambd = 1.6
         cls.nalpha = 30
         thetap = [2.0, 0.5, 0.0625]
+        vb_params = [
+            [1.0, 0.25, 0.03125],
+            [2.0, 0.50, 0.06250],
+            [4.0, 1.00, 0.12500],
+        ]
         feat_params = [
             [1.0, 0.25, 0.03125],
             [1.0, 0.00, 0.03125],
@@ -276,6 +281,13 @@ class TestNLDFGaussianPlan(unittest.TestCase):
             feat_specs,
             feat_params,
         )
+        cls.vb_settings = NLDFSettingsVJ(
+            "MGGA",
+            thetap,
+            "one",
+            ["se", "se", "se"],
+            vb_params,
+        )
         cls.example_vij_settings = NLDFSettingsVIJ(
             "MGGA",
             thetap,
@@ -295,9 +307,10 @@ class TestNLDFGaussianPlan(unittest.TestCase):
         )
 
     def _get_plan(self, settings, nspin, **kwargs):
-        return self.PlanClass(
-            settings, nspin, self.alpha0, self.lambd, self.nalpha, **kwargs
-        )
+        lambd = kwargs.pop("lambd", self.lambd)
+        alpha0 = kwargs.pop("alpha0", self.alpha0)
+        nalpha = kwargs.pop("nalpha", self.nalpha)
+        return self.PlanClass(settings, nspin, alpha0, lambd, nalpha, **kwargs)
 
     def test_eval_feat_exp(self):
         plan = self._get_plan(self.example_vj_settings, 1)
@@ -431,6 +444,32 @@ class TestNLDFGaussianPlan(unittest.TestCase):
             test_feat = np.einsum("qg,{}->g".format(plan.coef_order), feat_parts, p)
             assert_almost_equal(test_feat, ref_feat, 3)
 
+    def check_interpolation_coefs_stability(self, settings, tol=1e-3, **kwargs):
+        if self.PlanClass == NLDFSplinePlan:
+            kwargs["spline_size"] = None
+        alpha_max = 120
+        alpha_min = 0.001
+        ratio = alpha_max / alpha_min
+        if kwargs["alpha_formula"] == "etb":
+            ratio += 1
+        kwargs["nalpha"] = int(np.ceil(np.log(ratio) / np.log(kwargs["lambd"]))) + 1
+        plan = self._get_plan(settings, 1, **kwargs)
+        exp_g = 0.1 * 1.06 ** np.arange(100)
+        if isinstance(plan, NLDFSplinePlan):
+            arg_g = plan.get_a2q_fast(exp_g)[0]
+        else:
+            arg_g = exp_g
+        p = plan.get_interpolation_coefficients(arg_g, i=-1)[0]
+        p = plan.get_transformed_interpolation_terms(p, i=-1, fwd=True)
+        rs = 0.02 * (np.exp(0.03 * np.linspace(0, 200)) - 1)
+        bas = plan.alpha_norms[:, None] * np.exp(-plan.alphas[:, None] * rs**2)
+        exact = np.exp(-exp_g[:, None] * rs**2)
+        if plan.coef_order == "gq":
+            approx = np.einsum("gq,qr->gr", p, bas)
+        else:
+            approx = np.einsum("qg,qr->gr", p, bas)
+        assert_allclose(approx, exact, rtol=tol, atol=tol)
+
     def test_get_interpolation_coefficients(self):
         # self.check_get_interpolation_coefficients(alpha_formula='zexp')
         for alpha_formula in ["etb", "zexp"]:
@@ -439,6 +478,47 @@ class TestNLDFGaussianPlan(unittest.TestCase):
                     coef_order=coef_order,
                     alpha_formula=alpha_formula,
                 )
+
+    def test_interpolation_coefs_stability(self):
+        if self.PlanClass == NLDFSplinePlan:
+            tols = [1e-3, 1e-3, 3e-4, 1e-4, 3e-5]
+        else:
+            # Gaussian interpolation is a bit less precise
+            # for larger lambd
+            tols = [1e-2, 3e-3, 1e-3, 1e-4, 3e-5]
+        for alpha_formula in ["etb", "zexp"]:
+            for coef_order in ["gq", "qg"]:
+                # We want to go to extreme values of lambd to make
+                # sure the algorithm remains reasonable even
+                # when the overlap condition numbers of huge.
+                for lambd, tol in zip([1.8, 1.6, 1.5, 1.4, 1.3], tols):
+                    self.check_interpolation_coefs_stability(
+                        self.example_vij_settings,
+                        alpha_formula=alpha_formula,
+                        coef_order=coef_order,
+                        lambd=lambd,
+                        tol=tol,
+                    )
+                for lambd, tol in zip([1.8, 1.6, 1.5, 1.4, 1.3], tols):
+                    self.check_interpolation_coefs_stability(
+                        self.vb_settings,
+                        alpha_formula=alpha_formula,
+                        coef_order=coef_order,
+                        lambd=lambd,
+                        tol=tol,
+                    )
+                if self.PlanClass == NLDFSplinePlan:
+                    # The spline plan is systematically improvable IF all the
+                    # features are of the `se` form and spline_size == nalpha.
+                    # This can help reach high precision
+                    for lambd, tol in zip([1.3, 1.2, 1.1], [3e-5, 1e-5, 3e-6]):
+                        self.check_interpolation_coefs_stability(
+                            self.vb_settings,
+                            alpha_formula=alpha_formula,
+                            coef_order=coef_order,
+                            lambd=lambd,
+                            tol=tol,
+                        )
 
     def check_eval_rho_full(self, settings, coef_order="qg"):
         plan = self._get_plan(settings, 1, coef_order=coef_order)
@@ -563,9 +643,10 @@ class TestNLDFSplinePlan(TestNLDFGaussianPlan):
     def _get_plan(self, settings, nspin, **kwargs):
         spline_size = kwargs.pop("spline_size", 160)
         kwargs["spline_size"] = spline_size
-        return self.PlanClass(
-            settings, nspin, self.alpha0, self.lambd, self.nalpha, **kwargs
-        )
+        lambd = kwargs.pop("lambd", self.lambd)
+        alpha0 = kwargs.pop("alpha0", self.alpha0)
+        nalpha = kwargs.pop("nalpha", self.nalpha)
+        return self.PlanClass(settings, nspin, alpha0, lambd, nalpha, **kwargs)
 
 
 if __name__ == "__main__":
