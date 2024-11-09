@@ -1278,6 +1278,7 @@ class NLDFAuxiliaryPlan(ABC):
         proc_inds=None,
         rhocut=1e-10,
         expcut=1e-10,
+        raise_large_expnt_error=True,
     ):
         """
         Initialize NLDFAuxiliaryPlan
@@ -1300,6 +1301,11 @@ class NLDFAuxiliaryPlan(ABC):
                 of integers.
             rhocut (float): Small-density cutoff for stability
             expcut (float): Small-exponent cutoff for stability
+            raise_large_expnt_error (bool, True): If True, raise an error
+                if a convolution exponent is larger than the largest interpolation
+                value. It is generally best to set this to true to make
+                sure a calculation doesn't accidentally lose significant precision
+                to going outside the interpolation range.
         """
         if not isinstance(nldf_settings, NLDFSettings):
             raise ValueError("Require NLDFSettings object")
@@ -1390,6 +1396,7 @@ class NLDFAuxiliaryPlan(ABC):
         else:
             self.alpha_norms = (np.pi / (2 * self.alphas)) ** -0.75
 
+        self._raise_large_expnt_error = raise_large_expnt_error
         self._run_setup()
 
     def new(self, **kwargs):
@@ -1522,7 +1529,7 @@ class NLDFAuxiliaryPlan(ABC):
                 rhocut=self.rhocut,
                 nspin=self.nspin,
             )
-            return a, (dadn, dadsigma, dadtau)
+            res = a, (dadn, dadsigma, dadtau)
         else:
             rho, sigma = rho_tuple
             if i == -1:
@@ -1539,7 +1546,12 @@ class NLDFAuxiliaryPlan(ABC):
                 rhocut=self.rhocut,
                 nspin=self.nspin,
             )
-            return a, (dadn, dadsigma)
+            res = a, (dadn, dadsigma)
+        if self._raise_large_expnt_error and np.max(a) > np.max(self.alphas):
+            raise RuntimeError(
+                "NLDF exponent is too large! Please increase nalpha/alpha_max."
+            )
+        return res
 
     def _clear_l1_cache(self, s):
         self._cached_l1_data[s] = []

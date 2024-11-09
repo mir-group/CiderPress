@@ -407,9 +407,17 @@ class TestNLDFGaussianPlan(unittest.TestCase):
             assert (dadtau == 0).all()
         try:
             plan.get_interpolation_arguments((rho, sigma, tau), i=5)
-            raise AssertionError
+            raise AssertionError("This should raise an error; index too high.")
         except ValueError:
             pass
+        for i in range(-1, 5):
+            try:
+                plan.get_interpolation_arguments(
+                    (1e5 * rho, 1e10 * sigma, 1e5 * tau), i=i
+                )
+                raise AssertionError("This should raise an error; exponent too large.")
+            except RuntimeError:
+                pass
 
     def check_get_interpolation_coefficients(self, **kwargs):
         plan = self._get_plan(self.example_vij_settings, 1, **kwargs)
