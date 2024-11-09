@@ -1316,15 +1316,26 @@ class FastPASDWCiderKernel:
                     setup, build_kinetic=self.is_mgga, ke_order_ng=False
                 )
                 # TODO it would be good to remove this
+                # Old version of the code used these settings:
+                # setup, rmin=setup.xc_correction.rgd.r_g[0]+1e-5,
+                # N=1024, encut=1e6, d=0.018
                 setup.nlxc_correction = SBTGridContainer.from_setup(
-                    # setup, rmin=setup.xc_correction.rgd.r_g[0]+1e-5, N=1024, encut=1e6, d=0.018
                     setup,
                     rmin=1e-4,
                     N=512,
                     encut=5e4,
                     d=0.02,
                 )
-                encut = setup.Z**2 * 20
+                # TODO for some reason, in the core there are sometimes
+                # exponents that are very big (z**2 * 2000 required).
+                # However, the SCF energy and stress are essentially
+                # unchanged by not including these very high exponents,
+                # and they don't seem physically relevant. So it would be good
+                # to set this lower by eliminating these few high-exponent points.
+                # somehow. In the meantime, we set the energy cutoff to a large
+                # value and pass raise_large_expnt_error=False
+                # to the initializer below just in case to avoid crashes.
+                encut = setup.Z**2 * 2000
                 if encut - 1e-7 <= np.max(self.bas_exp_fit):
                     encut0 = np.max(self.bas_exp_fit)
                     Nalpha = self.bas_exp_fit.size
@@ -1342,7 +1353,7 @@ class FastPASDWCiderKernel:
                     ), "Math went wrong {} {} {} {}".format(
                         encut0, encut, self.lambd, encut0 / self.lambd
                     )
-                atom_plan = self.plan.new(nalpha=Nalpha)
+                atom_plan = self.plan.new(nalpha=Nalpha, raise_large_expnt_error=False)
                 setup.cider_contribs = self.PAWCiderContribs.from_plan(
                     atom_plan,
                     self.plan,

@@ -1981,6 +1981,7 @@ class NLDFSplinePlan(NLDFAuxiliaryPlan):
         spline_size=None,
         rhocut=1e-10,
         expcut=1e-10,
+        raise_large_expnt_error=True,
     ):
         self._spline_size = nalpha if spline_size is None else spline_size
         self._local_alpha_transform = None
@@ -1995,6 +1996,7 @@ class NLDFSplinePlan(NLDFAuxiliaryPlan):
             proc_inds=proc_inds,
             rhocut=rhocut,
             expcut=expcut,
+            raise_large_expnt_error=raise_large_expnt_error,
         )
 
     def _run_setup(self):

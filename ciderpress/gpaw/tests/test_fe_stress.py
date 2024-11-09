@@ -53,15 +53,7 @@ def run_pw_si_stress(xc, use_pp=False, s_numerical=None):
 
 
 def get_xc(fname, use_paw=True):
-    return get_cider_functional(
-        fname,
-        qmax=300,
-        lambd=1.8,
-        xmix=0.25,
-        pasdw_ovlp_fit=False,
-        pasdw_store_funcs=True,
-        use_paw=use_paw,
-    )
+    return get_cider_functional(fname, xmix=0.25, pasdw_ovlp_fit=False, use_paw=use_paw)
 
 
 class TestStress(unittest.TestCase):
