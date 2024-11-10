@@ -326,7 +326,7 @@ class PASDWCiderFeatureKernel(FastPASDWCiderKernel):
                     encut=5e4,
                     d=0.02,
                 )
-                encut = setup.Z**2 * 20
+                encut = setup.Z**2 * 2000
                 if encut - 1e-7 <= np.max(self.bas_exp_fit):
                     encut0 = np.max(self.bas_exp_fit)
                     Nalpha = self.bas_exp_fit.size

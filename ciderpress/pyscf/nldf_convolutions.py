@@ -176,7 +176,10 @@ class PyscfNLDFGenerator(LCAONLDFGenerator):
             raise ValueError("plan_type must be gaussian or spline")
         if alpha_formula is None:
             alpha_formula = "etb" if plan_type == "gaussian" else "zexp"
-        nalpha = int(np.ceil(np.log(alpha_max / alpha_min) / np.log(aux_lambd))) + 1
+        ratio = alpha_max / alpha_min
+        if alpha_formula == "etb":
+            ratio += 1
+        nalpha = int(np.ceil(np.log(ratio) / np.log(aux_lambd))) + 1
         plan_class = NLDFGaussianPlan if plan_type == "gaussian" else NLDFSplinePlan
         plan = plan_class(
             nldf_settings,
