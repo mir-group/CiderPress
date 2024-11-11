@@ -21,6 +21,7 @@
 import ctypes
 
 import numpy as np
+from pyscf import lib as pyscflib
 
 from ciderpress import lib
 from ciderpress.dft.lcao_convolutions import (
@@ -585,7 +586,7 @@ class LCAOInterpolator:
         assert iatom_list is not None
         assert iatom_list.flags.c_contiguous
         ngrids = iatom_list.size
-        libcider.contract_grad_terms2(
+        libcider.contract_grad_terms_parallel(
             excsum.ctypes.data_as(ctypes.c_void_p),
             f_g.ctypes.data_as(ctypes.c_void_p),
             ctypes.c_int(self.atco.natm),
@@ -637,8 +638,7 @@ class LCAOInterpolator:
                     args[3] = auxo_vgp[0].ctypes.data_as(ctypes.c_void_p)
                     fn(*args)
                     self._call_l1_fill(ftmp_gq, self.atom_coords[a], True)
-                    # TODO accelerate since this step will be done many times
-                    ftmp = np.einsum("gq,gq->g", ftmp_gq, f_gq)
+                    ftmp = pyscflib.einsum("gq,gq->g", ftmp_gq, f_gq)
                     self._contract_grad_terms(excsum, ftmp, a, v)
         return excsum
 

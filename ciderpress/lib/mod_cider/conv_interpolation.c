@@ -23,6 +23,7 @@
 #include "sph_harm.h"
 #include "spline.h"
 #include <math.h>
+#include <omp.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -737,8 +738,8 @@ void compute_pot_convs_single_new(double *f_gq, double *f_rlpq, double *auxo_gl,
         int q, ir, g, p;
         double *f_lpq;
         double *auxo_tmp_gl;
-        double BETA =
-            0; // TODO beta should be 1, not 0, when doing grid batches
+        // TODO beta should be 1, not 0, when doing grid batches
+        double BETA = 0;
         double ALPHA = 1;
         char NTRANS = 'N';
         char TRANS = 'T';
@@ -1209,8 +1210,8 @@ void add_lp1_term_onsite_bwd(double *f, double *coords, int natm,
 }
 
 // TODO might want to move this somewhere else
-void contract_grad_terms(double *excsum, double *f_g, int natm, int a, int v,
-                         int ngrids, int *ga_loc) {
+void contract_grad_terms_old(double *excsum, double *f_g, int natm, int a,
+                             int v, int ngrids, int *ga_loc) {
     double *tmp = (double *)calloc(natm, sizeof(double));
     int ib;
 #pragma omp parallel
@@ -1231,9 +1232,8 @@ void contract_grad_terms(double *excsum, double *f_g, int natm, int a, int v,
     free(tmp);
 }
 
-void contract_grad_terms2(double *excsum, double *f_g, int natm, int a, int v,
-                          int ngrids, int *atm_g) {
-    // TODO neeed to parallelize
+void contract_grad_terms_serial(double *excsum, double *f_g, int natm, int a,
+                                int v, int ngrids, int *atm_g) {
     double *tmp = (double *)calloc(natm, sizeof(double));
     int ib;
     int ia;
@@ -1246,4 +1246,38 @@ void contract_grad_terms2(double *excsum, double *f_g, int natm, int a, int v,
         excsum[a * 3 + v] -= tmp[ib];
     }
     free(tmp);
+}
+
+void contract_grad_terms_parallel(double *excsum, double *f_g, int natm, int a,
+                                  int v, int ngrids, int *atm_g) {
+    double *tmp_priv;
+    double total = 0;
+#pragma omp parallel
+    {
+        const int nthreads = omp_get_num_threads();
+        const int ithread = omp_get_thread_num();
+        const int ngrids_local = (ngrids + nthreads - 1) / nthreads;
+        const int ig0 = ithread * ngrids_local;
+        const int ig1 = MIN(ig0 + ngrids_local, ngrids);
+#pragma omp single
+        { tmp_priv = (double *)calloc(nthreads * natm, sizeof(double)); }
+#pragma omp barrier
+        double *my_tmp = tmp_priv + ithread * natm;
+        int ib;
+        int it;
+        int g;
+        for (g = ig0; g < ig1; g++) {
+            my_tmp[atm_g[g]] += f_g[g];
+        }
+#pragma omp barrier
+#pragma omp for reduction(+ : total)
+        for (ib = 0; ib < natm; ib++) {
+            for (it = 0; it < nthreads; it++) {
+                excsum[ib * 3 + v] += tmp_priv[it * natm + ib];
+                total += tmp_priv[it * natm + ib];
+            }
+        }
+    }
+    excsum[a * 3 + v] -= total;
+    free(tmp_priv);
 }
