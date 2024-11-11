@@ -62,7 +62,6 @@ XCUT_1F1 = 100
 
 class FracLaplBuf:
     def __init__(self, a, d, size, lmax, s):
-        print("INITIALIZING FLAPL", s)
         self.a = a
         self.d = d
         self.size = size
@@ -474,7 +473,6 @@ def _odp_dot_sparse_(
         # vmat = _dot_ao_ao_sparse(ao[0], aow1, None, nbins, mask, pair_mask,
         #                         ao_loc, hermi=0, out=vmat)
         aow2 = _scale_ao_sparse(kao, wv[5 : 5 + nk0], None, ao_loc, out=aow2)
-        print(np.sum(aow2), np.sum(aow1))
         aow1 += aow2
         vmat = _dot_ao_ao_sparse(
             ao[0], aow1, None, nbins, None, pair_mask, ao_loc, hermi=0, out=vmat

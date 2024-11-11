@@ -57,7 +57,6 @@ class CiderGrids(Grids):
 
     def __init__(self, mol, lmax=CIDER_DEFAULT_LMAX):
         super(CiderGrids, self).__init__(mol)
-        # self.becke_scheme = becke_lko
         self.lmax = lmax
         self.nlm = (lmax + 1) * (lmax + 1)
         self.grids_indexer = None
@@ -121,13 +120,9 @@ class CiderGrids(Grids):
             build_indexer=True,
             **kwargs
         )
-        # TODO cleaner version of this way of calling VXCgen_grid_lko
-        # tmp = libdft.VXCgen_grid
-        # libdft.VXCgen_grid = libcider.VXCgen_grid_lko
         self.coords, self.weights = self.get_partition(
             mol, atom_grids_tab, self.radii_adjust, self.atomic_radii, self.becke_scheme
         )
-        # libdft.VXCgen_grid = tmp
         self.grids_indexer.set_weights(self.weights)
 
         if sort_grids:

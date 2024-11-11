@@ -945,7 +945,6 @@ class CiderNumInt(CiderNumIntMixin, numint.NumInt):
             coords = grids.coords[ip0:ip1]
             weight = grids.weights[ip0:ip1]
             mask = screen_index[ip0 // BLKSIZE :]
-            # TODO: pass grids.cutoff to eval_ao
             ao = self.eval_ao(
                 mol, coords, deriv=deriv, non0tab=mask, cutoff=grids.cutoff, out=buf
             )
@@ -1026,7 +1025,6 @@ class _FLNumIntMixin:
             coords = grids.coords[ip0:ip1]
             weight = grids.weights[ip0:ip1]
             mask = screen_index[ip0 // BLKSIZE :]
-            # TODO: pass grids.cutoff to eval_ao
             ao_buf = np.ndarray((comp + kcomp, weight.size * nao), buffer=buf)
             ao = ni.eval_ao(
                 mol, coords, deriv=deriv, non0tab=mask, cutoff=grids.cutoff, out=ao_buf

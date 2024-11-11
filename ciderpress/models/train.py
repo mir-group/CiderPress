@@ -115,7 +115,7 @@ class MOLGP:
 
     def map(self, mapping_plans):
         """
-        Map the MOLGP model to an Evaluator objec that can efficiently
+        Map the MOLGP model to an Evaluator object that can efficiently
         evaluate the XC energy and which can also be serialized.
 
         Returns:
@@ -672,7 +672,7 @@ class MOLGP2(MOLGP):
 
     def map(self, mapping_plans):
         """
-        Map the MOLGP model to an Evaluator objec that can efficiently
+        Map the MOLGP model to an Evaluator object that can efficiently
         evaluate the XC energy and which can also be serialized.
 
         Returns:

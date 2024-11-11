@@ -76,7 +76,6 @@ def get_ag_indices(fft_obj, gd, shape, spos_c, rmax, buffer=0, get_global_disps=
     vol = np.abs(np.linalg.det(lattice))
     for i in range(3):
         res = np.cross(lattice[(i + 1) % 3], lattice[(i + 2) % 3])
-        # TODO unnecessarily conservative buffer?
         disp[i] = np.ceil(np.linalg.norm(res) * rmax / vol * shape[i]) + 1 + buffer
     indices = [
         np.arange(center[i] - disp[i], center[i] + disp[i] + 1) for i in range(3)

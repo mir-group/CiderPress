@@ -101,24 +101,15 @@ def _gauss_diff_with_cutoff(a, r, k2):
     k = np.sqrt(k2)
     arg = (1j * k + 2 * a * r) / (2 * np.sqrt(a))
     arg2 = (1j * k - 2 * a * r) / (2 * np.sqrt(a))
-    print(np.isnan(arg).any())
+    if np.isnan(arg).any():
+        raise RuntimeError("nan values in internal CiderPress routine")
     tmp = erf(arg).real - erf(arg2).real
-    print(np.abs(tmp).sum())
     tmp = tmp * (k * np.sqrt(np.pi) * np.exp(arg * arg))
-    print("hi2", np.isnan(tmp).any())
-    g = (
-        2j
-        * np.sqrt(a)
-        * (np.exp(2j * k * r) - 1)
-        # + np.exp(arg * arg) * tmp
-    )
-    print("hi", np.isnan(g).any())
-    print(np.abs(g).sum(), np.abs(k).sum(), np.abs((np.exp(2j * k * r) - 1)).sum())
+    g = 2j * np.sqrt(a) * (np.exp(2j * k * r) - 1)
     g[:] *= np.exp(-r * (1j * k + a * r)) / (8 * a**1.5 * k)
     g[k2 < 1e-8] = np.sqrt(np.pi) / (4 * a**1.5) * erf(np.sqrt(a) * r) - np.exp(
         -a * r * r
     ) * r / (2 * a)
-    print(np.abs(g).sum())
     return g
 
 
@@ -197,17 +188,9 @@ def precompute_all_convolutions(cell, kpts, alphas, alpha_norms, itype, kpt_dim=
 
 
 def get_ao_and_aok(cell, coords, kpt, deriv):
-    t0 = time.monotonic()
     ao = eval_ao_kpts(cell, coords, kpt, deriv=deriv)[0]
-    t1 = time.monotonic()
     expir = np.exp(-1j * np.dot(coords, kpt))
     aokG = np.asarray(tools.fftk(np.asarray(ao.T, order="C"), cell.mesh, expir))
-    t2 = time.monotonic()
-    # expir = np.exp(1j*np.dot(coords, kpt))
-    # aokG = np.asarray(
-    #     tools.fftk(np.asarray(ao.conj().T, order='C'), cell.mesh, expir)
-    # )
-    print("ORB TIMES", t1 - t0, t2 - t1)
     return ao, aokG
 
 
@@ -297,7 +280,6 @@ def get_recip_convolutions(
                     kcell.lattice_vectors(), dtype=np.float64, order="C"
                 )
                 mesh = np.asarray(kcell.mesh, dtype=np.int32, order="C")
-                # print(mesh, maxqv, vq.dtype)
                 libcider.recip_conv_kernel_ws(
                     conv_kG.ctypes.data_as(ctypes.c_void_p),
                     vq.ctypes.data_as(ctypes.c_void_p),
@@ -308,7 +290,6 @@ def get_recip_convolutions(
                     ctypes.c_int(kG.shape[0]),
                     ctypes.c_int(vq.size),
                 )
-                # print(np.where(np.isnan(conv_kG)), np.sum(np.isnan(conv_kG)))
             else:
                 raise ValueError
         else:
@@ -442,13 +423,10 @@ def compute_sdmx_tensor(
         t1s = time.monotonic()
         # ao, aokG = get_ao_and_aok(cell, coords, kpt, 0)
         ao, aokG = get_ao_and_aok_fast(cell, coords, kpt, 0)
-        ta = time.monotonic()
         ao = ao * np.exp(-1j * np.dot(coords, kpt))[:, None]
         # After above op, `ao` var contains conj(ao) e^ikr, which is periodic
         # because conj(ao) = (periodic part) * e^-ikr
-        tb = time.monotonic()
         c0 = _dot_ao_dm(cell, ao, dms[kn], None, shls_slice, ao_loc)
-        tc = time.monotonic()
         if has_l1:
             c1 = fft_grad_fast(c0.T, cell.mesh, Gv).transpose(0, 2, 1)
             c1[0] += 1j * kpt[0] * c0
@@ -456,7 +434,6 @@ def compute_sdmx_tensor(
             c1[2] += 1j * kpt[2] * c0
         Gk = Gv + kpt
         Gk2 = lib.einsum("gv,gv->g", Gk, Gk)
-        td = time.monotonic()
         t1e = time.monotonic()
         t2s = time.monotonic()
         for ialpha in range(nalpha):
@@ -479,7 +456,6 @@ def compute_sdmx_tensor(
         t2e = time.monotonic()
         t1 += t1e - t1s
         t2 += t2e - t2s
-        print("LOOP TIMES", t1s - ta, tb - ta, tc - tb, td - tc)
     t3s = time.monotonic()
     tmp[:] /= len(kpts)
     if has_l1:
@@ -487,17 +463,13 @@ def compute_sdmx_tensor(
         tmp[1] += tmp1[0]
         tmp[2] += tmp1[1]
         tmp[3] += tmp1[2]
-    # if not has_l1:
-    #     tmp = tmp[0]
     t3e = time.monotonic()
     print("SDMX TIMES", t0e - t0s, t1, t2, t3e - t3s)
     return tmp
 
 
 def _get_grid_info(cell, kpts, dms):
-    # if False:  # len(kpts) == 1 and np.linalg.norm(kpts) < 1e-16 and dms[0].dtype == np.float64:
     if len(kpts) == 1 and np.linalg.norm(kpts) < 1e-16 and dms[0].dtype == np.float64:
-        print("GAMMA ONLY ROUTINE")
         rtype = np.float64
         nz = cell.mesh[2] // 2 + 1
         assert cell.Gv.ndim == 2
@@ -507,7 +479,6 @@ def _get_grid_info(cell, kpts, dms):
                 ..., :nz, :
             ].reshape(-1, 3)
         )
-        # Gv[:, 2] = np.abs(Gv[:, 2])
         ng_recip = Gv.shape[0]
         ng_real = ng_recip * 2
         mesh = cell.mesh
@@ -516,11 +487,9 @@ def _get_grid_info(cell, kpts, dms):
         # rz = np.fft.fftfreq(mesh[2], 1./mesh[2])
         rz = np.arange(nz)
         b = cell.reciprocal_vectors()
-        abs(np.linalg.det(b))
         Gvbase = (rx, ry, rz)
         Gv = np.dot(lib.cartesian_prod(Gvbase), b)
     else:
-        print("MULTI-KPT ROUTINE")
         rtype = np.complex128
         Gv = cell.Gv
         ng_recip = Gv.shape[0]
@@ -547,20 +516,6 @@ def _zero_even_edges_fft(x, mesh):
         (ctypes.c_int * 3)(*mesh),
         ctypes.c_int(halfc),
     )
-
-
-def print_unfolded_sum(x, mesh):
-    if x.shape[-1] == np.prod(mesh):
-        print(np.sum(np.abs(x)))
-    elif x.shape[-1] == mesh[0] * mesh[1] * (mesh[2] // 2 + 1):
-        x = x.copy()
-        shape = x.shape
-        x.shape = (-1, x.shape[-1])
-        _weight_symm_gpts(x, mesh)
-        x.shape = shape
-        print(2 * np.sum(np.abs(x)))
-    else:
-        print(np.sum(np.abs(x)))
 
 
 def _get_igk(Gk, rtype, mesh, zero_even_edge=None):
@@ -840,26 +795,18 @@ def compute_sdmx_tensor_mo(
             nmo = cmo_lists[s][kn].shape[0]
             ck_all = np.ndarray((nmo, ng_recip), dtype=np.complex128, buffer=ck_all_buf)
             lib.dot(cmo_lists[s][kn], aoG, c=ck_all)
-            if dms is not None:
-                dm = cmo_lists[s][kn]
-                dmtmp = dm.conj().T.dot(dm)
-                print("DMDIFF", np.linalg.norm(dms[kn] - dmtmp))
             for i0, i1 in lib.prange(0, nmo, nmo_per_block):
-                time.monotonic()
                 ck = np.ndarray(
                     (ncpa, i1 - i0, ng_recip), dtype=np.complex128, buffer=bufs[:ncpa]
                 )
                 cr = np.ndarray(
                     (ncpa, i1 - i0, ng_real), dtype=rtype, buffer=bufs[:ncpa]
                 )
-                time.monotonic()
                 ck[0] = ck_all[i0:i1]
-                time.monotonic()
                 if has_l1:
                     _mul_z(ck[0], igk[:, 0], ck[1])
                     _mul_z(ck[0], igk[:, 1], ck[2])
                     _mul_z(ck[0], igk[:, 2], ck[3])
-                time.monotonic()
                 shape = ck.shape
                 ck.shape = (ncpa * (i1 - i0), ng_recip)
                 fft_fast(ck, cell.mesh, fwd=False, inplace=True)
@@ -870,7 +817,6 @@ def compute_sdmx_tensor_mo(
                 conv_aor = np.ndarray(
                     (i1 - i0, ng_real), dtype=rtype, buffer=bufs[ncpa]
                 )
-                time.monotonic()
                 tc, td = 0, 0
                 for ialpha in range(nalpha):
                     # conv_ao[:] = ck * conv_aG[ialpha]
@@ -1011,7 +957,6 @@ def compute_sdmx_tensor_vxc(
     spinpol=False,
 ):
     # NOTE: vgrid should have weight applied already
-    print("STARTING VXC")
     if spinpol:
         nspin = len(vmats)
         vmat_list = vmats
@@ -1249,7 +1194,6 @@ class EXXSphGenerator(sdmx.EXXSphGenerator):
             max_exp = np.max(cell._env[cell._bas[:, PTR_EXP]])
             nalpha = 1 + int(1 + np.log(max_exp / alpha0) / np.log(lambd))
             nalpha += 2  # buffer exponents
-        print("NALPHA", nalpha)
         if isinstance(settings, SDMXFullSettings):
             plan = SDMXFullPlan(settings, nspin, alpha0, lambd, nalpha)
         elif isinstance(settings, SDMXSettings):
@@ -1282,7 +1226,6 @@ class EXXSphGenerator(sdmx.EXXSphGenerator):
         old_kdim = self._kpt_dim
         self.set_kpt_dim(tools.pbc.get_monkhorst_pack_size(cell, kpts))
         if old_kdim is None or not (old_kdim == self._kpt_dim).all():
-            print("PRECOMPUTING CONVOLUTIONS")
             self._precomp_list = precompute_all_convolutions(
                 cell,
                 kpts,
@@ -1329,7 +1272,6 @@ class EXXSphGenerator(sdmx.EXXSphGenerator):
         if kpts is None:
             kpts = np.zeros((1, 3))
         if has_mo:
-            print("MO FEAT GEN")
             tmps = compute_sdmx_tensor_mo(
                 mo_coeff,
                 mo_occ,
@@ -1346,7 +1288,6 @@ class EXXSphGenerator(sdmx.EXXSphGenerator):
                 spinpol=spinpol,
             )
         else:
-            print("DM FEAT GEN")
             tmps = compute_sdmx_tensor_lowmem(
                 dms,
                 cell,

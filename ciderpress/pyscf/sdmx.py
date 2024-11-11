@@ -19,7 +19,6 @@
 #
 
 import ctypes
-import time
 
 import numpy as np
 from pyscf import lib
@@ -112,7 +111,6 @@ def eval_conv_shells(
             non0tab = np.ones(((ngrids + BLKSIZE - 1) // BLKSIZE, nbas), dtype=np.uint8)
         else:
             non0tab = make_screen_index(mol, coords, shls_slice, cutoff)
-    time.monotonic()
     drv(
         eval_fn,
         contract_fn,
@@ -132,8 +130,6 @@ def eval_conv_shells(
         alpha_norms.ctypes.data_as(ctypes.c_void_p),
         ctypes.c_int(alphas.size),
     )
-    time.monotonic()
-    # print("Get shells", t1 - t0)
     if comp == 1:
         if "spinor" in eval_name:
             ao = ao[:, 0]
@@ -532,7 +528,6 @@ class EXXSphGenerator:
             l0tmp2 = np.empty((n_out, n0, nalpha, ngrids))
             l1tmp2 = np.empty((n_out, nfeat - n0, 3, nalpha, ngrids))
         out = np.empty((n_out, nfeat, ngrids))
-        time.monotonic()
         if ao is None:
             ao = self.get_ao(
                 mol, coords, non0tab=non0tab, cutoff=cutoff, save_buf=save_buf
@@ -541,15 +536,12 @@ class EXXSphGenerator:
             cao = self.get_cao(
                 mol, coords, non0tab=non0tab, cutoff=cutoff, save_buf=save_buf
             )
-        time.monotonic()
         shls_slice = (0, mol.nbas)
         ao_loc = mol.ao_loc_nr()
         ylm = self._get_ylm(mol, coords, savebuf=True)
         for idm, dm in enumerate(dms):
             c0 = _dot_ao_dm(mol, ao, dm, None, shls_slice, ao_loc)
-            time.monotonic()
             b0 = self._contract_ao_to_bas(mol, c0, shls_slice, ao_loc, coords, ylm=ylm)
-            time.monotonic()
             if has_l1:
                 assert tmp.flags.c_contiguous
                 assert b0.flags.c_contiguous
@@ -566,14 +558,9 @@ class EXXSphGenerator:
                     tmp[0, ialpha] = lib.einsum(
                         "bg,bg->g", b0[0], cao[0 * nalpha + ialpha].T
                     )
-            time.monotonic()
             self.plan.get_features(
                 tmp, out=out[idm], l0tmp=l0tmp2[idm], l1tmp=l1tmp2[idm]
             )
-            time.monotonic()
-        # print('times', t1 - t0, t2 - t1, t3 - t2, torb2 - torb)
-        # print(out.mean(axis=-1))
-        # exit()
         if ndim == 2:
             out = out[0]
         self._cached_ao_data = (mol, ao, cao, l0tmp2, l1tmp2, coords, ylm)

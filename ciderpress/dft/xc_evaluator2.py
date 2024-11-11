@@ -277,11 +277,6 @@ class MappedXC2:
         self.settings = settings
         self.libxc_baseline = libxc_baseline
 
-    def set_baseline_mode(self, mode):
-        # TODO baseline can be GPAW or PySCF mode.
-        # Need to implement for more complicated XC.
-        raise NotImplementedError
-
     def __call__(self, X0T, rho_tuple, vrho_tuple=None, rhocut=0):
         """
         Evaluate functional from normalized features

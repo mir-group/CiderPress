@@ -322,7 +322,6 @@ class _TestNLDFBase:
         for k, orblist in orbs.items():
             for iorb in orblist:
                 dtmp = {k: [iorb]}
-                print(k, iorb)
                 labels, coeffs, en_list, sep_spins = get_labels_and_coeffs(
                     dtmp, mo_coeff, mo_occ, mo_energy
                 )
@@ -696,7 +695,6 @@ class _TestNLDFBase:
             feat_pert = np.stack(feat_pert)
             e_pert = get_e_and_v(feat_pert)[0]
             de2 = (e_pert - e) / delta
-            print("energies", e, de, de2, de3)
             de_tot = 0
             de2_tot = 0
             for i in range(feat2.shape[1]):
@@ -705,7 +703,6 @@ class _TestNLDFBase:
                 feat_tmp[:, i + 1 :] = 0
                 vrho1 = []
                 _e, vrho_tmp, vfeat = get_e_and_v(feat_tmp)
-                _de3 = np.sum(occd_feat * vfeat[spin])
                 for s in range(nspin):
                     vrho1.append(nldf_gen.get_potential(vfeat[s], spin=s))
                 vrho1 = np.stack(vrho1)
@@ -717,11 +714,8 @@ class _TestNLDFBase:
                 _de = np.sum(vrho1[spin] * occd_rho)
                 de_tot += _de
                 de2_tot += _de2
-                print("energies sub", i, _e, _de, _de2, _de3)
-            print("energies tot", de_tot, de2_tot)
             assert_allclose(de, de2, rtol=rtol, atol=1e-5)
             assert_allclose(de3, de, rtol=rtol, atol=1e-5)
-            print()
 
     def test_nldf_equivalence(self):
         mols = self.mols

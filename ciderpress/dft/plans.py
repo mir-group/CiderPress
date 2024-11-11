@@ -2055,7 +2055,6 @@ class NLDFSplinePlan(NLDFAuxiliaryPlan):
         """A fast (parallel C-backend) version of get_a2q that
         also has a local option to get the q values just
         for the local alphas."""
-        # TODO add bounds checking
         di = np.empty_like(exp_g)
         derivi = np.empty_like(exp_g)
         if self.alpha_formula == "etb":

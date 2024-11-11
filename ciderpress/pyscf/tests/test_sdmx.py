@@ -29,7 +29,7 @@ from pyscf.dft.gen_grid import Grids
 from pyscf.gto.mole import ANG_OF, ATOM_OF, NCTR_OF, NPRIM_OF, PTR_COEFF, PTR_EXP
 
 from ciderpress.dft.settings import SDMXG1Settings, SDMXGSettings
-from ciderpress.dft.sph_harm_coeff import get_deriv_ylm_coeff_v2
+from ciderpress.dft.sph_harm_coeff import get_deriv_ylm_coeff
 from ciderpress.lib import load_library as load_cider_library
 from ciderpress.pyscf.sdmx import eval_conv_sh
 from ciderpress.pyscf.sdmx_slow import (
@@ -115,7 +115,7 @@ def get_test_ylm(mol, lmax_list, coords, grad=False, xyz=False):
         ctypes.c_int(mol.natm),
     )
     if grad:
-        gaunt_coeff = get_deriv_ylm_coeff_v2(np.max(lmax_list))
+        gaunt_coeff = get_deriv_ylm_coeff(np.max(lmax_list))
         libcider.SDMXylm_grad(
             ctypes.c_int(coords.shape[0]),
             ylm.ctypes.data_as(ctypes.c_void_p),
@@ -138,13 +138,9 @@ def get_test_ylm(mol, lmax_list, coords, grad=False, xyz=False):
 class TestYlm(unittest.TestCase):
     def test_ylm(self):
         for lmax_list in [[3, 4], [3, 0], [2, 1], [4, 4], [5, 6]]:
-            print(lmax_list)
             mol = gto.M(
                 atom="H 0 0 0; F 0 0 0.9", basis="def2-tzvp", output="/dev/null"
             )
-            # lmax_list = [3, 4]
-            # mol = gto.M(atom='He 0 0 0', basis='def2-tzvp')
-            # lmax_list = [3]
 
             grids = Grids(mol)
             grids.level = 0
@@ -189,9 +185,6 @@ class TestYlm(unittest.TestCase):
         for itype in ["gauss_r2", "gauss_diff"]:
             for basis in ["def2-svp", "def2-qzvppd", "cc-pvtz"]:
                 for deriv in [0, 1]:
-                    print(basis, deriv, itype)
-                    # if itype == 'gauss_r2' and deriv == 1:
-                    #     continue
                     mol = gto.M(
                         atom="H 0 0 0; F 0 0 0.9", basis=basis, output="/dev/null"
                     )
@@ -202,17 +195,13 @@ class TestYlm(unittest.TestCase):
                     plan = inits[deriv].initialize_sdmx_generator(mol, 1).plan
                     plan.settings._integral_type = itype
 
-                    t0 = time.monotonic()
                     cao_ref = eval_conv_ao_fast(
                         plan,
                         mol,
                         coords,
                         deriv=deriv,
                     )
-                    t1 = time.monotonic()
                     cao_test = eval_conv_ao(plan, mol, coords, deriv=deriv)
-                    t2 = time.monotonic()
-                    print(t1 - t0, t2 - t1)
                     assert_allclose(cao_test, cao_ref, atol=1e-8, rtol=1e-10)
 
                     mol.stdout.close()
@@ -226,7 +215,6 @@ class TestYlm(unittest.TestCase):
         for itype in ["gauss_r2", "gauss_diff"]:
             for basis in ["def2-svp", "def2-qzvppd", "cc-pvtz"]:
                 for deriv in [0, 1]:
-                    print(basis, deriv, itype)
                     mol = gto.M(
                         atom="H 0 0 0; F 0 0 0.9", basis=basis, output="/dev/null"
                     )
@@ -265,7 +253,6 @@ class TestYlm(unittest.TestCase):
                         cao_ref = eval_conv_sh(
                             plan, mol, grids.coords[i0:i1], deriv=deriv, out=cao_buf
                         )
-                        print(np.isnan(cao_ref).any())
                     t5 = time.monotonic()
                     print(t1 - t0, t3 - t2, t5 - t4)
                     print()
@@ -288,7 +275,6 @@ class TestYlm(unittest.TestCase):
         for itype in ["gauss_diff"]:
             for basis in ["def2-svp", "def2-tzvpd", "def2-qzvppd"]:
                 for deriv in [0, 1]:
-                    print(basis, deriv, itype)
                     mol = gto.M(
                         atom="H 0 0 0; F 0 0 0.9", basis=basis, output="/dev/null"
                     )

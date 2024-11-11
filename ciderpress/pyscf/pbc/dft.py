@@ -59,7 +59,6 @@ class _CiderKS(_MolCiderKS):
         rhocut=None,
         nlc_coeff=None,
     ):
-        print(mlxc.settings, dir(mlxc.settings))
         if nldf_init is None and mlxc.settings.has_nldf:
             raise NotImplementedError
         if sdmx_init is None and mlxc.settings.has_sdmx:

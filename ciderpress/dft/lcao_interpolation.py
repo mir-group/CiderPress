@@ -695,7 +695,6 @@ class LCAOInterpolator:
         Args:
             f_uq:
             f_gq:
-            spline_buf: Must be all zeros (TODO this is unsafe)
 
         Returns:
 
@@ -834,7 +833,6 @@ class LCAOInterpolatorDirect(LCAOInterpolator):
         Args:
             f_uq:
             f_gq:
-            spline_buf: Must be all zeros (TODO this is unsafe)
 
         Returns:
 
