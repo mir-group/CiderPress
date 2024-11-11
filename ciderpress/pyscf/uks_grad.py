@@ -81,7 +81,7 @@ def get_veff(ks_grad, mol=None, dm=None):
 
         return lib.tag_array(vxc, exc1_grid=exc)
     else:
-        # density fitting is used, TODO check this always works more thoroughly
+        # density fitting is used
         if not ni.libxc.is_hybrid_xc(mf.xc):
             vj = ks_grad.get_j(mol, dm)
             vxc += vj[0] + vj[1]

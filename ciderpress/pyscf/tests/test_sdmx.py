@@ -230,7 +230,7 @@ class TestYlm(unittest.TestCase):
                     ylm_buf = np.empty((25, blksize, nao))
                     t0 = time.monotonic()
                     for i0, i1 in lib.prange(0, grids.coords.shape[0], blksize):
-                        cao_ref = eval_conv_ao_fast(
+                        eval_conv_ao_fast(
                             plan,
                             mol,
                             grids.coords[i0:i1],

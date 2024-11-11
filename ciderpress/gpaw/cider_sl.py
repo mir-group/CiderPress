@@ -1,4 +1,3 @@
-import joblib
 import numpy as np
 import yaml
 
@@ -58,28 +57,6 @@ class _SLCiderBase:
 
     def get_mlfunc_data(self):
         return yaml.dump(self.kernel.mlfunc, Dumper=yaml.CDumper)
-
-    @classmethod
-    def from_joblib(cls, fname, **kwargs):
-        mlfunc = joblib.load(fname)
-        return cls.from_mlfunc(mlfunc, **kwargs)
-
-    @staticmethod
-    def from_mlfunc(mlfunc, xmix=1.00, xkernel="GGA_X_PBE", ckernel="GGA_C_PBE"):
-        if mlfunc.desc_version == "b":
-            cider_kernel = SLCiderMGGAHybridWrapper(mlfunc, xmix, xkernel, ckernel)
-            cls = SLCiderMGGA
-        elif mlfunc.desc_version == "d":
-            cider_kernel = SLCiderGGAHybridWrapper(mlfunc, xmix, xkernel, ckernel)
-            cls = SLCiderGGA
-        else:
-            raise ValueError(
-                "Only implemented for b and d version, found {}".format(
-                    mlfunc.desc_version
-                )
-            )
-
-        return cls(cider_kernel)
 
 
 class SLCiderGGA(_SLCiderBase, DiffGGA):

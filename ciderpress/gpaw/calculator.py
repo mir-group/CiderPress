@@ -132,12 +132,22 @@ def get_cider_functional(
     """
 
     mlfunc = load_cider_model(mlfunc, mlfunc_format)
-    if mlfunc.settings.sl_settings.level == "MGGA":
-        mlfunc.desc_version = "b"
-    else:
-        mlfunc.desc_version = "d"
+    sl_level = mlfunc.settings.sl_settings.level
+    if not mlfunc.settings.nlof_settings.is_empty:
+        raise NotImplementedError("Nonlocal orbital features in GPAW")
+    elif not mlfunc.settings.sdmx_settings.is_empty:
+        raise NotImplementedError("SDMX features in GPAW")
+    elif not mlfunc.settings.nldf_settings.is_empty:
+        if mlfunc.settings.nldf_settings.version != "j":
+            raise NotImplementedError(
+                "Currently only version j NLDF features are implemented in GPAW. "
+                "Other versions are planned for future development. The version "
+                "of your functional's features is: {}".format(
+                    mlfunc.settings.nldf_settings.version
+                )
+            )
 
-    if mlfunc.desc_version == "b":
+    if sl_level == "MGGA":
         no_nldf = mlfunc.settings.nldf_settings.is_empty
         if no_nldf and not _force_nonlocal:
             # functional is semi-local MGGA
@@ -148,7 +158,7 @@ def get_cider_functional(
             cls = CiderMGGAPASDW
         else:
             cls = CiderMGGA
-    elif mlfunc.desc_version == "d":
+    else:
         no_nldf = mlfunc.settings.nldf_settings.is_empty
         if no_nldf and not _force_nonlocal:
             # functional is semi-local GGA
@@ -159,9 +169,6 @@ def get_cider_functional(
             cls = CiderGGAPASDW
         else:
             cls = CiderGGA
-    else:
-        msg = "Only implemented for b and d version, found {}"
-        raise ValueError(msg.format(mlfunc.desc_version))
 
     if use_paw:
         xc = cls(

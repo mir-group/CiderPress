@@ -327,9 +327,9 @@ class PASDWCiderFeatureKernel(FastPASDWCiderKernel):
                     d=0.02,
                 )
                 encut = setup.Z**2 * 2000
-                if encut - 1e-7 <= np.max(self.bas_exp_fit):
-                    encut0 = np.max(self.bas_exp_fit)
-                    Nalpha = self.bas_exp_fit.size
+                if encut - 1e-7 <= np.max(self.alphas):
+                    encut0 = np.max(self.alphas)
+                    Nalpha = self.alphas.size
                 else:
                     Nalpha = (
                         int(np.ceil(np.log(encut / self._amin) / np.log(self.lambd)))
@@ -365,7 +365,7 @@ class PASDWCiderFeatureKernel(FastPASDWCiderKernel):
                 setup.ps_setup = pss_cls.from_setup_and_atco(
                     setup,
                     setup.cider_contribs.atco_inp,
-                    self.bas_exp_fit,
+                    self.alphas,
                     self.plan.alpha_norms,
                     encut0,
                     grid_nlm=setup.cider_contribs.nlm,
@@ -374,7 +374,7 @@ class PASDWCiderFeatureKernel(FastPASDWCiderKernel):
 
     def calculate_paw_cider_features_p1(self, setups, D_asp, DD_aop, p_o):
         if len(D_asp.keys()) == 0:
-            return {}, {}
+            return {}
         a0 = list(D_asp.keys())[0]
         nspin = D_asp[a0].shape[0]
         assert (nspin == 1) or self.is_cider_functional
@@ -402,7 +402,7 @@ class PASDWCiderFeatureKernel(FastPASDWCiderKernel):
             self.df_asgLq[a] = df_sgLq
             self.fr_asgLq[a] = fr_sgLq
             self.c_asiq[a] = c_siq
-        return self.c_asiq, self.df_asgLq
+        return self.c_asiq
 
     def calculate_paw_cider_features_p2(self, setups, D_asp, D_aoiq, DD_aop, p_o):
         if len(D_asp.keys()) == 0:

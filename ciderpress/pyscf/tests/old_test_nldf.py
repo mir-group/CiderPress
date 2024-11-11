@@ -685,10 +685,6 @@ class _TestNLDFBase:
                 rho_pert = np.ascontiguousarray(rho_pert[None, [0, 1, 2, 3, -1]])
             else:
                 rho_pert = np.ascontiguousarray(rho_pert[:, [0, 1, 2, 3, -1]])
-            # feat_pert = get_descriptors(
-            #    ana_tmp, settings,
-            #    plan_type=plan_type, aux_lambd=lambd, aug_beta=beta,
-            # )
             feat_pert = []
             for s in range(nspin):
                 feat_pert.append(nldf_pert.get_features(rho_in=rho_pert[s], spin=s))

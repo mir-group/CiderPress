@@ -146,7 +146,6 @@ class KnownValues(unittest.TestCase):
         e2 = mf_scanner(
             mol1.set_geom_("O  0. 0. -.0001; 1  0. -0.757 0.587; 1  0. 0.757 0.587")
         )
-        # TODO precision for LDA is 6
         assert_almost_equal(g[0, 2], (e1 - e2) / 2e-4 * lib.param.BOHR, 7)
 
     def test_finite_difference_nl(self):
@@ -160,7 +159,6 @@ class KnownValues(unittest.TestCase):
         e2 = mf_scanner(
             mol1.set_geom_("O  0. 0. -.0001; 1  0. -0.757 0.587; 1  0. 0.757 0.587")
         )
-        # TODO precision for LDA is 6
         assert_almost_equal(g[0, 2], (e1 - e2) / 2e-4 * lib.param.BOHR, 7)
 
     def test_finite_difference_df(self):
@@ -202,7 +200,6 @@ class KnownValues(unittest.TestCase):
         e2 = mf_scanner(
             mol1.set_geom_("O  0. 0. -.0001; 1  0. -0.757 0.587; 1  0. 0.757 0.587")
         )
-        # TODO precision for LDA is 6
         assert_almost_equal(g[0, 2], (e1 - e2) / 2e-4 * lib.param.BOHR, 6)
 
     def test_vk_xc(self):

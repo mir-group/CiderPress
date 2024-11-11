@@ -483,9 +483,8 @@ class CiderGGA(_CiderBase, GGA):
 
         GGA.__init__(self, LibXC("PBE"), stencil=2)
         self.type = "GGA"
-        self.name = "CIDER_{}".format(
-            self.cider_kernel.xmix
-        )  # TODO more informative name
+        # TODO more informative name for the functional
+        self.name = "CIDER_{}".format(self.cider_kernel.xmix)
 
     def todict(self):
         d = super(CiderGGA, self).todict()
