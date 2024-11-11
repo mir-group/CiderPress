@@ -3,6 +3,7 @@ The purpose of these tests is to make sure that all the spherical
 harmonic derivative coefficients are working correctly.
 """
 
+import ctypes
 import unittest
 
 import numpy as np
@@ -11,7 +12,6 @@ from numpy.testing import assert_allclose, assert_almost_equal
 from ciderpress.dft.sph_harm_coeff import (
     clebsch_gordan,
     clebsch_gordan_e3nn,
-    ctypes,
     get_deriv_ylm_coeff,
     libcider,
 )

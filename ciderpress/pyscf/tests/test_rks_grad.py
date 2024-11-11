@@ -104,7 +104,7 @@ def setUpModule():
         or not mf7.converged
     ):
         raise RuntimeError(
-            "{} {} {} {} {}".format(
+            "{} {} {} {} {} {} {}".format(
                 mf1.converged,
                 mf2.converged,
                 mf3.converged,

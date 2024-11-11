@@ -242,7 +242,7 @@ class TestYlm(unittest.TestCase):
                     cao_buf = np.empty((ncomp, blksize, nao))
                     t2 = time.monotonic()
                     for i0, i1 in lib.prange(0, grids.coords.shape[0], blksize):
-                        cao_ref = eval_conv_ao(
+                        eval_conv_ao(
                             plan, mol, grids.coords[i0:i1], deriv=deriv, out=cao_buf
                         )
                     t3 = time.monotonic()
@@ -250,7 +250,7 @@ class TestYlm(unittest.TestCase):
                     cao_buf = np.empty((ncomp, blksize, nao))
                     t4 = time.monotonic()
                     for i0, i1 in lib.prange(0, grids.coords.shape[0], blksize):
-                        cao_ref = eval_conv_sh(
+                        eval_conv_sh(
                             plan, mol, grids.coords[i0:i1], deriv=deriv, out=cao_buf
                         )
                     t5 = time.monotonic()
