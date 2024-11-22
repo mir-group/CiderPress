@@ -24,7 +24,7 @@ import numpy as np
 from pyscf import lib
 from pyscf.dft.numint import _dot_ao_ao, _dot_ao_dm, _scale_ao, eval_ao
 from pyscf.gto.eval_gto import BLKSIZE, _get_intor_and_comp, make_screen_index
-from pyscf.gto.mole import ANG_OF, ATOM_OF, PTR_EXP
+from pyscf.gto.mole import ANG_OF, ATOM_OF, NCTR_OF, PTR_EXP
 
 from ciderpress.dft.plans import SADMPlan, SDMXFullPlan, SDMXIntPlan, SDMXPlan
 from ciderpress.dft.settings import SADMSettings, SDMXFullSettings, SDMXSettings
@@ -40,6 +40,16 @@ def _get_ylm_atom_loc(mol):
         lmax = np.max(mol._bas[mol._bas[:, ATOM_OF] == ia, ANG_OF]) + 1
         ylm_atom_loc[ia + 1] = ylm_atom_loc[ia] + lmax * lmax
     return ylm_atom_loc
+
+
+def _get_nrf(mol):
+    return np.sum(mol._bas[:, NCTR_OF])
+
+
+def _get_rf_loc(mol):
+    rf_loc = mol._bas[:, NCTR_OF]
+    rf_loc = np.append([0], np.cumsum(rf_loc)).astype(np.int32)
+    return rf_loc
 
 
 def eval_conv_shells(
@@ -97,6 +107,9 @@ def eval_conv_shells(
     nbas = bas.shape[0]
     ngrids = coords.shape[0]
 
+    rf_loc = _get_rf_loc(mol)
+    nrf = rf_loc[-1]
+
     if shls_slice is None:
         shls_slice = (0, nbas)
     if "spinor" in eval_name:
@@ -104,7 +117,7 @@ def eval_conv_shells(
         # ao = np.ndarray((2, comp, nao, ngrids), dtype=np.complex128,
         #                 buffer=out).transpose(0, 1, 3, 2)
     else:
-        ao = np.ndarray((comp, nbas, ngrids), buffer=out).transpose(0, 2, 1)
+        ao = np.ndarray((comp, nrf, ngrids), buffer=out).transpose(0, 2, 1)
 
     if non0tab is None:
         if cutoff is None:
@@ -118,6 +131,7 @@ def eval_conv_shells(
         ctypes.c_int(ngrids),
         (ctypes.c_int * 2)(1, ncpa),
         (ctypes.c_int * 2)(*shls_slice),
+        rf_loc.ctypes.data_as(ctypes.c_void_p),
         ao.ctypes.data_as(ctypes.c_void_p),
         coords.ctypes.data_as(ctypes.c_void_p),
         non0tab.ctypes.data_as(ctypes.c_void_p),
@@ -244,8 +258,8 @@ class EXXSphGenerator:
 
     def get_extra_ao(self, mol):
         ymem = _get_ylm_atom_loc(mol)[-1]
-        cmem = (1 + 6 * self.deriv) * mol.nbas
-        bmem = (1 + self.deriv) * mol.nbas * self.plan.nalpha
+        cmem = (1 + 6 * self.deriv) * _get_nrf(mol)
+        bmem = (1 + self.deriv) * _get_nrf(mol) * self.plan.nalpha
         return ymem + cmem + bmem
 
     def get_ao(self, mol, coords, non0tab=None, cutoff=None, save_buf=True):
@@ -253,7 +267,7 @@ class EXXSphGenerator:
         return eval_ao(mol, coords, deriv=0, non0tab=non0tab, cutoff=cutoff, out=None)
 
     def get_cao(self, mol, coords, non0tab=None, cutoff=None, save_buf=True):
-        caobuf_size = mol.nbas * coords.shape[0] * self.plan.nalpha
+        caobuf_size = _get_nrf(mol) * coords.shape[0] * self.plan.nalpha
         if self.deriv > 0:
             caobuf_size *= 2
         if self._cao_buf is not None and self._cao_buf.size >= caobuf_size:
@@ -368,6 +382,7 @@ class EXXSphGenerator:
         ylm_atom_loc = _get_ylm_atom_loc(mol)
         if self.deriv == 1:
             atom_coords = np.asfortranarray(mol.atom_coords(unit="Bohr"))
+            rf_loc = _get_rf_loc(mol)
             args = [
                 ctypes.c_int(b0.shape[-1]),
                 b0.ctypes.data_as(ctypes.c_void_p),
@@ -383,6 +398,8 @@ class EXXSphGenerator:
                 mol._env.ctypes.data_as(ctypes.c_void_p),
                 coords.ctypes.data_as(ctypes.c_void_p),
                 atom_coords.ctypes.data_as(ctypes.c_void_p),
+                ctypes.c_int(rf_loc[-1]),
+                rf_loc.ctypes.data_as(ctypes.c_void_p),
             ]
             if bwd:
                 fn = libcider.SDMXcontract_ao_to_bas_l1_bwd
@@ -401,41 +418,10 @@ class EXXSphGenerator:
                 coords=None,
                 bwd=bwd,
             )
-        """
-        if self.deriv > 0:
-            atom_coords = np.asfortranarray(mol.atom_coords(unit='Bohr'))
-            self._contract_ao_to_bas_single_(
-                mol, b0[1], ylm[1], c0, shls_slice, ao_loc,
-                ylm_atom_loc, coords=None, bwd=bwd
-            )
-            self._contract_ao_to_bas_single_(
-                mol, b0[2], ylm[2], c0, shls_slice, ao_loc,
-                ylm_atom_loc, coords=None, bwd=bwd
-            )
-            self._contract_ao_to_bas_single_(
-                mol, b0[3], ylm[3], c0, shls_slice, ao_loc,
-                ylm_atom_loc, coords=None, bwd=bwd
-            )
-            self._contract_ao_to_bas_single_(
-                mol, b0[4], ylm[0], c0, shls_slice, ao_loc,
-                ylm_atom_loc, coords=coords[:, 0],
-                atom_coords=atom_coords[:, 0], bwd=bwd
-            )
-            self._contract_ao_to_bas_single_(
-                mol, b0[5], ylm[0], c0, shls_slice, ao_loc,
-                ylm_atom_loc, coords=coords[:, 1],
-                atom_coords=atom_coords[:, 1], bwd=bwd
-            )
-            self._contract_ao_to_bas_single_(
-                mol, b0[6], ylm[0], c0, shls_slice, ao_loc,
-                ylm_atom_loc, coords=coords[:, 2],
-                atom_coords=atom_coords[:, 2], bwd=bwd
-            )
-        """
 
     def _contract_ao_to_bas(self, mol, c0, shls_slice, ao_loc, coords, ylm=None):
         ngrids = coords.shape[0]
-        b0 = np.empty((1 + 6 * self.deriv, mol.nbas, ngrids))
+        b0 = np.empty((1 + 6 * self.deriv, _get_nrf(mol), ngrids))
         self._contract_ao_to_bas_helper(
             mol,
             b0,
@@ -468,7 +454,7 @@ class EXXSphGenerator:
     ):
         ngrids = coords.shape[0]
         nalpha = self.plan.nalpha
-        b0 = np.empty((1 + 6 * self.deriv, mol.nbas, ngrids)).transpose(0, 2, 1)
+        b0 = np.empty((1 + 6 * self.deriv, _get_nrf(mol), ngrids)).transpose(0, 2, 1)
         if self.deriv == 0:
             b0[0] = _scale_ao(cao[:nalpha], tmp2[0])
         else:

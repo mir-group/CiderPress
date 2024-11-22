@@ -457,7 +457,7 @@ void SDMXcontract_ao_to_bas(int ngrids, double *vbas, double *ylm_lg,
     {
         const int nthread = omp_get_num_threads();
         const int blksize = (ngrids + nthread - 1) / nthread;
-        int thread, sh, m, g, bgrids;
+        int thread, sh, m, nm, di, g, bgrids;
         int sh0 = shls_slice[0];
         int sh1 = shls_slice[1];
         int deg, ia, l, ip;
@@ -471,18 +471,18 @@ void SDMXcontract_ao_to_bas(int ngrids, double *vbas, double *ylm_lg,
             for (sh = sh0; sh < sh1; sh++) {
                 ia = bas[sh * BAS_SLOTS + ATOM_OF];
                 l = bas[sh * BAS_SLOTS + ANG_OF];
+                nm = 2 * l + 1;
                 deg = ao_loc[sh + 1] - ao_loc[sh];
                 _vbas = vbas + sh * ngrids + ip;
                 for (g = 0; g < bgrids; g++) {
                     _vbas[g] = 0;
                 }
-                for (m = 0; m < deg; m++) {
+                for (di = 0; di < deg; di++) {
+                    m = di % nm;
                     _ylm =
                         ylm_lg + (ylm_atom_loc[ia] + l * l + m) * ngrids + ip;
-                    _ao = ao + (ao_loc[sh] + m) * ngrids + ip;
+                    _ao = ao + (ao_loc[sh] + di) * ngrids + ip;
                     for (g = 0; g < bgrids; g++) {
-                        // vbas[g] += ylm_lg[(ylm_atom_loc[ia] + l * l + m) *
-                        // ngrids + g] * ao[(ao_loc[sh] + m) * ngrids + g];
                         _vbas[g] += _ylm[g] * _ao[g];
                     }
                 }
@@ -500,7 +500,7 @@ void SDMXcontract_ao_to_bas_bwd(int ngrids, double *vbas, double *ylm_lg,
         // NOTE: This is an in-place operation and ads to ao.
         const int nthread = omp_get_num_threads();
         const int blksize = (ngrids + nthread - 1) / nthread;
-        int thread, sh, m, g, bgrids;
+        int thread, sh, m, g, bgrids, di, nm;
         int sh0 = shls_slice[0];
         int sh1 = shls_slice[1];
         int deg, ia, l, ip;
@@ -514,15 +514,15 @@ void SDMXcontract_ao_to_bas_bwd(int ngrids, double *vbas, double *ylm_lg,
             for (sh = sh0; sh < sh1; sh++) {
                 ia = bas[sh * BAS_SLOTS + ATOM_OF];
                 l = bas[sh * BAS_SLOTS + ANG_OF];
+                nm = 2 * l + 1;
                 deg = ao_loc[sh + 1] - ao_loc[sh];
                 _vbas = vbas + sh * ngrids + ip;
-                for (m = 0; m < deg; m++) {
+                for (di = 0; di < deg; di++) {
+                    m = di % nm;
                     _ylm =
                         ylm_lg + (ylm_atom_loc[ia] + l * l + m) * ngrids + ip;
-                    _ao = ao + (ao_loc[sh] + m) * ngrids + ip;
+                    _ao = ao + (ao_loc[sh] + di) * ngrids + ip;
                     for (g = 0; g < bgrids; g++) {
-                        // vbas[g] += ylm_lg[(ylm_atom_loc[ia] + l * l + m) *
-                        // ngrids + g] * ao[(ao_loc[sh] + m) * ngrids + g];
                         _ao[g] += _ylm[g] * _vbas[g];
                     }
                 }
@@ -540,7 +540,7 @@ void SDMXcontract_ao_to_bas_grid(int ngrids, double *vbas, double *ylm_lg,
     {
         const int nthread = omp_get_num_threads();
         const int blksize = (ngrids + nthread - 1) / nthread;
-        int thread, sh, m, g;
+        int thread, sh, m, g, di, nm;
         int sh0 = shls_slice[0];
         int sh1 = shls_slice[1];
         int deg, ia, l, ip;
@@ -557,6 +557,7 @@ void SDMXcontract_ao_to_bas_grid(int ngrids, double *vbas, double *ylm_lg,
             for (sh = sh0; sh < sh1; sh++) {
                 ia = bas[sh * BAS_SLOTS + ATOM_OF];
                 l = bas[sh * BAS_SLOTS + ANG_OF];
+                nm = 2 * l + 1;
                 deg = ao_loc[sh + 1] - ao_loc[sh];
                 _vbas = vbas + sh * ngrids + ip;
                 _gridx = gridx + ip;
@@ -564,10 +565,12 @@ void SDMXcontract_ao_to_bas_grid(int ngrids, double *vbas, double *ylm_lg,
                     _vbas[g] = 0;
                     dx[g] = _gridx[g] - atomx[ia];
                 }
-                for (m = 0; m < deg; m++) {
+                for (di = 0; di < deg; di++) {
+                    _vbas = vbas + (sh + di / m) * ngrids + ip;
+                    m = di % nm;
                     _ylm =
                         ylm_lg + (ylm_atom_loc[ia] + l * l + m) * ngrids + ip;
-                    _ao = ao + (ao_loc[sh] + m) * ngrids + ip;
+                    _ao = ao + (ao_loc[sh] + di) * ngrids + ip;
                     for (g = 0; g < bgrids; g++) {
                         _vbas[g] += _ylm[g] * _ao[g] * dx[g];
                     }
@@ -582,15 +585,15 @@ void SDMXcontract_ao_to_bas_l1(int ngrids, double *vbas, double *ylm_vlg,
                                double *ao, int *shls_slice, int *ao_loc,
                                int *ylm_atom_loc, int *atm, int natm, int *bas,
                                int nbas, double *env, double *gridx,
-                               double *atomx) {
+                               double *atomx, int nrf, int *rf_loc) {
 #pragma omp parallel
     {
         const int nthread = omp_get_num_threads();
         const int blksize = (ngrids + nthread - 1) / nthread;
-        int thread, sh, m, g;
+        int thread, sh, m, g, di, nm;
         int sh0 = shls_slice[0];
         int sh1 = shls_slice[1];
-        int deg, ia, l, ip;
+        int deg, ia, l, ip, irf;
         int bgrids;
         double *_ao;
         double *_gridx, *_gridy, *_gridz;
@@ -606,40 +609,50 @@ void SDMXcontract_ao_to_bas_l1(int ngrids, double *vbas, double *ylm_vlg,
             for (sh = sh0; sh < sh1; sh++) {
                 ia = bas[sh * BAS_SLOTS + ATOM_OF];
                 l = bas[sh * BAS_SLOTS + ANG_OF];
-                deg = ao_loc[sh + 1] - ao_loc[sh];
-                offset = sh * ngrids + ip;
-                _vbas0 = vbas + offset;
-                _vbas1 = vbas + 1 * nbas * ngrids + offset;
-                _vbas2 = vbas + 2 * nbas * ngrids + offset;
-                _vbas3 = vbas + 3 * nbas * ngrids + offset;
-                _gridx = gridx + ip;
-                _gridy = gridx + ngrids + ip;
-                _gridz = gridx + 2 * ngrids + ip;
-                for (g = 0; g < bgrids; g++) {
-                    _vbas0[g] = 0;
-                    _vbas1[g] = 0;
-                    _vbas2[g] = 0;
-                    _vbas3[g] = 0;
-                }
-                for (m = 0; m < deg; m++) {
-                    offset = (ylm_atom_loc[ia] + l * l + m) * ngrids + ip;
-                    _ylm0 = ylm_vlg + offset;
-                    _ylm1 = ylm_vlg + 1 * ylm_atom_loc[natm] * ngrids + offset;
-                    _ylm2 = ylm_vlg + 2 * ylm_atom_loc[natm] * ngrids + offset;
-                    _ylm3 = ylm_vlg + 3 * ylm_atom_loc[natm] * ngrids + offset;
-                    _ao = ao + (ao_loc[sh] + m) * ngrids + ip;
+                nm = 2 * l + 1;
+                deg = rf_loc[sh + 1] - rf_loc[sh];
+                di = 0;
+                for (irf = rf_loc[sh]; irf < rf_loc[sh + 1]; irf++) {
+                    offset = irf * ngrids + ip;
+                    _vbas0 = vbas + offset;
+                    _vbas1 = vbas + 1 * nrf * ngrids + offset;
+                    _vbas2 = vbas + 2 * nrf * ngrids + offset;
+                    _vbas3 = vbas + 3 * nrf * ngrids + offset;
+                    _gridx = gridx + ip;
+                    _gridy = gridx + ngrids + ip;
+                    _gridz = gridx + 2 * ngrids + ip;
                     for (g = 0; g < bgrids; g++) {
-                        _vbas0[g] += _ylm0[g] * _ao[g];
-                        _vbas1[g] += _ylm1[g] * _ao[g];
-                        _vbas2[g] += _ylm2[g] * _ao[g];
-                        _vbas3[g] += _ylm3[g] * _ao[g];
+                        _vbas0[g] = 0;
+                        _vbas1[g] = 0;
+                        _vbas2[g] = 0;
+                        _vbas3[g] = 0;
                     }
-                }
-                offset = 3 * nbas * ngrids;
-                for (g = 0; g < bgrids; g++) {
-                    _vbas1[offset + g] = _vbas0[g] * (_gridx[g] - atomx[ia]);
-                    _vbas2[offset + g] = _vbas0[g] * (_gridy[g] - atomy[ia]);
-                    _vbas3[offset + g] = _vbas0[g] * (_gridz[g] - atomz[ia]);
+                    for (m = 0; m < nm; m++, di++) {
+                        offset = (ylm_atom_loc[ia] + l * l + m) * ngrids + ip;
+                        _ylm0 = ylm_vlg + offset;
+                        _ylm1 =
+                            ylm_vlg + 1 * ylm_atom_loc[natm] * ngrids + offset;
+                        _ylm2 =
+                            ylm_vlg + 2 * ylm_atom_loc[natm] * ngrids + offset;
+                        _ylm3 =
+                            ylm_vlg + 3 * ylm_atom_loc[natm] * ngrids + offset;
+                        _ao = ao + (ao_loc[sh] + di) * ngrids + ip;
+                        for (g = 0; g < bgrids; g++) {
+                            _vbas0[g] += _ylm0[g] * _ao[g];
+                            _vbas1[g] += _ylm1[g] * _ao[g];
+                            _vbas2[g] += _ylm2[g] * _ao[g];
+                            _vbas3[g] += _ylm3[g] * _ao[g];
+                        }
+                    }
+                    offset = 3 * nrf * ngrids;
+                    for (g = 0; g < bgrids; g++) {
+                        _vbas1[offset + g] =
+                            _vbas0[g] * (_gridx[g] - atomx[ia]);
+                        _vbas2[offset + g] =
+                            _vbas0[g] * (_gridy[g] - atomy[ia]);
+                        _vbas3[offset + g] =
+                            _vbas0[g] * (_gridz[g] - atomz[ia]);
+                    }
                 }
             }
         }
@@ -650,16 +663,17 @@ void SDMXcontract_ao_to_bas_l1_bwd(int ngrids, double *vbas, double *ylm_vlg,
                                    double *ao, int *shls_slice, int *ao_loc,
                                    int *ylm_atom_loc, int *atm, int natm,
                                    int *bas, int nbas, double *env,
-                                   double *gridx, double *atomx) {
+                                   double *gridx, double *atomx, int nrf,
+                                   int *rf_loc) {
 #pragma omp parallel
     {
         // NOTE: ao must be zero upon entry
         const int nthread = omp_get_num_threads();
         const int blksize = (ngrids + nthread - 1) / nthread;
-        int thread, sh, m, g;
+        int thread, sh, m, g, di, nm;
         int sh0 = shls_slice[0];
         int sh1 = shls_slice[1];
-        int deg, ia, l, ip;
+        int deg, ia, l, ip, irf;
         int bgrids;
         double *_ao;
         double *_gridx, *_gridy, *_gridz;
@@ -676,38 +690,50 @@ void SDMXcontract_ao_to_bas_l1_bwd(int ngrids, double *vbas, double *ylm_vlg,
             for (sh = sh0; sh < sh1; sh++) {
                 ia = bas[sh * BAS_SLOTS + ATOM_OF];
                 l = bas[sh * BAS_SLOTS + ANG_OF];
-                deg = ao_loc[sh + 1] - ao_loc[sh];
-                offset = sh * ngrids + ip;
-                _vbas0 = vbas + offset;
-                _vbas1 = vbas + 1 * nbas * ngrids + offset;
-                _vbas2 = vbas + 2 * nbas * ngrids + offset;
-                _vbas3 = vbas + 3 * nbas * ngrids + offset;
-                _gridx = gridx + ip;
-                _gridy = gridx + ngrids + ip;
-                _gridz = gridx + 2 * ngrids + ip;
-                offset = 3 * nbas * ngrids;
-                for (g = 0; g < bgrids; g++) {
-                    vb0tmp[g] = _vbas0[g];
-                    vb0tmp[g] += _vbas1[offset + g] * (_gridx[g] - atomx[ia]);
-                    vb0tmp[g] += _vbas2[offset + g] * (_gridy[g] - atomy[ia]);
-                    vb0tmp[g] += _vbas3[offset + g] * (_gridz[g] - atomz[ia]);
-                }
-                for (m = 0; m < deg; m++) {
-                    offset = (ylm_atom_loc[ia] + l * l + m) * ngrids + ip;
-                    _ylm0 = ylm_vlg + offset;
-                    _ylm1 = ylm_vlg + 1 * ylm_atom_loc[natm] * ngrids + offset;
-                    _ylm2 = ylm_vlg + 2 * ylm_atom_loc[natm] * ngrids + offset;
-                    _ylm3 = ylm_vlg + 3 * ylm_atom_loc[natm] * ngrids + offset;
-                    _ao = ao + (ao_loc[sh] + m) * ngrids + ip;
+                nm = 2 * l + 1;
+                deg =
+                    rf_loc[sh + 1] - rf_loc[sh]; // ao_loc[sh + 1] - ao_loc[sh];
+                di = 0;
+                for (irf = rf_loc[sh]; irf < rf_loc[sh + 1]; irf++) {
+                    offset = irf * ngrids + ip;
+                    _vbas0 = vbas + offset;
+                    _vbas1 = vbas + 1 * nrf * ngrids + offset;
+                    _vbas2 = vbas + 2 * nrf * ngrids + offset;
+                    _vbas3 = vbas + 3 * nrf * ngrids + offset;
+                    _gridx = gridx + ip;
+                    _gridy = gridx + ngrids + ip;
+                    _gridz = gridx + 2 * ngrids + ip;
+                    offset = 3 * nrf * ngrids;
                     for (g = 0; g < bgrids; g++) {
-                        _ao[g] = _ylm0[g] * vb0tmp[g];
-                        _ao[g] += _ylm1[g] * _vbas1[g];
-                        _ao[g] += _ylm2[g] * _vbas2[g];
-                        _ao[g] += _ylm3[g] * _vbas3[g];
+                        vb0tmp[g] = _vbas0[g];
+                        vb0tmp[g] +=
+                            _vbas1[offset + g] * (_gridx[g] - atomx[ia]);
+                        vb0tmp[g] +=
+                            _vbas2[offset + g] * (_gridy[g] - atomy[ia]);
+                        vb0tmp[g] +=
+                            _vbas3[offset + g] * (_gridz[g] - atomz[ia]);
+                    }
+                    for (m = 0; m < nm; m++, di++) {
+                        offset = (ylm_atom_loc[ia] + l * l + m) * ngrids + ip;
+                        _ylm0 = ylm_vlg + offset;
+                        _ylm1 =
+                            ylm_vlg + 1 * ylm_atom_loc[natm] * ngrids + offset;
+                        _ylm2 =
+                            ylm_vlg + 2 * ylm_atom_loc[natm] * ngrids + offset;
+                        _ylm3 =
+                            ylm_vlg + 3 * ylm_atom_loc[natm] * ngrids + offset;
+                        _ao = ao + (ao_loc[sh] + di) * ngrids + ip;
+                        for (g = 0; g < bgrids; g++) {
+                            _ao[g] = _ylm0[g] * vb0tmp[g];
+                            _ao[g] += _ylm1[g] * _vbas1[g];
+                            _ao[g] += _ylm2[g] * _vbas2[g];
+                            _ao[g] += _ylm3[g] * _vbas3[g];
+                        }
                     }
                 }
             }
         }
+        free(vb0tmp);
     }
 }
 
@@ -721,7 +747,7 @@ void SDMXcontract_ao_to_bas_grid_bwd(int ngrids, double *vbas, double *ylm_lg,
         // NOTE: This is an in-place operation and ads to ao.
         const int nthread = omp_get_num_threads();
         const int blksize = (ngrids + nthread - 1) / nthread;
-        int thread, sh, m, g;
+        int thread, sh, m, g, di, nm;
         int sh0 = shls_slice[0];
         int sh1 = shls_slice[1];
         int deg, ia, l, ip;
@@ -738,16 +764,19 @@ void SDMXcontract_ao_to_bas_grid_bwd(int ngrids, double *vbas, double *ylm_lg,
             for (sh = sh0; sh < sh1; sh++) {
                 ia = bas[sh * BAS_SLOTS + ATOM_OF];
                 l = bas[sh * BAS_SLOTS + ANG_OF];
+                nm = 2 * l + 1;
                 deg = ao_loc[sh + 1] - ao_loc[sh];
-                _vbas = vbas + sh * ngrids + ip;
+                // _vbas = vbas + sh * ngrids + ip;
                 _gridx = gridx + ip;
                 for (g = 0; g < bgrids; g++) {
                     dx[g] = _gridx[g] - atomx[ia];
                 }
-                for (m = 0; m < deg; m++) {
+                for (di = 0; di < deg; di++) {
+                    _vbas = vbas + (sh + di / m) * ngrids + ip;
+                    m = di % nm;
                     _ylm =
                         ylm_lg + (ylm_atom_loc[ia] + l * l + m) * ngrids + ip;
-                    _ao = ao + (ao_loc[sh] + m) * ngrids + ip;
+                    _ao = ao + (ao_loc[sh] + di) * ngrids + ip;
                     for (g = 0; g < bgrids; g++) {
                         _ao[g] += _ylm[g] * _vbas[g] * dx[g];
                     }
@@ -947,10 +976,10 @@ void SDMXeval_loop(void (*fiter)(), FPtr_eval_sdmx feval, FPtr_exp_sdmx fexp,
 }
 
 void SDMXeval_rad_loop(FPtr_eval_sdmx_rad feval, FPtr_exp_sdmx fexp, double fac,
-                       int ngrids, int param[], int *shls_slice, double *vbas,
-                       double *coord, uint8_t *non0table, int *atm, int natm,
-                       int *bas, int nbas, double *env, double *alphas,
-                       double *alpha_norms, int nalpha) {
+                       int ngrids, int param[], int *shls_slice, int *rf_loc,
+                       double *vbas, double *coord, uint8_t *non0table,
+                       int *atm, int natm, int *bas, int nbas, double *env,
+                       double *alphas, double *alpha_norms, int nalpha) {
     int shloc[shls_slice[1] - shls_slice[0] + 1];
     const int nshlblk = SDMXshloc_by_atom(shloc, shls_slice, atm, bas);
     const int nblk = (ngrids + BLKSIZE - 1) / BLKSIZE;
@@ -959,7 +988,7 @@ void SDMXeval_rad_loop(FPtr_eval_sdmx_rad feval, FPtr_exp_sdmx fexp, double fac,
     {
         const int sh0 = shls_slice[0];
         const int sh1 = shls_slice[1];
-        const size_t nao = sh1 - sh0;
+        const size_t nao = rf_loc[sh1] - rf_loc[sh0];
         int ip, ib, k, iloc, ish;
         size_t soff, bgrids;
         int ncart = NCTR_CART * param[TENSOR] * param[POS_E1];
@@ -969,14 +998,15 @@ void SDMXeval_rad_loop(FPtr_eval_sdmx_rad feval, FPtr_exp_sdmx fexp, double fac,
         for (k = 0; k < nblk * nshlblk; k++) {
             iloc = k / nblk;
             ish = shloc[iloc];
-            soff = ish - sh0;
+            soff = rf_loc[ish] - rf_loc[sh0];
             ib = k - iloc * nblk;
             ip = ib * BLKSIZE;
             bgrids = MIN(ngrids - ip, BLKSIZE);
             SDMXeval_rad_iter(feval, fexp, fac, nao, Ngrids, bgrids, param,
-                              shloc + iloc, buf, vbas + soff * Ngrids + ip,
-                              coord + ip, non0table + ib * nbas, atm, natm, bas,
-                              nbas, env, alphas, alpha_norms, nalpha);
+                              shloc + iloc, rf_loc, buf,
+                              vbas + soff * Ngrids + ip, coord + ip,
+                              non0table + ib * nbas, atm, natm, bas, nbas, env,
+                              alphas, alpha_norms, nalpha);
         }
         free(buf);
     }
@@ -1058,7 +1088,7 @@ void SDMXeval_sph_iter(FPtr_eval_sdmx feval, FPtr_exp_sdmx fexp, double fac,
 
 void SDMXeval_rad_iter(FPtr_eval_sdmx_rad feval, FPtr_exp_sdmx fexp, double fac,
                        size_t nao, size_t ngrids, size_t bgrids, int param[],
-                       int *shls_slice, double *buf, double *vbas,
+                       int *shls_slice, int *rf_loc, double *buf, double *vbas,
                        double *coord, uint8_t *non0table, int *atm, int natm,
                        int *bas, int nbas, double *env, double *alphas,
                        double *alpha_norms, int nalpha) {
@@ -1089,21 +1119,19 @@ void SDMXeval_rad_iter(FPtr_eval_sdmx_rad feval, FPtr_exp_sdmx fexp, double fac,
         pcoeff = env + bas[bas_id * BAS_SLOTS + PTR_COEFF];
         atm_id = bas[bas_id * BAS_SLOTS + ATOM_OF];
         pcoord = grid2atm + (atm_id - atmstart) * 3 * BLKSIZE;
-        sh = bas_id - sh0;
+        sh = rf_loc[bas_id] - rf_loc[sh0];
         for (int ialpha = 0; ialpha < nalpha; ialpha++) {
             if (non0table[bas_id] &&
                 (*fexp)(eprim, pcoord, p_exp, pcoeff, l, np, nc, bgrids, fac1,
                         alphas[ialpha], alpha_norms[ialpha])) {
-                // ri = env + atm[PTR_COORD+atm_id*ATM_SLOTS];
-                // lbuf[i + BLKSIZE * (m + max2lp1 * v)] =
-                //     ylm_vlg[i + ngrids * (m + n_alm * v)];
                 (*feval)(vbas + sh * ngrids, eprim, nc, nao, ngrids, bgrids,
                          nao * ngrids * nalpha);
             } else {
-                printf("Hi rad\n");
                 for (i = 0; i < ncomp; i++) {
-                    _dset0(vbas + (i * nalpha * nao + sh) * ngrids, ngrids,
-                           bgrids, nc);
+                    for (k = 0; k < rf_loc[bas_id + 1] - rf_loc[bas_id]; k++) {
+                        _dset0(vbas + (i * nalpha * nao + sh + k) * ngrids,
+                               ngrids, bgrids, nc);
+                    }
                 }
             }
             sh += nao;
@@ -1156,7 +1184,6 @@ void SDMXshell_eval_grid_cart(double *gto, double *ri, double *exps,
         for (m = 0; m < l2p1; m++) {
 #pragma GCC ivdep
             for (i = 0; i < blksize; i++) {
-                // gto[i] = ylm_vmg[m * ngrids + i] * exps[k * BLKSIZE + i];
                 gto[i] = ylm_vmg[m * BLKSIZE + i] * exps[k * BLKSIZE + i];
             }
             gto += ngrids;
@@ -1189,14 +1216,6 @@ void SDMXshell_eval_grid_cart_deriv1(double *gto, double *ri, double *exps,
         for (m = 0; m < l2p1; m++) {
 #pragma GCC ivdep
             for (i = 0; i < blksize; i++) {
-                /*tmp = y0_mg[m * ngrids + i] * exps_2a[k * BLKSIZE + i];
-                gto[i] = y0_mg[m * ngrids + i] * exps[k * BLKSIZE + i];
-                gtox[i] = tmp * gridx[i];
-                gtoy[i] = tmp * gridy[i];
-                gtoz[i] = tmp * gridz[i];
-                gtox[i] += yx_mg[m * ngrids + i] * exps[k * BLKSIZE + i];
-                gtoy[i] += yy_mg[m * ngrids + i] * exps[k * BLKSIZE + i];
-                gtoz[i] += yz_mg[m * ngrids + i] * exps[k * BLKSIZE + i];*/
                 tmp = y0_mg[m * BLKSIZE + i] * exps_2a[k * BLKSIZE + i];
                 gto[i] = y0_mg[m * BLKSIZE + i] * exps[k * BLKSIZE + i];
                 gtox[i] = tmp * gridx[i];
