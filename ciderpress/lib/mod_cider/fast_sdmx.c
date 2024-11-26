@@ -452,7 +452,7 @@ void SDMXylm_yzx2xyz(int ngrids, int nv, double *ylm_vlg, int *ylm_atom_loc,
 void SDMXcontract_ao_to_bas(int ngrids, double *vbas, double *ylm_lg,
                             double *ao, int *shls_slice, int *ao_loc,
                             int *ylm_atom_loc, int *atm, int natm, int *bas,
-                            int nbas, double *env) {
+                            int nbas, double *env, int nrf, int *rf_loc) {
 #pragma omp parallel
     {
         const int nthread = omp_get_num_threads();
@@ -460,7 +460,7 @@ void SDMXcontract_ao_to_bas(int ngrids, double *vbas, double *ylm_lg,
         int thread, sh, m, nm, di, g, bgrids;
         int sh0 = shls_slice[0];
         int sh1 = shls_slice[1];
-        int deg, ia, l, ip;
+        int ia, l, ip, irf;
         double *_vbas;
         double *_ylm;
         double *_ao;
@@ -472,18 +472,19 @@ void SDMXcontract_ao_to_bas(int ngrids, double *vbas, double *ylm_lg,
                 ia = bas[sh * BAS_SLOTS + ATOM_OF];
                 l = bas[sh * BAS_SLOTS + ANG_OF];
                 nm = 2 * l + 1;
-                deg = ao_loc[sh + 1] - ao_loc[sh];
-                _vbas = vbas + sh * ngrids + ip;
-                for (g = 0; g < bgrids; g++) {
-                    _vbas[g] = 0;
-                }
-                for (di = 0; di < deg; di++) {
-                    m = di % nm;
-                    _ylm =
-                        ylm_lg + (ylm_atom_loc[ia] + l * l + m) * ngrids + ip;
-                    _ao = ao + (ao_loc[sh] + di) * ngrids + ip;
+                di = 0;
+                for (irf = rf_loc[sh]; irf < rf_loc[sh + 1]; irf++) {
+                    _vbas = vbas + irf * ngrids + ip;
                     for (g = 0; g < bgrids; g++) {
-                        _vbas[g] += _ylm[g] * _ao[g];
+                        _vbas[g] = 0;
+                    }
+                    for (m = 0; m < nm; m++, di++) {
+                        _ylm = ylm_lg +
+                               (ylm_atom_loc[ia] + l * l + m) * ngrids + ip;
+                        _ao = ao + (ao_loc[sh] + di) * ngrids + ip;
+                        for (g = 0; g < bgrids; g++) {
+                            _vbas[g] += _ylm[g] * _ao[g];
+                        }
                     }
                 }
             }
@@ -494,7 +495,7 @@ void SDMXcontract_ao_to_bas(int ngrids, double *vbas, double *ylm_lg,
 void SDMXcontract_ao_to_bas_bwd(int ngrids, double *vbas, double *ylm_lg,
                                 double *ao, int *shls_slice, int *ao_loc,
                                 int *ylm_atom_loc, int *atm, int natm, int *bas,
-                                int nbas, double *env) {
+                                int nbas, double *env, int nrf, int *rf_loc) {
 #pragma omp parallel
     {
         // NOTE: This is an in-place operation and ads to ao.
@@ -503,7 +504,7 @@ void SDMXcontract_ao_to_bas_bwd(int ngrids, double *vbas, double *ylm_lg,
         int thread, sh, m, g, bgrids, di, nm;
         int sh0 = shls_slice[0];
         int sh1 = shls_slice[1];
-        int deg, ia, l, ip;
+        int ia, l, ip, irf;
         double *_vbas;
         double *_ylm;
         double *_ao;
@@ -515,15 +516,16 @@ void SDMXcontract_ao_to_bas_bwd(int ngrids, double *vbas, double *ylm_lg,
                 ia = bas[sh * BAS_SLOTS + ATOM_OF];
                 l = bas[sh * BAS_SLOTS + ANG_OF];
                 nm = 2 * l + 1;
-                deg = ao_loc[sh + 1] - ao_loc[sh];
-                _vbas = vbas + sh * ngrids + ip;
-                for (di = 0; di < deg; di++) {
-                    m = di % nm;
-                    _ylm =
-                        ylm_lg + (ylm_atom_loc[ia] + l * l + m) * ngrids + ip;
-                    _ao = ao + (ao_loc[sh] + di) * ngrids + ip;
-                    for (g = 0; g < bgrids; g++) {
-                        _ao[g] += _ylm[g] * _vbas[g];
+                di = 0;
+                for (irf = rf_loc[sh]; irf < rf_loc[sh + 1]; irf++) {
+                    _vbas = vbas + irf * ngrids + ip;
+                    for (m = 0; m < nm; m++, di++) {
+                        _ylm = ylm_lg +
+                               (ylm_atom_loc[ia] + l * l + m) * ngrids + ip;
+                        _ao = ao + (ao_loc[sh] + di) * ngrids + ip;
+                        for (g = 0; g < bgrids; g++) {
+                            _ao[g] += _ylm[g] * _vbas[g];
+                        }
                     }
                 }
             }
@@ -534,8 +536,8 @@ void SDMXcontract_ao_to_bas_bwd(int ngrids, double *vbas, double *ylm_lg,
 void SDMXcontract_ao_to_bas_grid(int ngrids, double *vbas, double *ylm_lg,
                                  double *ao, int *shls_slice, int *ao_loc,
                                  int *ylm_atom_loc, int *atm, int natm,
-                                 int *bas, int nbas, double *env, double *gridx,
-                                 double *atomx) {
+                                 int *bas, int nbas, double *env, int nrf,
+                                 int *rf_loc, double *gridx, double *atomx) {
 #pragma omp parallel
     {
         const int nthread = omp_get_num_threads();
@@ -543,7 +545,7 @@ void SDMXcontract_ao_to_bas_grid(int ngrids, double *vbas, double *ylm_lg,
         int thread, sh, m, g, di, nm;
         int sh0 = shls_slice[0];
         int sh1 = shls_slice[1];
-        int deg, ia, l, ip;
+        int ia, l, ip, irf;
         int bgrids;
         double *_vbas;
         double *_ylm;
@@ -558,21 +560,75 @@ void SDMXcontract_ao_to_bas_grid(int ngrids, double *vbas, double *ylm_lg,
                 ia = bas[sh * BAS_SLOTS + ATOM_OF];
                 l = bas[sh * BAS_SLOTS + ANG_OF];
                 nm = 2 * l + 1;
-                deg = ao_loc[sh + 1] - ao_loc[sh];
                 _vbas = vbas + sh * ngrids + ip;
                 _gridx = gridx + ip;
                 for (g = 0; g < bgrids; g++) {
-                    _vbas[g] = 0;
                     dx[g] = _gridx[g] - atomx[ia];
                 }
-                for (di = 0; di < deg; di++) {
-                    _vbas = vbas + (sh + di / m) * ngrids + ip;
-                    m = di % nm;
-                    _ylm =
-                        ylm_lg + (ylm_atom_loc[ia] + l * l + m) * ngrids + ip;
-                    _ao = ao + (ao_loc[sh] + di) * ngrids + ip;
+                di = 0;
+                for (irf = rf_loc[sh]; irf < rf_loc[sh + 1]; irf++) {
+                    _vbas = vbas + irf * ngrids + ip;
                     for (g = 0; g < bgrids; g++) {
-                        _vbas[g] += _ylm[g] * _ao[g] * dx[g];
+                        _vbas[g] = 0;
+                    }
+                    for (m = 0; m < nm; m++, di++) {
+                        _ylm = ylm_lg +
+                               (ylm_atom_loc[ia] + l * l + m) * ngrids + ip;
+                        _ao = ao + (ao_loc[sh] + di) * ngrids + ip;
+                        for (g = 0; g < bgrids; g++) {
+                            _vbas[g] += _ylm[g] * _ao[g] * dx[g];
+                        }
+                    }
+                }
+            }
+        }
+        free(dx);
+    }
+}
+
+void SDMXcontract_ao_to_bas_grid_bwd(int ngrids, double *vbas, double *ylm_lg,
+                                     double *ao, int *shls_slice, int *ao_loc,
+                                     int *ylm_atom_loc, int *atm, int natm,
+                                     int *bas, int nbas, double *env,
+                                     double *gridx, double *atomx, int nrf,
+                                     int *rf_loc) {
+#pragma omp parallel
+    {
+        // NOTE: This is an in-place operation and ads to ao.
+        const int nthread = omp_get_num_threads();
+        const int blksize = (ngrids + nthread - 1) / nthread;
+        int thread, sh, m, g, di, nm;
+        int sh0 = shls_slice[0];
+        int sh1 = shls_slice[1];
+        int ia, l, ip;
+        int bgrids, irf;
+        double *_vbas;
+        double *_ylm;
+        double *_ao;
+        double *_gridx;
+        double *dx = malloc(sizeof(double) * blksize);
+#pragma omp for
+        for (thread = 0; thread < nthread; thread++) {
+            ip = blksize * thread;
+            bgrids = MIN(ip + blksize, ngrids) - ip;
+            for (sh = sh0; sh < sh1; sh++) {
+                ia = bas[sh * BAS_SLOTS + ATOM_OF];
+                l = bas[sh * BAS_SLOTS + ANG_OF];
+                nm = 2 * l + 1;
+                _gridx = gridx + ip;
+                for (g = 0; g < bgrids; g++) {
+                    dx[g] = _gridx[g] - atomx[ia];
+                }
+                di = 0;
+                for (irf = rf_loc[sh]; irf < rf_loc[sh + 1]; irf++) {
+                    _vbas = vbas + irf * ngrids + ip;
+                    for (m = 0; m < nm; m++, di++) {
+                        _ylm = ylm_lg +
+                               (ylm_atom_loc[ia] + l * l + m) * ngrids + ip;
+                        _ao = ao + (ao_loc[sh] + di) * ngrids + ip;
+                        for (g = 0; g < bgrids; g++) {
+                            _ao[g] += _ylm[g] * _vbas[g] * dx[g];
+                        }
                     }
                 }
             }
@@ -593,7 +649,7 @@ void SDMXcontract_ao_to_bas_l1(int ngrids, double *vbas, double *ylm_vlg,
         int thread, sh, m, g, di, nm;
         int sh0 = shls_slice[0];
         int sh1 = shls_slice[1];
-        int deg, ia, l, ip, irf;
+        int ia, l, ip, irf;
         int bgrids;
         double *_ao;
         double *_gridx, *_gridy, *_gridz;
@@ -610,7 +666,6 @@ void SDMXcontract_ao_to_bas_l1(int ngrids, double *vbas, double *ylm_vlg,
                 ia = bas[sh * BAS_SLOTS + ATOM_OF];
                 l = bas[sh * BAS_SLOTS + ANG_OF];
                 nm = 2 * l + 1;
-                deg = rf_loc[sh + 1] - rf_loc[sh];
                 di = 0;
                 for (irf = rf_loc[sh]; irf < rf_loc[sh + 1]; irf++) {
                     offset = irf * ngrids + ip;
@@ -673,7 +728,7 @@ void SDMXcontract_ao_to_bas_l1_bwd(int ngrids, double *vbas, double *ylm_vlg,
         int thread, sh, m, g, di, nm;
         int sh0 = shls_slice[0];
         int sh1 = shls_slice[1];
-        int deg, ia, l, ip, irf;
+        int ia, l, ip, irf;
         int bgrids;
         double *_ao;
         double *_gridx, *_gridy, *_gridz;
@@ -691,8 +746,6 @@ void SDMXcontract_ao_to_bas_l1_bwd(int ngrids, double *vbas, double *ylm_vlg,
                 ia = bas[sh * BAS_SLOTS + ATOM_OF];
                 l = bas[sh * BAS_SLOTS + ANG_OF];
                 nm = 2 * l + 1;
-                deg =
-                    rf_loc[sh + 1] - rf_loc[sh]; // ao_loc[sh + 1] - ao_loc[sh];
                 di = 0;
                 for (irf = rf_loc[sh]; irf < rf_loc[sh + 1]; irf++) {
                     offset = irf * ngrids + ip;
@@ -734,56 +787,6 @@ void SDMXcontract_ao_to_bas_l1_bwd(int ngrids, double *vbas, double *ylm_vlg,
             }
         }
         free(vb0tmp);
-    }
-}
-
-void SDMXcontract_ao_to_bas_grid_bwd(int ngrids, double *vbas, double *ylm_lg,
-                                     double *ao, int *shls_slice, int *ao_loc,
-                                     int *ylm_atom_loc, int *atm, int natm,
-                                     int *bas, int nbas, double *env,
-                                     double *gridx, double *atomx) {
-#pragma omp parallel
-    {
-        // NOTE: This is an in-place operation and ads to ao.
-        const int nthread = omp_get_num_threads();
-        const int blksize = (ngrids + nthread - 1) / nthread;
-        int thread, sh, m, g, di, nm;
-        int sh0 = shls_slice[0];
-        int sh1 = shls_slice[1];
-        int deg, ia, l, ip;
-        int bgrids;
-        double *_vbas;
-        double *_ylm;
-        double *_ao;
-        double *_gridx;
-        double *dx = malloc(sizeof(double) * blksize);
-#pragma omp for
-        for (thread = 0; thread < nthread; thread++) {
-            ip = blksize * thread;
-            bgrids = MIN(ip + blksize, ngrids) - ip;
-            for (sh = sh0; sh < sh1; sh++) {
-                ia = bas[sh * BAS_SLOTS + ATOM_OF];
-                l = bas[sh * BAS_SLOTS + ANG_OF];
-                nm = 2 * l + 1;
-                deg = ao_loc[sh + 1] - ao_loc[sh];
-                // _vbas = vbas + sh * ngrids + ip;
-                _gridx = gridx + ip;
-                for (g = 0; g < bgrids; g++) {
-                    dx[g] = _gridx[g] - atomx[ia];
-                }
-                for (di = 0; di < deg; di++) {
-                    _vbas = vbas + (sh + di / m) * ngrids + ip;
-                    m = di % nm;
-                    _ylm =
-                        ylm_lg + (ylm_atom_loc[ia] + l * l + m) * ngrids + ip;
-                    _ao = ao + (ao_loc[sh] + di) * ngrids + ip;
-                    for (g = 0; g < bgrids; g++) {
-                        _ao[g] += _ylm[g] * _vbas[g] * dx[g];
-                    }
-                }
-            }
-        }
-        free(dx);
     }
 }
 
@@ -1025,18 +1028,14 @@ void SDMXeval_sph_iter(FPtr_eval_sdmx feval, FPtr_exp_sdmx fexp, double fac,
     const int atmstart = bas[sh0 * BAS_SLOTS + ATOM_OF];
     const int atmend = bas[(sh1 - 1) * BAS_SLOTS + ATOM_OF] + 1;
     const int atmcount = atmend - atmstart;
-    int i, k, l, np, nc, atm_id, bas_id, deg, dcart, ao_id;
-    size_t di;
+    int i, l, np, nc, atm_id, bas_id, deg, ao_id;
     double fac1;
-    double *p_exp, *pcoeff, *pcoord, *pcart, *ri, *pao;
+    double *p_exp, *pcoeff, *pcoord, *ri;
     double *grid2atm = ALIGN8_UP(buf); // [atm_id,xyz,grid]
     double *ylm_buf = ALIGN8_UP(ybuf);
-    // double *lbuf = ALIGN8_UP(_lbuf); //
     double *eprim = grid2atm + atmcount * 3 * BLKSIZE;
-    double *cart_gto = eprim + NPRIMAX * BLKSIZE * 2;
     int n_alm = ylm_atom_loc[natm];
     double *ylm_vmg;
-    int ialpha;
     int m, g, v;
 
     _fill_grid2atm(grid2atm, coord, bgrids, ngrids, atm + atmstart * ATM_SLOTS,
@@ -1074,9 +1073,8 @@ void SDMXeval_sph_iter(FPtr_eval_sdmx feval, FPtr_exp_sdmx fexp, double fac,
                          env, l, np, nc, nao, ngrids, bgrids, ylm_buf,
                          deg * BLKSIZE);
             } else {
-                printf("Hi sph\n");
-                for (i = 0; i < ncomp;
-                     i++) { // TODO this might not set everything to zero
+                for (i = 0; i < ncomp; i++) {
+                    // TODO this might not set everything to zero
                     _dset0(ao + (i * nao + ao_id) * ngrids, ngrids, bgrids,
                            nc * deg);
                 }
@@ -1098,13 +1096,12 @@ void SDMXeval_rad_iter(FPtr_eval_sdmx_rad feval, FPtr_exp_sdmx fexp, double fac,
     const int atmstart = bas[sh0 * BAS_SLOTS + ATOM_OF];
     const int atmend = bas[(sh1 - 1) * BAS_SLOTS + ATOM_OF] + 1;
     const int atmcount = atmend - atmstart;
-    int i, k, l, np, nc, atm_id, bas_id, deg, dcart, ao_id;
-    size_t di;
+    int i, k, l, np, nc, atm_id, bas_id;
     double fac1;
-    double *p_exp, *pcoeff, *pcoord, *pcart, *ri, *pao;
+    double *p_exp, *pcoeff, *pcoord;
     double *grid2atm = ALIGN8_UP(buf); // [atm_id,xyz,grid]
     double *eprim = grid2atm + atmcount * 3 * BLKSIZE;
-    int ialpha, sh;
+    int sh;
 
     _fill_grid2atm(grid2atm, coord, bgrids, ngrids, atm + atmstart * ATM_SLOTS,
                    atmcount, bas, nbas, env);
@@ -1113,7 +1110,6 @@ void SDMXeval_rad_iter(FPtr_eval_sdmx_rad feval, FPtr_exp_sdmx fexp, double fac,
         np = bas[bas_id * BAS_SLOTS + NPRIM_OF];
         nc = bas[bas_id * BAS_SLOTS + NCTR_OF];
         l = bas[bas_id * BAS_SLOTS + ANG_OF];
-        deg = l * 2 + 1;
         fac1 = fac; // * CINTcommon_fac_sp(l);
         p_exp = env + bas[bas_id * BAS_SLOTS + PTR_EXP];
         pcoeff = env + bas[bas_id * BAS_SLOTS + PTR_COEFF];

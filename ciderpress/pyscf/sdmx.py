@@ -300,6 +300,7 @@ class EXXSphGenerator:
         atom_coords=None,
         bwd=False,
     ):
+        rf_loc = _get_rf_loc(mol)
         args = [
             ctypes.c_int(b0.shape[-1]),
             b0.ctypes.data_as(ctypes.c_void_p),
@@ -313,6 +314,8 @@ class EXXSphGenerator:
             mol._bas.ctypes.data_as(ctypes.c_void_p),
             ctypes.c_int(mol.nbas),
             mol._env.ctypes.data_as(ctypes.c_void_p),
+            ctypes.c_int(rf_loc[-1]),
+            rf_loc.ctypes.data_as(ctypes.c_void_p),
         ]
         if coords is not None:
             assert coords.ndim == 1 and coords.flags.c_contiguous

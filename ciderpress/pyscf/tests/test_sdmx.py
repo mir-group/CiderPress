@@ -135,7 +135,7 @@ def get_test_ylm(mol, lmax_list, coords, grad=False, xyz=False):
     return ylm
 
 
-class TestYlm(unittest.TestCase):
+class TestSDMX(unittest.TestCase):
     def test_ylm(self):
         for lmax_list in [[3, 4], [3, 0], [2, 1], [4, 4], [5, 6]]:
             mol = gto.M(
@@ -273,7 +273,7 @@ class TestYlm(unittest.TestCase):
         init1 = NewSDMXInit(settings1)
         new_inits = {0: init0, 1: init1}
         for itype in ["gauss_diff"]:
-            for basis in ["def2-svp", "def2-tzvpd", "def2-qzvppd"]:
+            for basis in ["def2-svp", "def2-tzvpd", "def2-qzvppd", "aug-cc-pvtz"]:
                 for deriv in [0, 1]:
                     mol = gto.M(
                         atom="H 0 0 0; F 0 0 0.9", basis=basis, output="/dev/null"
@@ -293,22 +293,23 @@ class TestYlm(unittest.TestCase):
 
                     t0 = time.monotonic()
                     ref_feat = refgen.get_features(dm, mol, grids.coords, save_buf=True)
-                    ref_feat = refgen.get_features(dm, mol, grids.coords, save_buf=True)
-                    ref_feat = refgen.get_features(dm, mol, grids.coords, save_buf=True)
                     t1 = time.monotonic()
-                    test_feat = testgen.get_features(
-                        dm, mol, grids.coords, save_buf=True
-                    )
-                    test_feat = testgen.get_features(
-                        dm, mol, grids.coords, save_buf=True
-                    )
                     test_feat = testgen.get_features(
                         dm, mol, grids.coords, save_buf=True
                     )
                     t2 = time.monotonic()
                     print(t1 - t0, t2 - t1)
 
+                    np.random.seed(42)
+                    vxc_grid = np.random.normal(size=ref_feat.shape) ** 2
+                    nao = mol.nao_nr()
+                    vxc_mat_ref = np.zeros((nao, nao))
+                    vxc_mat_test = np.zeros((nao, nao))
+                    refgen.get_vxc_(vxc_mat_ref, vxc_grid)
+                    testgen.get_vxc_(vxc_mat_test, vxc_grid)
+
                     assert_allclose(test_feat, ref_feat, rtol=1e-8, atol=1e-10)
+                    assert_allclose(vxc_mat_test, vxc_mat_ref, rtol=1e-8, atol=1e-10)
 
                     mol.stdout.close()
 
