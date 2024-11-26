@@ -72,6 +72,9 @@ def _get_fl_ueg(s):
 def get_cider_exponent(
     rho, sigma, tau, a0=1.0, grad_mul=0.0, tau_mul=0.03125, rhocut=1e-10, nspin=1
 ):
+    """
+    Evaluate an NLDF length-scale exponent at the MGGA level.
+    """
     if nspin > 2:
         raise ValueError
     if isinstance(rho, np.ndarray):
@@ -113,6 +116,9 @@ def get_cider_exponent(
 
 
 def get_cider_exponent_gga(rho, sigma, a0=1.0, grad_mul=0.03125, rhocut=1e-10, nspin=1):
+    """
+    Evaluate an NLDF length-scale exponent at the GGA level.
+    """
     if nspin > 2:
         raise ValueError
     if isinstance(rho, np.ndarray):
@@ -161,6 +167,13 @@ def _get_ueg_expnt(aval, tval, rho):
 
 
 class BaseSettings(ABC):
+    """
+    This is a base class for storing the settings for different
+    types of density/density matrix feature in CiderPress.
+    Settings objects indicate which features must be evaluated,
+    and with which hyperparameters, to use as input to an ML functional.
+    """
+
     @property
     @abstractmethod
     def nfeat(self):
@@ -171,6 +184,9 @@ class BaseSettings(ABC):
 
     @property
     def is_empty(self):
+        """
+        Return true of this settings object specifies zero features.
+        """
         return self.nfeat == 0
 
     @abstractmethod
@@ -201,6 +217,14 @@ class BaseSettings(ABC):
 
 
 class EmptySettings(BaseSettings):
+    """
+    The EmptySettings class is a representation of a feature set containing
+    zero features. It is used when a certain type of feature is not
+    present in a model. (For example, if a model does not use SDMX
+    features, that model's FeatureSettings.sdmx_settings will be
+    an EmptySettings instance.)
+    """
+
     @property
     def nfeat(self):
         return 0

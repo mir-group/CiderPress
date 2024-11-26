@@ -43,10 +43,21 @@ def _get_ylm_atom_loc(mol):
 
 
 def _get_nrf(mol):
+    """
+    Get the number of unique radial functions associated with a basis
+    """
     return np.sum(mol._bas[:, NCTR_OF])
 
 
 def _get_rf_loc(mol):
+    """
+    Get an integer numpy array with that gives the location of the
+    unique radial functions corresponding to each shell.
+    So rf_loc[shl : shl + 1] is the range of radial functions contained
+    in the shell. This is similar to ao_loc, except that it does not
+    include spherical harmonics, so each shell has a factor of 2l+1
+    more functions in ao_loc than rf_loc.
+    """
     rf_loc = mol._bas[:, NCTR_OF]
     rf_loc = np.append([0], np.cumsum(rf_loc)).astype(np.int32)
     return rf_loc

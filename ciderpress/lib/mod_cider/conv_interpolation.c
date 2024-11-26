@@ -302,6 +302,25 @@ void compute_num_spline_contribs_multi(spline_locator *spline_locs,
     }
 }
 
+/**
+ * Compute the number of coordinates (coords) that fall within each
+ * radial spline block. The result (num_ai) can then be used
+ * in compute_spline_ind_order_new
+ * to order the grids by their distance from the atom at atm_coord.
+ * num_ai: The result, num_ai[ia * nrad + ir] contains the number of
+ *         grid points that fall in spline index ir of atom with index ia.
+ * coords: coords + 3 * g is the real-space coordinate of grid g.
+ * atm_coords: atm_coords + 3 * ia is the real-space coordinate of atom ia.
+ * aparam, dparam: The radial grid with index ir is
+ *                 aparam * (exp(dparam * ir) - 1)
+ * natm: Number of atoms
+ * ngrids: Number of 3D real-space grids
+ * nrad: Number of grids for the radial spline on each atom.
+ * iatom_g: coords + 3 * g is part of the atomic grid belonging
+ *          to the atom with index iatom_g[g]. If iatom_g is NULL,
+ *          it is ignored. If it is not NULL, it is used to ignore
+ *          on-site grids when constructing num_ai.
+ */
 void compute_num_spline_contribs_new(int *num_ai, double *coords,
                                      double *atm_coords, double aparam,
                                      double dparam, int natm, int ngrids,
@@ -432,6 +451,31 @@ void compute_spline_ind_order(int *loc_i, double *coords, double *atm_coord,
     free(num_i_tmp);
 }
 
+/**
+ * TODO this function should be modified to run in parallel.
+ * This function sorts the grid coordinates (coords) in order of their
+ * distance from the atomic coordinate (atm_coord).
+ * loc_i: For each radial index ir, loc_i[ir] says where each batch
+ *        corresponding to index ir of the radial spline is located
+ *        in the coords_ord array. It is constructed in the
+ *        _set_num_ai function of ciderpress.dft.lcao_interpolation.
+ * coords: 3-D grid coordinations
+ * atm_coord: Atomic coordinate
+ * coords_ord: OUTPUT. The ordered coordinates are saved to this array.
+ * ind_ord_fwd, ind_ord_bwd: OUTPUT. After execution, for x in 0, 1, 2,
+ *         the following relationships hold:
+ *         coords_ord[3 * g + x] == coords[3 * ind_ord_fwd[g] + x]
+ *         coords_ord[3 * ind_ord_bwd[g] + x] == coords[3 * g + x]
+ * aparam, dparam: The radial grid with index ir is
+ *                 aparam * (exp(dparam * ir) - 1)
+ * ngrids: Number of 3D real-space grids
+ * nrad: Number of grids for the radial spline on each atom.
+ * iatom_g: coords + 3 * g is part of the atomic grid belonging
+ *          to the atom with index iatom_g[g]. If iatom_g is NULL,
+ *          it is ignored. If it is not NULL, it is used to ignore
+ *          on-site grids when constructing num_ai.
+ * iatom: Index of the atom of for which the grids are being ordered.
+ */
 void compute_spline_ind_order_new(int *loc_i, double *coords, double *atm_coord,
                                   double *coords_ord, int *ind_ord_fwd,
                                   int *ind_ord_bwd, double aparam,

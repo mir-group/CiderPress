@@ -376,6 +376,14 @@ class LCAOInterpolator:
         return self.atco.natm
 
     def _set_num_ai(self, all_coords):
+        """
+        This function computes the number of coordinates in
+        all_coords that fall in each spline "box" for the radial
+        interpolation grid on each atom. The result is then
+        used to create the _loc_ai member, which in turn
+        is used by the _compute_sline_ind_order function
+        to order grid coordinates by their spline box on a given atom.
+        """
         if all_coords is None:
             assert self.is_num_ai_setup
             return
@@ -425,6 +433,12 @@ class LCAOInterpolator:
         self.is_num_ai_setup = True
 
     def _compute_spline_ind_order(self, a):
+        """
+        Assuming _set_num_ai has been called previously, order
+        self.all_coords such that each coordinate is in increasing
+        order of spline index for the radial interpolation grid
+        on atom a.
+        """
         if not self.is_num_ai_setup:
             raise RuntimeError
         ngrids_tot = self.all_coords.shape[0]
@@ -452,6 +466,12 @@ class LCAOInterpolator:
         return self._coords_ord, self._ind_ord_fwd
 
     def _eval_spline_bas_single(self, a):
+        """
+        Note that _set_num_ai must have been called previously, because
+        it is required for _compute_spline_ind_order to work, which
+        is called by this function. TODO might be better to have a cleaner
+        solution for this algorithm.
+        """
         self._compute_spline_ind_order(a)
         ngrids = self._coords_ord.shape[0]
         if self.onsite_direct:

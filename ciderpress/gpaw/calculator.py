@@ -142,7 +142,7 @@ def get_cider_functional(
             raise NotImplementedError(
                 "Currently only version j NLDF features are implemented in GPAW. "
                 "Other versions are planned for future development. The version "
-                "of your functional's features is: {}".format(
+                "of this functional's NLDF features is: {}".format(
                     mlfunc.settings.nldf_settings.version
                 )
             )

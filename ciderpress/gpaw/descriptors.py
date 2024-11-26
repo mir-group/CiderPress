@@ -83,6 +83,9 @@ def get_descriptors(
         use_paw (bool, True): Whether to use PAW corrections.
         screen_dens (bool, True): Whether to remove low-density
             grids from the return feature vectors.
+        kwargs: Any additional arguments to be passed to the
+            Cider functional object (like qmax, lambd, etc.)
+            to compute the functional.
 
     Returns:
         if p_i is None:
