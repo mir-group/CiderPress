@@ -60,6 +60,7 @@
 <li class="toctree-l3"><a class="reference internal" href="#ciderpress.dft.settings.BaseSettings"><code class="docutils literal notranslate"><span class="pre">BaseSettings</span></code></a><ul>
 <li class="toctree-l4"><a class="reference internal" href="#ciderpress.dft.settings.BaseSettings.get_feat_usps"><code class="docutils literal notranslate"><span class="pre">BaseSettings.get_feat_usps()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#ciderpress.dft.settings.BaseSettings.get_reasonable_normalizer"><code class="docutils literal notranslate"><span class="pre">BaseSettings.get_reasonable_normalizer()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#ciderpress.dft.settings.BaseSettings.is_empty"><code class="docutils literal notranslate"><span class="pre">BaseSettings.is_empty</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#ciderpress.dft.settings.BaseSettings.nfeat"><code class="docutils literal notranslate"><span class="pre">BaseSettings.nfeat</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#ciderpress.dft.settings.BaseSettings.ueg_vector"><code class="docutils literal notranslate"><span class="pre">BaseSettings.ueg_vector()</span></code></a></li>
 </ul>
@@ -189,6 +190,8 @@
 <li class="toctree-l4"><a class="reference internal" href="#ciderpress.dft.settings.SemilocalSettings.ueg_vector"><code class="docutils literal notranslate"><span class="pre">SemilocalSettings.ueg_vector()</span></code></a></li>
 </ul>
 </li>
+<li class="toctree-l3"><a class="reference internal" href="#ciderpress.dft.settings.get_cider_exponent"><code class="docutils literal notranslate"><span class="pre">get_cider_exponent()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ciderpress.dft.settings.get_cider_exponent_gga"><code class="docutils literal notranslate"><span class="pre">get_cider_exponent_gga()</span></code></a></li>
 </ul>
 </li>
 </ul>
@@ -268,20 +271,34 @@ erf damping</p>
 
 <dl class="py data">
 <dt class="sig sig-object py" id="ciderpress.dft.settings.ALLOWED_RHO_DAMPS">
-<span class="sig-prename descclassname"><span class="pre">ciderpress.dft.settings.</span></span><span class="sig-name descname"><span class="pre">ALLOWED_RHO_DAMPS</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">['none',</span> <span class="pre">'exponential',</span> <span class="pre">'asymptotic_const']</span></em><a class="headerlink" href="#ciderpress.dft.settings.ALLOWED_RHO_DAMPS" title="Link to this definition"></a></dt>
-<dd><p>TODO docs here</p>
+<span class="sig-prename descclassname"><span class="pre">ciderpress.dft.settings.</span></span><span class="sig-name descname"><span class="pre">ALLOWED_RHO_DAMPS</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">['exponential']</span></em><a class="headerlink" href="#ciderpress.dft.settings.ALLOWED_RHO_DAMPS" title="Link to this definition"></a></dt>
+<dd><p>These strings specify the allowed options for how to “damp”
+the density for the version k features. Currently the only allowed
+option is “exponential”, which results in the integral
+<span class="math notranslate nohighlight">\(\int g[n](|r-r'|) n(r') exp(-3 a_0[n](r') / 2 a_i[n](r))\)</span>,
+where <span class="math notranslate nohighlight">\(a_0\)</span> is the exponent given by <code class="docutils literal notranslate"><span class="pre">theta_params</span></code>
+and <span class="math notranslate nohighlight">\(a_i\)</span> is an exponet given by <code class="docutils literal notranslate"><span class="pre">feat_params</span></code>.</p>
 </dd></dl>
 
 <dl class="py data">
 <dt class="sig sig-object py" id="ciderpress.dft.settings.ALLOWED_RHO_MULTS">
-<span class="sig-prename descclassname"><span class="pre">ciderpress.dft.settings.</span></span><span class="sig-name descname"><span class="pre">ALLOWED_RHO_MULTS</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">['one',</span> <span class="pre">'taumix',</span> <span class="pre">'dampmix',</span> <span class="pre">'expnt']</span></em><a class="headerlink" href="#ciderpress.dft.settings.ALLOWED_RHO_MULTS" title="Link to this definition"></a></dt>
-<dd><p>TODO docs here</p>
+<span class="sig-prename descclassname"><span class="pre">ciderpress.dft.settings.</span></span><span class="sig-name descname"><span class="pre">ALLOWED_RHO_MULTS</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">['one',</span> <span class="pre">'expnt']</span></em><a class="headerlink" href="#ciderpress.dft.settings.ALLOWED_RHO_MULTS" title="Link to this definition"></a></dt>
+<dd><p>These strings specify the allowed options for what value
+to multiply the density by before integrating it to construct
+NLDF features. The options are:</p>
+<p>one: Identity, i.e. multiply density by 1</p>
+<p>expnt: Multiply the density by the NLDF exponent specified
+by the theta_params. (NOTE: Experimental, not thoroughly tested.)</p>
 </dd></dl>
 
 <dl class="py class">
 <dt class="sig sig-object py" id="ciderpress.dft.settings.BaseSettings">
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">ciderpress.dft.settings.</span></span><span class="sig-name descname"><span class="pre">BaseSettings</span></span><a class="headerlink" href="#ciderpress.dft.settings.BaseSettings" title="Link to this definition"></a></dt>
-<dd><dl class="py method">
+<dd><p>This is a base class for storing the settings for different
+types of density/density matrix feature in CiderPress.
+Settings objects indicate which features must be evaluated,
+and with which hyperparameters, to use as input to an ML functional.</p>
+<dl class="py method">
 <dt class="sig sig-object py" id="ciderpress.dft.settings.BaseSettings.get_feat_usps">
 <em class="property"><span class="pre">abstract</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">get_feat_usps</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.settings.BaseSettings.get_feat_usps" title="Link to this definition"></a></dt>
 <dd><dl class="field-list simple">
@@ -302,6 +319,12 @@ erf damping</p>
 <dd class="field-even"><p>norms (list[FeatNormalizer])</p>
 </dd>
 </dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ciderpress.dft.settings.BaseSettings.is_empty">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">is_empty</span></span><a class="headerlink" href="#ciderpress.dft.settings.BaseSettings.is_empty" title="Link to this definition"></a></dt>
+<dd><p>Return true of this settings object specifies zero features.</p>
 </dd></dl>
 
 <dl class="py property">
@@ -334,7 +357,12 @@ as a function of the density rho</p>
 <dl class="py class">
 <dt class="sig sig-object py" id="ciderpress.dft.settings.EmptySettings">
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">ciderpress.dft.settings.</span></span><span class="sig-name descname"><span class="pre">EmptySettings</span></span><a class="headerlink" href="#ciderpress.dft.settings.EmptySettings" title="Link to this definition"></a></dt>
-<dd><dl class="py method">
+<dd><p>The EmptySettings class is a representation of a feature set containing
+zero features. It is used when a certain type of feature is not
+present in a model. (For example, if a model does not use SDMX
+features, that model’s FeatureSettings.sdmx_settings will be
+an EmptySettings instance.)</p>
+<dl class="py method">
 <dt class="sig sig-object py" id="ciderpress.dft.settings.EmptySettings.get_feat_usps">
 <span class="sig-name descname"><span class="pre">get_feat_usps</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.settings.EmptySettings.get_feat_usps" title="Link to this definition"></a></dt>
 <dd><dl class="field-list simple">
@@ -626,7 +654,7 @@ within the density damping scheme (see rho_damp).
 Should be an array of 3 floats [a0, grad_mul, tau_mul].
 tau_mul is ignored if sl_level=”GGA” and may therefore be excluded.</p></li>
 <li><p><strong>rho_mult</strong> (<em>str</em>) – Multiply the density that gets integrated
-by a prefactor. Options: None/’one’, ‘taumix’, ‘dampmix’, ‘expnt’</p></li>
+by a prefactor. Options: See ALLOWED_RHO_MULTS.</p></li>
 </ul>
 </dd>
 </dl>
@@ -700,7 +728,7 @@ used to construct the length-scale exponent.</p></li>
 ‘exponent’ is not used in the squared-exponential but rather
 within the density damping scheme (see rho_damp).</p></li>
 <li><p><strong>rho_mult</strong> (<em>str</em>) – Multiply the density that gets integrated
-by a prefactor. Options: None/’one’, ‘taumix’, ‘dampmix’, ‘expnt’</p></li>
+by a prefactor. Options: See ALLOWED_RHO_MULTS.</p></li>
 <li><p><strong>l0_feat_specs</strong> (<em>list of str</em>) – Each item in the list is a str
 specifying the formula to be used for the scalar (l=0)
 features. See ALLOWED_I_SPECS_L0 for allowed values.</p></li>
@@ -796,7 +824,7 @@ used to construct the length-scale exponent.</p></li>
 ‘exponent’ is not used in the squared-exponential but rather
 within the density damping scheme (see rho_damp).</p></li>
 <li><p><strong>rho_mult</strong> (<em>str</em>) – Multiply the density that gets integrated
-by a prefactor. Options: None/’one’, ‘taumix’, ‘dampmix’, ‘expnt’</p></li>
+by a prefactor. Options: See ALLOWED_RHO_MULTS.</p></li>
 <li><p><strong>l0_feat_specs_i</strong> (<em>list of str</em>) – Each item in the list is a str
 specifying the formula to be used for the scalar (l=0)
 features. See ALLOWED_I_SPECS_L0 for allowed values.</p></li>
@@ -898,7 +926,7 @@ used to construct the length-scale exponent.</p></li>
 ‘exponent’ is not used in the squared-exponential but rather
 within the density damping scheme (see rho_damp).</p></li>
 <li><p><strong>rho_mult</strong> (<em>str</em>) – Multiply the density that gets integrated
-by a prefactor. Options: None/’one’, ‘taumix’, ‘dampmix’, ‘expnt’</p></li>
+by a prefactor. Options: See ALLOWED_RHO_MULTS.</p></li>
 <li><p><strong>feat_specs</strong> (<em>list of str</em>) – Each item in the list is a string specifying the formula
 to be used for a feature (see ALLOWED_J_SPECS for options).
 feat_specs[i] uses the parameterization of feat_params[i].
@@ -988,7 +1016,7 @@ used to construct the length-scale exponent.</p></li>
 ‘exponent’ is not used in the squared-exponential but rather
 within the density damping scheme (see rho_damp).</p></li>
 <li><p><strong>rho_mult</strong> (<em>str</em>) – Multiply the density that gets integrated
-by a prefactor. Options: None/’one’, ‘taumix’, ‘dampmix’, ‘expnt’</p></li>
+by a prefactor. Options: See ALLOWED_RHO_MULTS.</p></li>
 <li><p><strong>feat_params</strong> (<em>list of np.ndarray</em>) – Each item in the list is an array with the parameters for the
 feature corresponding to the feat_specs above. Typically, each array
 has three numbers [a0, grad_mul, tau_mul], except erf_rinv which
@@ -1504,6 +1532,18 @@ as a function of the density rho</p>
 </dl>
 </dd></dl>
 
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="ciderpress.dft.settings.get_cider_exponent">
+<span class="sig-prename descclassname"><span class="pre">ciderpress.dft.settings.</span></span><span class="sig-name descname"><span class="pre">get_cider_exponent</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rho</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sigma</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tau</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">a0</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">grad_mul</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tau_mul</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.03125</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rhocut</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1e-10</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nspin</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.settings.get_cider_exponent" title="Link to this definition"></a></dt>
+<dd><p>Evaluate an NLDF length-scale exponent at the MGGA level.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="ciderpress.dft.settings.get_cider_exponent_gga">
+<span class="sig-prename descclassname"><span class="pre">ciderpress.dft.settings.</span></span><span class="sig-name descname"><span class="pre">get_cider_exponent_gga</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rho</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sigma</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">a0</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">grad_mul</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.03125</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rhocut</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1e-10</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nspin</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.settings.get_cider_exponent_gga" title="Link to this definition"></a></dt>
+<dd><p>Evaluate an NLDF length-scale exponent at the GGA level.</p>
 </dd></dl>
 
 </section>
