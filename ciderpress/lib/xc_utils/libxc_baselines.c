@@ -17,6 +17,8 @@
 // Author: Kyle Bystrom <kylebystrom@gmail.com>
 //
 
+#include <stddef.h>
+#include <stdlib.h>
 #include <xc.h>
 
 void get_lda_baseline(int fn_id, int nspin, int size, double *rho, double *exc,
