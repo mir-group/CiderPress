@@ -301,7 +301,10 @@ def get_full_rho(ni, mol, dms, grids, xctype):
     for ao, mask, weight, coords in ni.block_loop(
         mol, grids, nao, ao_deriv, max_memory
     ):
-        mask = None  # TODO remove once screening is fixed
+        # NOTE using the mask causes issues for some reason.
+        # We don't need the mask anyway because is not
+        # performance-critical code
+        mask = None
         ip1 = ip0 + weight.size
         for idm in range(nset):
             rho = make_rho(idm, ao, mask, xctype)
@@ -324,7 +327,10 @@ def get_full_rho_with_fl(ni, mol, dms, grids):
     for ao, mask, weight, coords in ni.block_loop(
         mol, grids, nao, ao_deriv, max_memory
     ):
-        mask = None  # TODO remove once screening is fixed
+        # NOTE using the mask causes issues for some reasons
+        # We don't need the mask anyway because is not
+        # performance-critical code
+        mask = None
         ip1 = ip0 + weight.size
         for idm in range(nset):
             rho = make_rho(idm, ao, mask, xctype)
@@ -461,7 +467,6 @@ def _sdmx_desc_getter(mol, pgrids, dm, settings, coeffs=None, **kwargs):
         maxmem //= 4
         maxmem += 1
     for ao, mask, weight, coords in ni.block_loop(mol, pgrids, nao, 0, maxmem):
-        # TODO implement screening
         ip1 = ip0 + weight.size
         if coeffs is None or len(coeffs) == 0:
             desc[:, ip0:ip1] = exxgen.get_features(dm, mol, coords)

@@ -130,9 +130,7 @@ if(ENABLE_FFTW AND BUILD_FFTW)
     add_dependencies(pwutil libfftw3)
 endif()
 
-# TODO some other stuff from pyscf CMake file was here
-
-# TODO some other stuff from pyscf CMake file was here
+# NOTE some other stuff from pyscf CMake file was here
 
 if(EXISTS "${PROJECT_SOURCE_DIR}/cmake.user.inc")
   include("${PROJECT_SOURCE_DIR}/cmake.user.inc")

@@ -296,8 +296,6 @@ class DiffPAWXCCorrection:
         self.taut_npg = taut_npg
         self.tauc_g = tauc_g
         self.tauct_g = tauct_g
-        # print('SETUP MINS AE', np.min(self.tauc_g - self.dc_g**2 / (8 * self.nc_g + 1e-16)))
-        # print('SETUP MINS PS', np.min(self.tauct_g - self.dct_g**2 / (8 * self.nct_g + 1e-16)))
         if self.tau_npg is not None:
             NP = self.tau_npg.shape[1]
             self.tau_pg = np.ascontiguousarray(
@@ -575,56 +573,6 @@ class CiderRadialExpansion:
                 E += w * rgd.integrate(e_g)
 
             return E, dEdD_sqL
-
-        elif self.rcalc.mode == "potential2":
-
-            """
-            WARNING TODO: DRAFT CODE
-            """
-            dedn_sg, b_vsg, a_sg, dedsigma_xg = self.rcalc(
-                rgd,
-                n_sLg,
-                Y_nL[:, :Lmax],
-                dndr_sLg,
-                rnablaY_nLv[:, :Lmax],
-                self.F_sbg,
-                self.y_sbg,
-                ae=ae,
-            )
-
-            nn = Y_nL.shape[0]
-
-            dedn_sng = dedn_sg.reshape(nspins, nn, -1)
-            dedsigma_xng = dedsigma_xg.reshape(2 * nspins - 1, nn, -1)
-            b_vsng = b_vsg.reshape(3, nspins, nn, -1)
-            a_sng = a_sg.reshape(nspins, nn, -1)
-
-            dEdD_snq = np.dot(dedn_sng, n_qg.T)
-            dEdD_snq += 2 * np.dot(dedsigma_xng[::nspins] * a_sng, dndr_qg.T)
-            if nspins == 2:
-                dEdD_snq += np.dot(dedsigma_xng[1] * a_sng[::-1], dndr_qg.T)
-
-            dEdD_sqL = np.einsum(
-                "snq,nL->sqL", dEdD_snq, weight_n[:, None] * Y_nL[:, :Lmax]
-            )
-
-            # dedsigma_xng *= rgd.dr_g
-            dedsigma_xng *= 1.0 / (4 * np.pi * rgd.r_g * rgd.r_g)
-            B_vsng = dedsigma_xng[::2] * b_vsng
-            if nspins == 2:
-                B_vsng += 0.5 * dedsigma_xng[1] * b_vsng[:, ::-1]
-            B_vsnq = np.dot(B_vsng, n_qg.T)
-            dEdD_sqL += (
-                8
-                * np.pi
-                * np.einsum(
-                    "nLv,vsnq->sqL",
-                    weight_n[:, None, None] * rnablaY_nLv[:, :Lmax],
-                    B_vsnq,
-                )
-            )
-
-            return dEdD_sqL
 
         elif self.rcalc.mode == "energy_v2":
             e_g, dedn_sg, dedgrad_svg, v_sbg = self.rcalc(

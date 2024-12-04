@@ -1,3 +1,23 @@
+#!/usr/bin/env python
+# CiderPress: Machine-learning based density functional theory calculations
+# Copyright (C) 2024 The President and Fellows of Harvard College
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>
+#
+# Author: Kyle Bystrom <kylebystrom@gmail.com>
+#
+
 import unittest
 
 import yaml
@@ -15,6 +35,11 @@ SETTINGS = {
     "xmix": 0.25,
 }
 
+NULL_SETTINGS = {
+    "xkernel": "GGA_X_PBE",
+    "ckernel": "GGA_C_PBE",
+    "xmix": 0.00,
+}
 
 XC_SETTINGS = {
     "xkernel": None,
@@ -52,7 +77,7 @@ def build_ks_calc(mol, mlfunc, df=False, alt_settings=None):
 
 
 def setUpModule():
-    global mol, mlfuncs, mf1, mf2, mf3, mf4, mf5
+    global mol, mlfuncs, mf1, mf2, mf3, mf4, mf5, mf6, mf7
     mlfuncs = [
         "functionals/{}.yaml".format(fname)
         for fname in [
@@ -82,28 +107,39 @@ def setUpModule():
     mf4.kernel()
     mf5 = build_ks_calc(mol, mlfuncs[3], df=False).density_fit()
     mf5.kernel()
+    mf6 = build_ks_calc(mol, mlfuncs[3], df=True, alt_settings=NULL_SETTINGS)
+    mf6.kernel()
+    mf7 = dft.RKS(mol).density_fit()
+    mf7.xc = "PBE"
+    mf7.grids.level = 1
+    mf7.conv_tol = CONV_TOL
+    mf7.kernel()
     if (
         not mf1.converged
         or not mf2.converged
         or not mf3.converged
         or not mf4.converged
         or not mf5.converged
+        or not mf6.converged
+        or not mf7.converged
     ):
         raise RuntimeError(
-            "{} {} {} {} {}".format(
+            "{} {} {} {} {} {} {}".format(
                 mf1.converged,
                 mf2.converged,
                 mf3.converged,
                 mf4.converged,
                 mf5.converged,
+                mf6.converged,
+                mf7.converged,
             )
         )
 
 
 def tearDownModule():
-    global mol, mlfuncs, mf1, mf2, mf3, mf4, mf5
+    global mol, mlfuncs, mf1, mf2, mf3, mf4, mf5, mf6, mf7
     mol.stdout.close()
-    del mol, mlfuncs, mf1, mf2, mf3, mf4, mf5
+    del mol, mlfuncs, mf1, mf2, mf3, mf4, mf5, mf6, mf7
 
 
 class KnownValues(unittest.TestCase):
@@ -161,6 +197,10 @@ class KnownValues(unittest.TestCase):
 
         g2 = mf5.nuc_grad_method().set(grid_response=True).kernel()
         assert_almost_equal(g2, g, 9)
+
+        g3 = mf6.nuc_grad_method().set(grid_response=True).kernel()
+        g4 = mf7.nuc_grad_method().set(grid_response=True).kernel()
+        assert_almost_equal(g3, g4, 9)
 
     def _check_fd(self, functional):
         import os

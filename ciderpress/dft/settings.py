@@ -72,6 +72,9 @@ def _get_fl_ueg(s):
 def get_cider_exponent(
     rho, sigma, tau, a0=1.0, grad_mul=0.0, tau_mul=0.03125, rhocut=1e-10, nspin=1
 ):
+    """
+    Evaluate an NLDF length-scale exponent at the MGGA level.
+    """
     if nspin > 2:
         raise ValueError
     if isinstance(rho, np.ndarray):
@@ -113,6 +116,9 @@ def get_cider_exponent(
 
 
 def get_cider_exponent_gga(rho, sigma, a0=1.0, grad_mul=0.03125, rhocut=1e-10, nspin=1):
+    """
+    Evaluate an NLDF length-scale exponent at the GGA level.
+    """
     if nspin > 2:
         raise ValueError
     if isinstance(rho, np.ndarray):
@@ -161,6 +167,13 @@ def _get_ueg_expnt(aval, tval, rho):
 
 
 class BaseSettings(ABC):
+    """
+    This is a base class for storing the settings for different
+    types of density/density matrix feature in CiderPress.
+    Settings objects indicate which features must be evaluated,
+    and with which hyperparameters, to use as input to an ML functional.
+    """
+
     @property
     @abstractmethod
     def nfeat(self):
@@ -171,6 +184,9 @@ class BaseSettings(ABC):
 
     @property
     def is_empty(self):
+        """
+        Return true of this settings object specifies zero features.
+        """
         return self.nfeat == 0
 
     @abstractmethod
@@ -201,6 +217,14 @@ class BaseSettings(ABC):
 
 
 class EmptySettings(BaseSettings):
+    """
+    The EmptySettings class is a representation of a feature set containing
+    zero features. It is used when a certain type of feature is not
+    present in a model. (For example, if a model does not use SDMX
+    features, that model's FeatureSettings.sdmx_settings will be
+    an EmptySettings instance.)
+    """
+
     @property
     def nfeat(self):
         return 0
@@ -509,8 +533,6 @@ class SDMXSettings(SADMSettings):
                 and features might be poorly defined/numerically inaccurate.
         """
         super(SDMXSettings, self).__init__("smooth")
-        # if mode not in ['diffse', 'r2', 'r4']:
-        #    raise ValueError('Mode must be exact or smooth, got {}'.format(mode))
         self.pows = pows
 
     @property
@@ -948,14 +970,26 @@ ALLOWED_K_SPECS = ALLOWED_J_SPECS
 See ``ALLOWED_J_SPECS``
 """
 
-ALLOWED_RHO_MULTS = ["one", "taumix", "dampmix", "expnt"]
+ALLOWED_RHO_MULTS = ["one", "expnt"]
 """
-TODO docs here
+These strings specify the allowed options for what value
+to multiply the density by before integrating it to construct
+NLDF features. The options are:
+
+one: Identity, i.e. multiply density by 1
+
+expnt: Multiply the density by the NLDF exponent specified
+by the theta_params. (NOTE: Experimental, not thoroughly tested.)
 """
 
-ALLOWED_RHO_DAMPS = ["none", "exponential", "asymptotic_const"]
+ALLOWED_RHO_DAMPS = ["exponential"]
 """
-TODO docs here
+These strings specify the allowed options for how to "damp"
+the density for the version k features. Currently the only allowed
+option is "exponential", which results in the integral
+:math:`\\int g[n](|r-r'|) n(r') exp(-3 a_0[n](r') / 2 a_i[n](r))`,
+where :math:`a_0` is the exponent given by ``theta_params``
+and :math:`a_i` is an exponet given by ``feat_params``.
 """
 
 SPEC_USPS = {
@@ -980,8 +1014,6 @@ F[n_lambda](r) = lambda^u F[n](lambda r)
 """
 RHO_MULT_USPS = {
     "one": 0,
-    "taumix": 0,
-    "dampmix": 0,
     "expnt": 2,
 }
 
@@ -1016,7 +1048,7 @@ class NLDFSettings(BaseSettings):
                 Should be an array of 3 floats [a0, grad_mul, tau_mul].
                 tau_mul is ignored if sl_level="GGA" and may therefore be excluded.
             rho_mult (str): Multiply the density that gets integrated
-                by a prefactor. Options: None/'one', 'taumix', 'dampmix', 'expnt'
+                by a prefactor. Options: See ALLOWED_RHO_MULTS.
         """
         self._sl_level = sl_level
         self.theta_params = theta_params
@@ -1130,7 +1162,7 @@ class NLDFSettingsVI(NLDFSettings):
                 'exponent' is not used in the squared-exponential but rather
                 within the density damping scheme (see rho_damp).
             rho_mult (str): Multiply the density that gets integrated
-                by a prefactor. Options: None/'one', 'taumix', 'dampmix', 'expnt'
+                by a prefactor. Options: See ALLOWED_RHO_MULTS.
             l0_feat_specs (list of str): Each item in the list is a str
                 specifying the formula to be used for the scalar (l=0)
                 features. See ALLOWED_I_SPECS_L0 for allowed values.
@@ -1264,7 +1296,7 @@ class NLDFSettingsVJ(NLDFSettings):
                 'exponent' is not used in the squared-exponential but rather
                 within the density damping scheme (see rho_damp).
             rho_mult (str): Multiply the density that gets integrated
-                by a prefactor. Options: None/'one', 'taumix', 'dampmix', 'expnt'
+                by a prefactor. Options: See ALLOWED_RHO_MULTS.
             feat_specs (list of str):
                 Each item in the list is a string specifying the formula
                 to be used for a feature (see ALLOWED_J_SPECS for options).
@@ -1392,7 +1424,7 @@ class NLDFSettingsVIJ(NLDFSettings):
                 'exponent' is not used in the squared-exponential but rather
                 within the density damping scheme (see rho_damp).
             rho_mult (str): Multiply the density that gets integrated
-                by a prefactor. Options: None/'one', 'taumix', 'dampmix', 'expnt'
+                by a prefactor. Options: See ALLOWED_RHO_MULTS.
             l0_feat_specs_i (list of str): Each item in the list is a str
                 specifying the formula to be used for the scalar (l=0)
                 features. See ALLOWED_I_SPECS_L0 for allowed values.
@@ -1504,7 +1536,7 @@ class NLDFSettingsVK(NLDFSettings):
                 'exponent' is not used in the squared-exponential but rather
                 within the density damping scheme (see rho_damp).
             rho_mult (str): Multiply the density that gets integrated
-                by a prefactor. Options: None/'one', 'taumix', 'dampmix', 'expnt'
+                by a prefactor. Options: See ALLOWED_RHO_MULTS.
             feat_params (list of np.ndarray):
                 Each item in the list is an array with the parameters for the
                 feature corresponding to the feat_specs above. Typically, each array
@@ -1522,6 +1554,8 @@ class NLDFSettingsVK(NLDFSettings):
         for s, p in zip(self.feat_specs, self.feat_params):
             self._check_params(p, spec=s)
         self.rho_damp = rho_damp
+        if self.rho_damp not in ALLOWED_RHO_DAMPS:
+            raise ValueError("rho_damp argument must be in ALLOWED_RHO_DAMPS.")
 
     @property
     def num_feat_param_sets(self):

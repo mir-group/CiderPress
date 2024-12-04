@@ -83,6 +83,9 @@ def get_descriptors(
         use_paw (bool, True): Whether to use PAW corrections.
         screen_dens (bool, True): Whether to remove low-density
             grids from the return feature vectors.
+        kwargs: Any additional arguments to be passed to the
+            Cider functional object (like qmax, lambd, etc.)
+            to compute the functional.
 
     Returns:
         if p_i is None:
@@ -797,7 +800,7 @@ class _PAWFeatureMixin(_FeatureMixin):
             D_asp = self.get_D_asp()
             if not (D_asp.partition.rank_a == self.atom_partition.rank_a).all():
                 raise ValueError("rank_a mismatch")
-            self.c_asiq, self.df_asgLq = self.paw_kernel.calculate_paw_feat_corrections(
+            self.c_asiq = self.paw_kernel.calculate_paw_feat_corrections(
                 self.setups, D_asp
             )
             self.D_asp = D_asp
@@ -805,10 +808,9 @@ class _PAWFeatureMixin(_FeatureMixin):
             D_asp = self.get_D_asp()
             if not (D_asp.partition.rank_a == self.atom_partition.rank_a).all():
                 raise ValueError("rank_a mismatch")
-            res = self.paw_kernel.calculate_paw_cider_features_p1(
+            self.c_asiq = self.paw_kernel.calculate_paw_cider_features_p1(
                 self.setups, D_asp, self._DD_aop, self._p_o
             )
-            self.c_asiq, self.df_asgLq = res
             self.D_asp = D_asp
 
 

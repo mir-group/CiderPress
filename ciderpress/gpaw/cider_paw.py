@@ -396,9 +396,7 @@ class CiderPASDW_MPRoutines:
         D_asp = self.get_D_asp()
         if not (D_asp.partition.rank_a == self.atom_partition.rank_a).all():
             raise ValueError("rank_a mismatch")
-        self.c_asiq, self.df_asgLq = self.paw_kernel.calculate_paw_feat_corrections(
-            self.setups, D_asp
-        )
+        self.c_asiq = self.paw_kernel.calculate_paw_feat_corrections(self.setups, D_asp)
         self._save_c_asiq = {k: v.copy() for k, v in self.c_asiq.items()}
         self.D_asp = D_asp
         self.timer.stop()
@@ -408,7 +406,7 @@ class CiderPASDW_MPRoutines:
         if grad_mode == CIDERPW_GRAD_MODE_STRESS:
             ctmp_asiq = {a: c_siq.copy() for a, c_siq in self.c_asiq.items()}
         self.c_asiq, deltaE, deltaV = self.paw_kernel.calculate_paw_feat_corrections(
-            self.setups, self.D_asp, D_asiq=self.c_asiq, df_asgLq=self.df_asgLq
+            self.setups, self.D_asp, D_asiq=self.c_asiq
         )
         self.E_a_tmp = deltaE
         self.deltaV = deltaV

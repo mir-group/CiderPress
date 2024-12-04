@@ -208,7 +208,7 @@ def get_p22_matrix(phi_iabg, rgd, rcut, l, w_b, nbas_loc, reg=0, cut_func=False)
     nj, na = p22_jaja.shape[:2]
     p22_ii = p22_jaja.view()
     p22_ii.shape = (nj * na, nj * na)
-    # TODO this is closed to previous regularization, but not
+    # TODO this is close to previous regularization, but not
     # necessarily the optimal regularization
     reg = reg / np.tile(w_b, nj)
     p22_ii[:] += reg * np.identity(nj * na)

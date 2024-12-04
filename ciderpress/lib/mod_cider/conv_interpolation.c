@@ -23,6 +23,7 @@
 #include "sph_harm.h"
 #include "spline.h"
 #include <math.h>
+#include <omp.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -301,6 +302,25 @@ void compute_num_spline_contribs_multi(spline_locator *spline_locs,
     }
 }
 
+/**
+ * Compute the number of coordinates (coords) that fall within each
+ * radial spline block. The result (num_ai) can then be used
+ * in compute_spline_ind_order_new
+ * to order the grids by their distance from the atom at atm_coord.
+ * num_ai: The result, num_ai[ia * nrad + ir] contains the number of
+ *         grid points that fall in spline index ir of atom with index ia.
+ * coords: coords + 3 * g is the real-space coordinate of grid g.
+ * atm_coords: atm_coords + 3 * ia is the real-space coordinate of atom ia.
+ * aparam, dparam: The radial grid with index ir is
+ *                 aparam * (exp(dparam * ir) - 1)
+ * natm: Number of atoms
+ * ngrids: Number of 3D real-space grids
+ * nrad: Number of grids for the radial spline on each atom.
+ * iatom_g: coords + 3 * g is part of the atomic grid belonging
+ *          to the atom with index iatom_g[g]. If iatom_g is NULL,
+ *          it is ignored. If it is not NULL, it is used to ignore
+ *          on-site grids when constructing num_ai.
+ */
 void compute_num_spline_contribs_new(int *num_ai, double *coords,
                                      double *atm_coords, double aparam,
                                      double dparam, int natm, int ngrids,
@@ -431,6 +451,31 @@ void compute_spline_ind_order(int *loc_i, double *coords, double *atm_coord,
     free(num_i_tmp);
 }
 
+/**
+ * TODO this function should be modified to run in parallel.
+ * This function sorts the grid coordinates (coords) in order of their
+ * distance from the atomic coordinate (atm_coord).
+ * loc_i: For each radial index ir, loc_i[ir] says where each batch
+ *        corresponding to index ir of the radial spline is located
+ *        in the coords_ord array. It is constructed in the
+ *        _set_num_ai function of ciderpress.dft.lcao_interpolation.
+ * coords: 3-D grid coordinations
+ * atm_coord: Atomic coordinate
+ * coords_ord: OUTPUT. The ordered coordinates are saved to this array.
+ * ind_ord_fwd, ind_ord_bwd: OUTPUT. After execution, for x in 0, 1, 2,
+ *         the following relationships hold:
+ *         coords_ord[3 * g + x] == coords[3 * ind_ord_fwd[g] + x]
+ *         coords_ord[3 * ind_ord_bwd[g] + x] == coords[3 * g + x]
+ * aparam, dparam: The radial grid with index ir is
+ *                 aparam * (exp(dparam * ir) - 1)
+ * ngrids: Number of 3D real-space grids
+ * nrad: Number of grids for the radial spline on each atom.
+ * iatom_g: coords + 3 * g is part of the atomic grid belonging
+ *          to the atom with index iatom_g[g]. If iatom_g is NULL,
+ *          it is ignored. If it is not NULL, it is used to ignore
+ *          on-site grids when constructing num_ai.
+ * iatom: Index of the atom of for which the grids are being ordered.
+ */
 void compute_spline_ind_order_new(int *loc_i, double *coords, double *atm_coord,
                                   double *coords_ord, int *ind_ord_fwd,
                                   int *ind_ord_bwd, double aparam,
@@ -737,8 +782,8 @@ void compute_pot_convs_single_new(double *f_gq, double *f_rlpq, double *auxo_gl,
         int q, ir, g, p;
         double *f_lpq;
         double *auxo_tmp_gl;
-        double BETA =
-            0; // TODO beta should be 1, not 0, when doing grid batches
+        // TODO beta should be 1, not 0, when doing grid batches
+        double BETA = 0;
         double ALPHA = 1;
         char NTRANS = 'N';
         char TRANS = 'T';
@@ -1209,8 +1254,8 @@ void add_lp1_term_onsite_bwd(double *f, double *coords, int natm,
 }
 
 // TODO might want to move this somewhere else
-void contract_grad_terms(double *excsum, double *f_g, int natm, int a, int v,
-                         int ngrids, int *ga_loc) {
+void contract_grad_terms_old(double *excsum, double *f_g, int natm, int a,
+                             int v, int ngrids, int *ga_loc) {
     double *tmp = (double *)calloc(natm, sizeof(double));
     int ib;
 #pragma omp parallel
@@ -1231,9 +1276,8 @@ void contract_grad_terms(double *excsum, double *f_g, int natm, int a, int v,
     free(tmp);
 }
 
-void contract_grad_terms2(double *excsum, double *f_g, int natm, int a, int v,
-                          int ngrids, int *atm_g) {
-    // TODO neeed to parallelize
+void contract_grad_terms_serial(double *excsum, double *f_g, int natm, int a,
+                                int v, int ngrids, int *atm_g) {
     double *tmp = (double *)calloc(natm, sizeof(double));
     int ib;
     int ia;
@@ -1246,4 +1290,38 @@ void contract_grad_terms2(double *excsum, double *f_g, int natm, int a, int v,
         excsum[a * 3 + v] -= tmp[ib];
     }
     free(tmp);
+}
+
+void contract_grad_terms_parallel(double *excsum, double *f_g, int natm, int a,
+                                  int v, int ngrids, int *atm_g) {
+    double *tmp_priv;
+    double total = 0;
+#pragma omp parallel
+    {
+        const int nthreads = omp_get_num_threads();
+        const int ithread = omp_get_thread_num();
+        const int ngrids_local = (ngrids + nthreads - 1) / nthreads;
+        const int ig0 = ithread * ngrids_local;
+        const int ig1 = MIN(ig0 + ngrids_local, ngrids);
+#pragma omp single
+        { tmp_priv = (double *)calloc(nthreads * natm, sizeof(double)); }
+#pragma omp barrier
+        double *my_tmp = tmp_priv + ithread * natm;
+        int ib;
+        int it;
+        int g;
+        for (g = ig0; g < ig1; g++) {
+            my_tmp[atm_g[g]] += f_g[g];
+        }
+#pragma omp barrier
+#pragma omp for reduction(+ : total)
+        for (ib = 0; ib < natm; ib++) {
+            for (it = 0; it < nthreads; it++) {
+                excsum[ib * 3 + v] += tmp_priv[it * natm + ib];
+                total += tmp_priv[it * natm + ib];
+            }
+        }
+    }
+    excsum[a * 3 + v] -= total;
+    free(tmp_priv);
 }

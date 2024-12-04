@@ -1,3 +1,23 @@
+#!/usr/bin/env python
+# CiderPress: Machine-learning based density functional theory calculations
+# Copyright (C) 2024 The President and Fellows of Harvard College
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>
+#
+# Author: Kyle Bystrom <kylebystrom@gmail.com>
+#
+
 import ctypes
 import time
 import unittest
@@ -50,9 +70,6 @@ class TestSDMXFFT(unittest.TestCase):
         pbcks = pbcdft.RKS(cell)
         pbcks.build()
         grids = pbcks.grids
-        print(cell.mesh)
-        print(pbcks.grids.coords.shape)
-        print(type(pbcks.grids))
 
         cond = np.linalg.norm(grids.coords - 0.5 * L * np.ones(3), axis=1) < 1.5
         ao, aok = get_ao_and_aok(cell, grids.coords, np.zeros(3), 0)
@@ -75,7 +92,6 @@ class TestSDMXFFT(unittest.TestCase):
             cell, np.zeros((1, 3)), alphas, alpha_norms, "gauss_diff"
         )
         for ialpha in range(alphas.size):
-            print(ws_convs[ialpha], alphas[ialpha])
             cao_test = convolve_aos(
                 cell,
                 aok,
@@ -119,7 +135,6 @@ class TestSDMXFFT(unittest.TestCase):
         for v in range(ncpa):
             for ialpha in range(nalpha):
                 tmp[v, ialpha] = _contract_rho(cao[ialpha * ncpa + v], c0)
-        print(p_ag.shape, tmp.shape, cond.shape)
         assert_allclose(p_ag[0][..., cond], tmp[0][..., cond], atol=1e-3, rtol=1e-4)
 
         p_ag = compute_sdmx_tensor_lowmem(
@@ -150,7 +165,6 @@ class TestSDMXFFT(unittest.TestCase):
         for v in range(ncpa):
             for ialpha in range(nalpha):
                 tmp[v, ialpha] = _contract_rho(cao[ialpha * ncpa + v], c0)
-        print(p_ag.shape, tmp.shape, cond.shape)
         assert_allclose(p_ag[0, :, cond], tmp[0, :, cond], atol=1e-3, rtol=1e-4)
         assert_allclose(p_ag[1, :, cond], tmp[1, :, cond], atol=1e-3, rtol=1e-4)
         assert_allclose(p_ag[2, :, cond], tmp[2, :, cond], atol=1e-3, rtol=1e-4)
@@ -168,7 +182,6 @@ class TestSDMXFFT(unittest.TestCase):
         struct * [2, 2, 2]
         struct211 = struct * [2, 1, 1]
         struct.cell
-        print(struct)
         unitcell = pbcgto.Cell()
         unitcell.a = struct.cell
         unitcell.atom = pyscf_ase.ase_atoms_to_pyscf(struct)
@@ -187,7 +200,6 @@ class TestSDMXFFT(unittest.TestCase):
         ks = pbcdft.KRKS(unitcell, kpts)
         ks.xc = "PBE"
         ks.kernel()
-        print(kpts)
 
         kpt = kpts.kpts[3]
         recip_cell = build_ft_cell(unitcell)
@@ -198,17 +210,12 @@ class TestSDMXFFT(unittest.TestCase):
         aor_ref, aok_ref = get_ao_and_aok(unitcell, ks.grids.coords, kpt, deriv=0)
         norm = 1.0  # 4 * np.pi * np.prod(unitcell.mesh) / np.abs(np.linalg.det(unitcell.lattice_vectors()))
         # assert_allclose(norm * np.abs(aok_test[0]), np.abs(aok_ref.T), atol=1e-6, rtol=1e-6)
-        for i, j in zip(
-            (norm * aok_test[0, 0]).round(3).tolist(), aok_ref[:, 0].round(3).tolist()
-        ):
-            print(i, j)
         assert_allclose(norm * aok_test[0], aok_ref.T, atol=1e-6, rtol=1e-6)
         assert_allclose(aok_test[0], aok_ref.T, atol=1e-6, rtol=1e-6)
 
         assert aok_test[0].flags.f_contiguous
         t0 = time.monotonic()
         for mklpar in [0, 1]:
-            print(mklpar)
             _aok_test = aok_test[0].T.copy()
             assert _aok_test.flags.c_contiguous
             assert _aok_test.T.shape == aok_test[0].shape
@@ -244,7 +251,6 @@ class TestSDMXFFT(unittest.TestCase):
         )
         for ind in [3, 4, 7]:
             for has_l1 in [True, False]:
-                print(ind, has_l1)
                 dm1p = [dm.copy() for dm in dm1]
                 delta = 1e-4
                 delta2 = 0.1
@@ -260,9 +266,7 @@ class TestSDMXFFT(unittest.TestCase):
                     cutoff_type="ws",
                     has_l1=has_l1,
                 )
-                mysum = np.sqrt(p1_ag * p1_ag + delta2).sum()
                 dm1p[1][ind, ind] -= delta
-                t0 = time.monotonic()
                 p1_ag = compute_sdmx_tensor_lowmem(
                     dm1p,
                     unitcell,
@@ -274,10 +278,6 @@ class TestSDMXFFT(unittest.TestCase):
                     cutoff_type="ws",
                     has_l1=has_l1,
                 )
-                t1 = time.monotonic()
-                print("FWD TIME", t1 - t0)
-                mysum2 = np.sqrt(p1_ag * p1_ag + delta2).sum()
-                tot = (mysum - mysum2) / delta
                 mo_coeff = kpts.transform_mo_coeff(ks.mo_coeff)
                 mo_occ = kpts.transform_mo_occ(ks.mo_occ)
                 p1mo_ag = compute_sdmx_tensor_mo(
@@ -294,7 +294,6 @@ class TestSDMXFFT(unittest.TestCase):
                 )
                 vgrid = p1mo_ag / np.sqrt(delta2 + p1mo_ag * p1mo_ag)
                 vmats = [np.zeros_like(dm) for dm in dm1]
-                t0 = time.monotonic()
                 compute_sdmx_tensor_vxc(
                     vmats,
                     unitcell,
@@ -306,9 +305,6 @@ class TestSDMXFFT(unittest.TestCase):
                     cutoff_type="ws",
                     has_l1=has_l1,
                 )
-                t1 = time.monotonic()
-                print("VXC time", t1 - t0)
-                print(mysum, tot, vmats[1][ind, ind])
 
         supercell = pbcgto.Cell()
         supercell.a = struct211.cell
@@ -337,7 +333,6 @@ class TestSDMXFFT(unittest.TestCase):
 
         alphas = [1.0]
         alpha_norms = [1.0]
-        print("SHAPES", ks.grids.coords.shape, unitcell.mesh, type(ks.grids))
         p1_ag = compute_sdmx_tensor_lowmem(
             dm1,
             unitcell,
@@ -362,10 +357,6 @@ class TestSDMXFFT(unittest.TestCase):
         )
         ngrids = ks.grids.coords.shape[0]
         tol = 1e-3
-        dv = np.abs(np.linalg.det(unitcell.lattice_vectors())) / ngrids
-        print(
-            p1_ag.sum() * dv, p2_ag[:, :ngrids].sum() * dv, p2_ag[:, ngrids:].sum() * dv
-        )
         assert_allclose(p1_ag, p2_ag[:, :, :ngrids], atol=tol, rtol=tol)
         assert_allclose(p1_ag, p2_ag[:, :, ngrids:], atol=tol, rtol=tol)
 
@@ -425,14 +416,7 @@ class TestSDMXFFT(unittest.TestCase):
         t1 = time.monotonic()
         print("VXC time", t1 - t0)
         tol = 1e-3
-        dv = np.abs(np.linalg.det(unitcell.lattice_vectors())) / ngrids
         for v in range(4):
-            print(v)
-            print(
-                np.abs(p1_ag[v]).sum() * dv,
-                np.abs(p2_ag[v, :, :ngrids]).sum() * dv,
-                np.abs(p2_ag[v, :, ngrids:]).sum() * dv,
-            )
             assert_allclose(p1_ag[v], p2_ag[v, :, :ngrids], atol=tol, rtol=tol)
             assert_allclose(p1_ag[v], p2_ag[v, :, ngrids:], atol=tol, rtol=tol)
             assert_allclose(p2mo_ag[v], p2_ag[v], atol=tol, rtol=tol)
@@ -446,16 +430,8 @@ class TestSDMXFFT(unittest.TestCase):
         pseudo = "gth-pade"
         from ase.build import bulk
 
-        # struct = bulk('C', cubic=True)
-        # kpt_grid = [2, 2, 2]
-        # struct = bulk('C', cubic=False)
-        # kpt_grid = [4, 4, 4]
         struct = bulk("MgO", crystalstructure="rocksalt", a=4.19)
-        # kpt_grid = [4, 4, 4]
         kpt_grid = [2, 2, 2]
-        # struct = bulk('MgO', crystalstructure='rocksalt', a=4.19, cubic=True)
-        # kpt_grid = [2, 2, 2]
-        print(struct.cell.volume)
         unitcell = pbcgto.Cell()
         unitcell.a = struct.cell
         unitcell.atom = pyscf_ase.ase_atoms_to_pyscf(struct)
@@ -475,18 +451,11 @@ class TestSDMXFFT(unittest.TestCase):
         ks.xc = "r2SCAN"
         mlfunc = "functionals/CIDER24Xe.yaml"
 
-        t0 = time.monotonic()
-        # ks.kernel()
-        t1 = time.monotonic()
-        # ks = None
-        t2 = time.monotonic()
         cider_ks = dft.make_cider_calc(
             ks, mlfunc, xmix=0.25, xkernel="GGA_X_PBE", ckernel="GGA_C_PBE"
         )
         ks = None
         cider_ks.kernel()
-        t3 = time.monotonic()
-        print(t1 - t0, t3 - t2)
 
     @unittest.skip("high-memory")
     def test_dense_xc(self):

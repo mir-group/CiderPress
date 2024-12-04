@@ -19,7 +19,6 @@
 #
 
 import ctypes
-import time
 import unittest
 
 import numpy as np
@@ -266,7 +265,6 @@ class TestFracLapl(unittest.TestCase):
             em += np.dot(edens, weight).sum()
         egrad_pred = (dm_pert * vmat).sum()
         egrad_ref = (ep - em) / DELTA
-        print(egrad_pred, egrad_ref)
         assert_allclose(egrad_pred, egrad_ref, rtol=1e-7, atol=1e-10)
 
     def test_vxc(self):
@@ -398,7 +396,6 @@ class TestFracLapl(unittest.TestCase):
         for k, orblist in orbs.items():
             for iorb in orblist:
                 dtmp = {k: [iorb]}
-                print(k, iorb)
                 labels, coeffs, en_list, sep_spins = get_labels_and_coeffs(
                     dtmp, mo_coeff, mo_occ, mo_energy
                 )
@@ -466,9 +463,7 @@ class TestFracLapl(unittest.TestCase):
                 get_flapl(grids, grids_cen, ueg_dm, rho * np.ones(1), s=s)[0]
             )
         ueg_preds = settings.ueg_vector(rho)
-        print(rho)
         # exclude s=0.5 because it is less stable
-        print(ueg_preds[:3], ueg_vals_num[:3])
         assert_allclose(ueg_preds[:3], ueg_vals_num[:3], rtol=1e-2, atol=3e-3)
         assert_allclose(ueg_preds[3], ueg_vals_num[3], rtol=3e-2, atol=1e-2)
         assert_allclose(ueg_preds[4:], 0, rtol=0, atol=0)
@@ -497,15 +492,11 @@ class TestFracLapl(unittest.TestCase):
             ),
         )
 
-        t0 = time.monotonic()
         ao_ref = eval_ao(mol, coords=grids.coords)
         ao_ref_cen = eval_ao(mol, coords=grids_cen.coords)
-        t1 = time.monotonic()
         ao_pred = eval_flapl_gto(settings.slist, mol, coords=grids.coords, debug=True)
-        t2 = time.monotonic()
         for i in range(ao_pred.shape[0]):
             assert_allclose(ao_ref, ao_pred[i], rtol=1e-12, atol=1e-12)
-        t3 = time.monotonic()
         kao_pred = eval_flapl_gto(settings.slist, mol, coords=grids.coords, debug=False)
         kao_pred_cen = eval_flapl_gto(
             settings.slist, mol, coords=grids_cen.coords, debug=False
@@ -524,8 +515,6 @@ class TestFracLapl(unittest.TestCase):
                 assert_allclose(
                     k1ao_pred[1 + 4 * j + i], kfd_ref[j], rtol=1e-5, atol=1e-6
                 )
-        t4 = time.monotonic()
-        print(t1 - t0, t2 - t1, t4 - t3)
 
         assert kao_pred.shape == ao_pred.shape
         for j in range(mol.nao_nr()):
@@ -557,7 +546,6 @@ class TestFracLapl(unittest.TestCase):
         dm = ks.make_rdm1()
         shls_slice = (0, mol.nbas)
         ao_loc = mol.ao_loc_nr()
-        print(ao_ref.shape)
         dm_gu = _dot_ao_dm(mol, ao_ref, dm, None, shls_slice, ao_loc)
         dm_ru = _dot_ao_dm(mol, ao_ref_cen, dm, None, shls_slice, ao_loc)
         dm_rg = np.einsum("ru,gu->rg", ao_ref_cen, dm_gu)

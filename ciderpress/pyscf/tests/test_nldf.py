@@ -116,7 +116,7 @@ class _TestNLDFBase:
         }
         cls.mols = [
             gto.M(atom="H 0 0 0; F 0 0 0.9", basis="def2-tzvp", spin=0),
-            gto.M(atom="O 0 0 0; O 0 0 1.2", basis="def2-tzvp", spin=2),
+            gto.M(atom="O 0 0 0; O 0 1.2 0", basis="def2-tzvp", spin=2),
             gto.M(atom="Ar", basis="def2-tzvp", spin=0),
             gto.M(atom=nh3str, spin=0, basis="def2-svp"),
         ]
@@ -176,9 +176,7 @@ class _TestNLDFBase:
             aux_lambd=lambd,
             aug_beta=beta,
         )
-        for i in range(ifeat_pred.shape[1]):
-            print(i)
-            assert_allclose(ifeat_pred[:, i], ifeat[:, i], rtol=rtol, atol=atol)
+        assert_allclose(ifeat_pred, ifeat, rtol=rtol, atol=atol)
         jfeat_pred = get_descriptors(
             analyzer,
             self.vj_settings,
@@ -370,7 +368,6 @@ class _TestNLDFBase:
         for k, orblist in orbs.items():
             for iorb in orblist:
                 dtmp = {k: [iorb]}
-                print(k, iorb)
                 labels, coeffs, en_list, sep_spins = get_labels_and_coeffs(
                     dtmp, mo_coeff, mo_occ, mo_energy
                 )
@@ -592,7 +589,6 @@ class _TestNLDFBase:
         nspin = 1 if analyzer.dm.ndim == 2 else 2
 
         for settings in all_settings:
-            print(settings)
             feat_ref, occd_feat, eigvals = get_descriptors(
                 analyzer,
                 settings,
@@ -714,7 +710,6 @@ class _TestNLDFBase:
                 feat_pert = np.stack(feat_pert)
                 e_pert = get_e_and_v(feat_pert, use_mean=False)[0]
                 de2 = (e_pert - e) / delta
-                print("energies", e, de, de2, de3, (de - de2) / de)
                 de_tot = 0
                 de2_tot = 0
                 for i in range(feat2.shape[1]):
@@ -734,11 +729,9 @@ class _TestNLDFBase:
                     _de = np.sum(vrho1[spin] * occd_rho)
                     de_tot += _de
                     de2_tot += _de2
-                print("energies tot", de_tot, de2_tot, (de_tot - de2_tot) / de_tot)
                 assert_allclose(de, de2, rtol=rtol, atol=atol)
                 assert_allclose(de_tot, de2_tot, rtol=2 * rtol, atol=2 * atol)
                 assert_allclose(de3, de, rtol=1e-7, atol=1e-7)
-                print()
 
     def test_nldf_equivalence(self):
         mols = self.mols

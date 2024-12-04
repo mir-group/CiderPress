@@ -1,4 +1,23 @@
-import joblib
+#!/usr/bin/env python
+# CiderPress: Machine-learning based density functional theory calculations
+# Copyright (C) 2024 The President and Fellows of Harvard College
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>
+#
+# Author: Kyle Bystrom <kylebystrom@gmail.com>
+#
+
 import numpy as np
 import yaml
 
@@ -58,28 +77,6 @@ class _SLCiderBase:
 
     def get_mlfunc_data(self):
         return yaml.dump(self.kernel.mlfunc, Dumper=yaml.CDumper)
-
-    @classmethod
-    def from_joblib(cls, fname, **kwargs):
-        mlfunc = joblib.load(fname)
-        return cls.from_mlfunc(mlfunc, **kwargs)
-
-    @staticmethod
-    def from_mlfunc(mlfunc, xmix=1.00, xkernel="GGA_X_PBE", ckernel="GGA_C_PBE"):
-        if mlfunc.desc_version == "b":
-            cider_kernel = SLCiderMGGAHybridWrapper(mlfunc, xmix, xkernel, ckernel)
-            cls = SLCiderMGGA
-        elif mlfunc.desc_version == "d":
-            cider_kernel = SLCiderGGAHybridWrapper(mlfunc, xmix, xkernel, ckernel)
-            cls = SLCiderGGA
-        else:
-            raise ValueError(
-                "Only implemented for b and d version, found {}".format(
-                    mlfunc.desc_version
-                )
-            )
-
-        return cls(cider_kernel)
 
 
 class SLCiderGGA(_SLCiderBase, DiffGGA):

@@ -23,6 +23,7 @@ import ctypes
 import numpy as np
 from gpaw.atom.radialgd import EquidistantRadialGridDescriptor
 from gpaw.sphere.lebedev import R_nv, Y_nL, weight_n
+from gpaw.utilities.timing import Timer
 from gpaw.xc.pawcorrection import rnablaY_nLv
 from gpaw.xc.vdw import spline
 from scipy.linalg import cho_factor, cho_solve
@@ -76,7 +77,6 @@ def get_ag_indices(fft_obj, gd, shape, spos_c, rmax, buffer=0, get_global_disps=
     vol = np.abs(np.linalg.det(lattice))
     for i in range(3):
         res = np.cross(lattice[(i + 1) % 3], lattice[(i + 2) % 3])
-        # TODO unnecessarily conservative buffer?
         disp[i] = np.ceil(np.linalg.norm(res) * rmax / vol * shape[i]) + 1 + buffer
     indices = [
         np.arange(center[i] - disp[i], center[i] + disp[i] + 1) for i in range(3)
@@ -144,7 +144,6 @@ class SBTGridContainer:
 
     @classmethod
     def from_setup(cls, setup, rmin=1e-4, d=0.03, encut=1e6, N=None):
-        # rcut = np.max(setup.rcut_j)
         rmax = setup.rgd.r_g[-1]
         if N is not None:
             assert isinstance(N, int)
@@ -211,6 +210,9 @@ class FastAtomPASDWSlice:
         if ovlp_fit and not is_global:
             raise ValueError("Need global grid set for overlap fitting")
         rgd = psetup.interp_rgd
+        # Make sure the grid is linear, as this is assumed
+        # by the calculation of dg below and by the get_grads function.
+        assert isinstance(rgd, EquidistantRadialGridDescriptor)
         if rmax == 0:
             rmax = psetup.rcut
         shape = gd.get_size_of_global_array()
@@ -228,7 +230,7 @@ class FastAtomPASDWSlice:
             rhat_gv = rhat_gv[cond]
 
         h = rgd.r_g[1] - rgd.r_g[0]
-        dg = rad_g / h  # TODO only for equidist grid
+        dg = rad_g / h
         g = np.floor(dg).astype(np.int32)
         g = np.minimum(g, rgd.r_g.size - 1)
         dg -= g
@@ -300,7 +302,6 @@ class FastAtomPASDWSlice:
         ylm, dylm = pwutil.recursive_sph_harm_deriv(Lmax, self.rhat_gv)
         dylm /= self.rad_g[:, None, None] + 1e-8  # TODO right amount of regularization?
         rodylm = np.ascontiguousarray(np.einsum("gv,gvL->Lg", self.rhat_gv, dylm))
-        # dylm = np.dot(dylm, drhat_g.T)
         funcs_ig = pwutil.eval_pasdw_funcs(
             radderivs_ng,
             np.ascontiguousarray(ylm.T),
@@ -409,21 +410,15 @@ class _PAWCiderContribs:
     ):
         self.plan = plan
         self.cider_kernel = cider_kernel
-        # NOTE k-space convolution should be default in production
-        # version for now, since ccl is high-memory (needs on-the-fly
-        # integral generation) and since reciprocal-space convolutions
-        # generate the fitting procedure in the PSmoothSetup
         self._atco = atco
         self.w_g = (xcc.rgd.dv_g[:, None] * weight_n).ravel()
         self.r_g = xcc.rgd.r_g
         self.xcc = xcc
-        # TODO might want more contrib over grids_indexer nlm,
+        # TODO might want more control over grids_indexer nlm,
         # currently it is just controlled by size of Y_nL in GPAW.
         self.grids_indexer = AtomicGridsIndexer.make_single_atom_indexer(Y_nL, self.r_g)
         self.grids_indexer.set_weights(self.w_g)
         self._paw_algo = paw_algo
-        from gpaw.utilities.timing import Timer
-
         self.timer = Timer()
 
     @property
@@ -1254,15 +1249,16 @@ class FastPASDWCiderKernel:
 
     fr_asgLq: dict
     df_asgLq: dict
-    # TODO below vfr and vdf not needed, can reuse fr and df to save memory
     vfr_asgLq: dict
     vdf_asgLq: dict
-    rho_asxg: dict
-    vrho_asxg: dict
-    rhot_asxg: dict
-    vrhot_asxg: dict
-    # TODO This can be reused for D_asiq and vc_asiq
-    c_asiq: dict
+    # TODO if calculating the density (which done 3X per loop in
+    # this implementation) and potential (done 2X per loop)
+    # ever becomes a bottleneck, it can
+    # be saved in the below variables to avoid recomputing.
+    # rho_asxg: dict
+    # vrho_asxg: dict
+    # rhot_asxg: dict
+    # vrhot_asxg: dict
 
     def __init__(
         self,
@@ -1278,16 +1274,11 @@ class FastPASDWCiderKernel:
 
             self.timer = Timer()
         self.gd = gd
-        # TODO refactor this, "bas_exp_fit" not used anywhere else.
-        # Also "alphas" as indices aren't used anywhere in the new
-        # version, so there's no confusion just calling it alphas
-        # anymore
-        self.bas_exp_fit = plan.alphas
         self.cider_kernel = cider_kernel
         self.Nalpha_small = plan.nalpha
         self.cut_xcgrid = cut_xcgrid
-        self._amin = np.min(self.bas_exp_fit)
         self.plan = plan
+        self._amin = np.min(self.alphas)
         self.is_mgga = plan.nldf_settings.sl_level == "MGGA"
         self._paw_algo = paw_algo
         if self._paw_algo not in ["v1", "v2"]:
@@ -1296,6 +1287,10 @@ class FastPASDWCiderKernel:
     @property
     def lambd(self):
         return self.plan.lambd
+
+    @property
+    def alphas(self):
+        return self.plan.alphas
 
     def get_D_asp(self):
         return self.atomdist.to_work(self.dens.D_asp)
@@ -1315,7 +1310,7 @@ class FastPASDWCiderKernel:
                 setup.xc_correction = DiffPAWXCCorrection.from_setup(
                     setup, build_kinetic=self.is_mgga, ke_order_ng=False
                 )
-                # TODO it would be good to remove this
+                # TODO it would be good to be able to remove this.
                 # Old version of the code used these settings:
                 # setup, rmin=setup.xc_correction.rgd.r_g[0]+1e-5,
                 # N=1024, encut=1e6, d=0.018
@@ -1336,9 +1331,9 @@ class FastPASDWCiderKernel:
                 # value and pass raise_large_expnt_error=False
                 # to the initializer below just in case to avoid crashes.
                 encut = setup.Z**2 * 2000
-                if encut - 1e-7 <= np.max(self.bas_exp_fit):
-                    encut0 = np.max(self.bas_exp_fit)
-                    Nalpha = self.bas_exp_fit.size
+                if encut - 1e-7 <= np.max(self.alphas):
+                    encut0 = np.max(self.alphas)
+                    Nalpha = self.alphas.size
                 else:
                     Nalpha = (
                         int(np.ceil(np.log(encut / self._amin) / np.log(self.lambd)))
@@ -1374,7 +1369,7 @@ class FastPASDWCiderKernel:
                 setup.ps_setup = pss_cls.from_setup_and_atco(
                     setup,
                     setup.cider_contribs.atco_inp,
-                    self.bas_exp_fit,
+                    self.alphas,
                     self.plan.alpha_norms,
                     encut0,
                     grid_nlm=setup.cider_contribs.nlm,
@@ -1394,13 +1389,13 @@ class FastPASDWCiderKernel:
             D_asp: Atomic PAW density matrices
         """
         if len(D_asp.keys()) == 0:
-            return {}, {}
+            return {}
         a0 = list(D_asp.keys())[0]
         nspin = D_asp[a0].shape[0]
         assert (nspin == 1) or self.is_cider_functional
         self.fr_asgLq = {}
         self.df_asgLq = {}
-        self.c_asiq = {}
+        c_asiq = {}
 
         for a, D_sp in D_asp.items():
             setup = setups[a]
@@ -1431,8 +1426,8 @@ class FastPASDWCiderKernel:
             self.timer.stop()
             self.df_asgLq[a] = df_sgLq
             self.fr_asgLq[a] = fr_sgLq
-            self.c_asiq[a] = c_siq
-        return self.c_asiq, self.df_asgLq
+            c_asiq[a] = c_siq
+        return c_asiq
 
     def calculate_paw_cider_energy(self, setups, D_asp, D_asiq):
         """
@@ -1513,6 +1508,10 @@ class FastPASDWCiderKernel:
                 ) * dv_g[:, None]
             self.vfr_asgLq[a] = vfr_sgLq
             self.vdf_asgLq[a] = vf_sgLq
+            # This step saves some memory since fr_asgLq and df_asgLq are not
+            # needed anymore after this step.
+            self.fr_asgLq[a] = None
+            self.df_asgLq[a] = None
         return dvD_asiq, deltaE, deltaV
 
     def calculate_paw_cider_potential(self, setups, D_asp, vc_asiq):
@@ -1568,7 +1567,6 @@ class FastPASDWCiderKernel:
         setups,
         D_asp,
         D_asiq=None,
-        df_asgLq=None,
         vc_asiq=None,
     ):
         """
@@ -1595,14 +1593,12 @@ class FastPASDWCiderKernel:
         Args:
             setups: GPAW atomic setups
             D_asp: Atomic PAW density matrices
-            D_sabi: Atomic PAW PASDW projections
-            df_asbLg: delta-F_beta convolutions
-            vc_sabi: functional derivatives with respect to coefficients c_sabi
+            D_asiq: Atomic PAW PASDW projections
+            vc_asiq: functional derivatives with respect to coefficients c_sabi
         """
         if D_asiq is None and vc_asiq is None:
             return self.calculate_paw_cider_features(setups, D_asp)
         elif D_asiq is not None:
-            assert df_asgLq is not None
             return self.calculate_paw_cider_energy(setups, D_asp, D_asiq)
         else:
             assert vc_asiq is not None
@@ -1733,9 +1729,8 @@ class PAugSetup(PASDWData):
     @classmethod
     def from_setup(cls, setup):
         rgd = setup.xc_correction.rgd
-        RCUT_FAC = 1.0  # TODO was 1.3
+        RCUT_FAC = 1.0
         rcut_feat = np.max(setup.rcut_j) * RCUT_FAC
-        # rcut_func = rcut_feat * 2.0
         rmax = np.max(setup.xc_correction.rgd.r_g)
         rcut_func = rmax * 0.8
 
@@ -2013,7 +2008,6 @@ class RadialFunctionCollection:
         nspin = p_suq.shape[0]
         nalpha = p_suq.shape[2]
         assert p_suq.shape[1] == self.nu
-        # TODO don't hard code lmax
         ngrid = self.funcs_ig.shape[1]
         if p_srlmq is None:
             p_srlmq = np.zeros((nspin, ngrid, self.nlm, nalpha))
@@ -2027,7 +2021,7 @@ class RadialFunctionCollection:
         nspin = p_srlmq.shape[0]
         nalpha = p_srlmq.shape[3]
         assert p_srlmq.shape[1] == self.funcs_ig.shape[1]
-        # TODO check lmax
+        assert p_srlmq.shape[2] == self.nlm
         if p_suq is None:
             p_suq = np.zeros((nspin, self.nu, nalpha))
         for s in range(nspin):

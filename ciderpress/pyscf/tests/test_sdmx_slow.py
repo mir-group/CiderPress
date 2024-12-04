@@ -362,7 +362,6 @@ class _TestSDMXBase(_TestSDMXParams):
         )
         exx_pred = -0.25 * np.einsum("xb,xb->x", tmp, tmp) * rho
         exx_ref = np.array(plan.settings.ueg_vector(rho)) / rho
-        print(rho)
         assert_allclose(
             exx_pred,
             exx_ref,
@@ -417,7 +416,6 @@ class _TestSDMXBase(_TestSDMXParams):
         for k, orblist in orbs.items():
             for iorb in orblist:
                 dtmp = {k: [iorb]}
-                print(k, iorb)
                 labels, coeffs, en_list, sep_spins = get_labels_and_coeffs(
                     dtmp, mo_coeff, mo_occ, mo_energy
                 )
