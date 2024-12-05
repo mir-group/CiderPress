@@ -705,6 +705,7 @@ class CiderNumIntMixin:
         xctype=None,
         verbose=None,
     ):
+        xc_code = self.slxc
         rho = np.asarray(rho, order="C", dtype=np.double)
         if deriv > 1:
             raise NotImplementedError
@@ -833,18 +834,20 @@ class CiderNumIntMixin:
 
 class CiderNumInt(CiderNumIntMixin, numint.NumInt):
     def __init__(
-        self, mlxc, nldf_init, sdmx_init, xmix=1.0, rhocut=None, nlc_coeff=None
+        self, mlxc, slxc, nldf_init, sdmx_init, xmix=1.0, rhocut=None, nlc_coeff=None
     ):
         """
 
         Args:
             mlxc (MappedXC): Model for XC energy
+            slxc (str): semilocal contribution to XC energy
             nldf_init (PySCFNLDFInitializer)
             sdmx_init (PySCFSDMXInitializer)
             xmix (float): Mixing fraction of ML functional
             rhocut (float): Low density cutoff for numerical stability
         """
         self.mlxc = mlxc
+        self.slxc = slxc
         self.xmix = xmix
         self.rhocut = DEFAULT_RHOCUT if rhocut is None else rhocut
         self.mol = None
