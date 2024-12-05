@@ -27,6 +27,10 @@ from ciderpress.dft.xc_evaluator2 import KernelEvalBase2, MappedDFTKernel2
 
 class DFTKernel(KernelEvalBase):
     """
+    This class is used to evaluate kernel functions,
+    including the baseline X/C energies, for use in the
+    MOLGP Gaussian process models.
+
     Raw descriptors are denoted X0.
     Transformed descriptors are denoted as X1.
     Nctrl is the number of control points for the kernel.
@@ -37,22 +41,37 @@ class DFTKernel(KernelEvalBase):
         mode (str): One of (SEP, POL, OSPOL, SSPOL, NPOL).
         X1ctrl (Nctrl, N1): Control points for kernel.
 
-    k: kernel
-    dkdX0T: kernel derivative with respect to raw features.
-    m: Multiplicative baseline
-    a: Additive baseline
-    dm: Derivative of multiplicative baseline wrt features
-    da: Derivative of additive baseline wrt features
+    Note on the baselines: Two baseline function
+    callables are passed to __init__:
+    multiplicative_baseline and additive_baseline.
+    The ML part of the XC energy is
+    ``multiplicative_baseline * gp + additive_baseline``,
+    where ``gp`` is the raw output of the Gaussian process.
+    See ``ciderpress.dft.baselines`` for details on the
+    options for this argument.
+
+    Some notation notes:
+
+    * k: kernel
+    * dkdX0T: kernel derivative with respect to raw features.
+    * m: Multiplicative baseline
+    * a: Additive baseline
+    * dm: Derivative of multiplicative baseline wrt features
+    * da: Derivative of additive baseline wrt features
+
     SEP array shapes:
-        k: (Nctrl, nspin, Nsamp)
-        m and a: (nspin, Nsamp)
-        dkdX0T: (Nctrl, nspin, N0, Nsamp)
-        dm and da: (nspin, N0, Nsamp)
-    NPOL, POL, OSPOL, SSPOL array shapes:
-        k: (Nctrl, Nsamp)
-        m and a: Nsamp
-        dkdX0t: (Nctrl, nspin, N0, Nsamp)
-        dm and da: (N0, nspin, Nsamp)
+
+    * k: (Nctrl, nspin, Nsamp)
+    * m and a: (nspin, Nsamp)
+    * dkdX0T: (Nctrl, nspin, N0, Nsamp)
+    * dm and da: (nspin, N0, Nsamp)
+
+    NPOL and POL array shapes:
+
+    * k: (Nctrl, Nsamp)
+    * m and a: Nsamp
+    * dkdX0t: (Nctrl, nspin, N0, Nsamp)
+    * dm and da: (N0, nspin, Nsamp)
     """
 
     def __init__(
@@ -66,6 +85,26 @@ class DFTKernel(KernelEvalBase):
         ctrl_nmax=None,
         component=None,
     ):
+        """
+        Args:
+            kernel (ciderpress.models.kernels.DiffKernelMixin):
+                An sklearn kernel with the added utility of
+                being differentiable with respect to its inputs
+                via the function get_k_and_deriv
+            feature_list (ciderpress.dft.transform_data.FeatureList):
+                A list of transformations to be performed on the
+                raw features before feeding them into the kernel
+                function.
+            mode (str): Whether the kernel is part of the exchange ("x"),
+                correlation ("c"), or exchange-correlation ("xc")
+                energy.
+            multiplicative_baseline (callable): This function takes
+                in the raw features X0T and returns the baseline energy
+                by which the ML model should be multiplied.
+            additive_baseline (callable): This function takes in
+                the raw features X0T and returns the baseline energy
+                that should be added to the model
+        """
         self.kernel = kernel
         self.feature_list = feature_list
         self.mode = mode
@@ -151,6 +190,9 @@ class DFTKernel(KernelEvalBase):
         self.X1ctrl = X1
 
     def get_kctrl(self):
+        """
+        Compute the covariance matrix of the control points.
+        """
         if self.mode == "POL":
             kaa = self.kernel(self.X1ctrl[0], self.X1ctrl[0])
             kbb = self.kernel(self.X1ctrl[1], self.X1ctrl[1])
@@ -163,6 +205,18 @@ class DFTKernel(KernelEvalBase):
         return self.Kmm
 
     def get_k(self, X0T):
+        """
+        Compute the kernel function between the input samples ``X0T``
+        and the control points stored in this ``DFTKernel`` object.
+
+        Args:
+            X0T (np.ndarray): Shape (nspin, nfeat, nsamp), raw feature vector
+
+        Returns:
+            (np.ndarray): Shape (nctrl, nspin, nsamp) for SEP mode, shape
+                (nctrl, nsamp) for NPOL and POL modes. The kernel function
+                evaluated between the control points and the sample points.
+        """
         nspin, N0, Nsamp = X0T.shape
         X1 = self.get_descriptors(X0T)
         if self.mode == "POL":
@@ -186,13 +240,19 @@ class DFTKernel(KernelEvalBase):
 
     def get_k_and_deriv(self, X0T):
         """
-        Return Knm
+        Compute the kernel function between the input samples ``X0T``
+        and the control points stored in this ``DFTKernel`` object, along with
+        the derivative with respect to the input samples.
 
         Args:
-            X0T:
+            X0T (np.ndarray): Shape (nspin, nfeat, nsamp), raw feature vector
 
         Returns:
-
+            (np.ndarray): Shape (nctrl, nspin, nsamp) for SEP mode, shape
+                (nctrl, nsamp) for NPOL and POL modes. The kernel function
+                evaluated between the control points and the sample points.
+            (np.ndarray): Shape (nctrl, nspin, N0, nsamp) for all modes.
+                The derivative of the kernel with result to the sample inputs.
         """
         nspin, N0, Nsamp = X0T.shape
         X1 = self.get_descriptors(X0T)
@@ -230,6 +290,20 @@ class DFTKernel(KernelEvalBase):
         return k, dkdX0T
 
     def map(self, mapping_plan):
+        """
+        Must only be called after the model is trained. This function
+        creates a MappedDFTKernel that evaluates the contribution to
+        the XC energy from ``self``, as well as the derivative of that
+        XC energy contribution with respect to the raw features X0.
+        See ``MappedDFTKernel`` docs for details.
+
+        Args:
+            mapping_plan (callable): A function that takes a DFTKernel
+                object and returns a list of ``FuncEvaluator``
+                instances called ``fevals``, that represents the
+                functions that must be evaluated to compute the XC energy
+                contribution of ``self``.
+        """
         fevals = mapping_plan(self)
         return MappedDFTKernel(
             fevals,
@@ -241,6 +315,14 @@ class DFTKernel(KernelEvalBase):
 
 
 class DFTKernel2(KernelEvalBase2, DFTKernel):
+    """
+    DFTKernel2 is a modification of the DFTKernel object to use a different
+    approach to constructing the baseline X(C) energy.
+    DFTKernel2 is build on KernelEvalBase2, which uses libxc to
+    evaluate XC baselines, as opposed to KernelEvalBase, which
+    uses the native functions in ``ciderpress.dft.baselines``.
+    """
+
     def __init__(
         self,
         kernel,
@@ -279,6 +361,9 @@ class DFTKernel2(KernelEvalBase2, DFTKernel):
         return self.feature_list.nfeat
 
     def map(self, mapping_plan):
+        """
+        See ``DFTKernel.map``.
+        """
         fevals = mapping_plan(self)
         return MappedDFTKernel2(
             fevals,

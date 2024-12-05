@@ -30,7 +30,7 @@ jobs:
         init-shell: >-
           bash
           powershell
-        cache-environment: true
+        cache-environment: false
         post-cleanup: 'all'
         create-args: >-
           python=${{ matrix.python-version }}
@@ -49,4 +49,8 @@ jobs:
       run: |
         source .github/workflows/load_conda.sh
         sh .github/workflows/setup_gpaw.sh
+        sh .github/workflows/run_gpaw_tests.sh
+    - name: Run MPI tests
+      run: |
+        source .github/workflows/load_conda.sh
         sh .github/workflows/run_mpi_tests.sh

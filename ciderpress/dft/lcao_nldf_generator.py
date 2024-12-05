@@ -47,7 +47,7 @@ class LCAONLDFGenerator:
     def natm(self):
         return self.interpolator.atom_coords.shape[0]
 
-    def _perform_fwd_convolution(self, theta_gq):
+    def _perform_fwd_convolution(self, theta_gq, grad_mode=False):
         theta_rlmq = self._rlmq_buf
         theta_uq = self._uq_buf
         conv_vq = self._vq_buf
@@ -71,7 +71,10 @@ class LCAONLDFGenerator:
             self.plan.get_transformed_interpolation_terms(
                 conv_vq[:, : self.plan.nalpha], i=0, fwd=False, inplace=True
             )
-        return self.interpolator.project_orb2grid(conv_vq)
+        if grad_mode:
+            return self.interpolator.project_orb2grid(conv_vq), conv_vq.copy()
+        else:
+            return self.interpolator.project_orb2grid(conv_vq)
 
     def _perform_bwd_convolution(self, vf_gq):
         vtheta_rlmq = self._rlmq_buf
@@ -100,7 +103,7 @@ class LCAONLDFGenerator:
         self.grids_indexer.reduce_angc_ylm_(vtheta_rlmq, vtheta_gq, a2y=False)
         return vtheta_gq
 
-    def get_features(self, rho_in, spin=0):
+    def get_features(self, rho_in, spin=0, map_grids=True, grad_mode=False):
         # set up arrays
         self._cache[spin] = None
         ngrids_ato = self.grids_indexer.ngrids
@@ -112,25 +115,37 @@ class LCAONLDFGenerator:
         func_in_g = self.plan.get_function_to_convolve(rho_tuple)
         arg_in_g, darg_in_g = arg_in_g[0], arg_in_g[1]
         func_in_g, dfunc_in_g = func_in_g[0], func_in_g[1]
-        arg_g = np.zeros(ngrids_ato)
-        func_g = np.zeros(ngrids_ato)
-        arg_g[idx_map] = arg_in_g[:ngrids]
-        func_g[idx_map] = func_in_g[:ngrids]
+        if map_grids:
+            arg_g = np.zeros(ngrids_ato)
+            func_g = np.zeros(ngrids_ato)
+            arg_g[idx_map] = arg_in_g[:ngrids]
+            func_g[idx_map] = func_in_g[:ngrids]
+        else:
+            arg_g = arg_in_g
+            func_g = func_in_g
         p_gq, dp_gq = self.plan.get_interpolation_coefficients(arg_g, i=-1)
         theta_gq = p_gq * (func_g * self.grids_indexer.all_weights)[:, None]
 
         # compute feature convolutions
-        f_gq = self._perform_fwd_convolution(theta_gq)
+        f_gq = self._perform_fwd_convolution(theta_gq, grad_mode=grad_mode)
+        if grad_mode:
+            f_gq, conv_vq = f_gq
 
+        if map_grids:
+            rho_out = rho_in
+        else:
+            rho_out = np.zeros((rho_in.shape[0], ngrids + self.grids_indexer.padding))
+            rho_out[:, :ngrids] = rho_in[:, idx_map]
         # do contractions to get features
         feat, dfeat = self.plan.eval_rho_full(
             f_gq,
-            rho_in,
+            rho_out,
             apply_transformation=False,
             spin=spin,
         )
         self._cache[spin] = {
             "rho_in": rho_in,
+            "rho_out": rho_out,
             "dfeat": dfeat,
             "p_gq": p_gq,
             "dp_gq": dp_gq,
@@ -138,6 +153,8 @@ class LCAONLDFGenerator:
             "func_g": func_g,
             "dfunc_in_g": dfunc_in_g,
         }
+        if grad_mode:
+            self._cache[spin]["conv_vq"] = conv_vq
         return feat
 
     def get_features_and_occ_derivs(
@@ -203,14 +220,14 @@ class LCAONLDFGenerator:
             occd_feats.append(occd_feat)
         return feat, None if len(occd_feats) == 0 else np.stack(occd_feats)
 
-    def get_potential(self, vfeat, spin=0):
+    def get_potential(self, vfeat, spin=0, map_grids=True, grad_mode=False):
         # set up arrays
         if self._cache[spin] is None:
             raise ValueError("Need to call get_features before get_potential")
         cache = self._cache[spin]
         idx_map = self.grids_indexer.idx_map
         ngrids = self.grids_indexer.idx_map.size
-        vrho_out = np.zeros_like(cache["rho_in"])
+        vrho_out = np.zeros_like(cache["rho_out"])
         ngrid_out = vfeat.shape[1]
 
         # compute feature potential
@@ -219,20 +236,34 @@ class LCAONLDFGenerator:
             vfeat,
             vrho_out,
             cache["dfeat"],
-            cache["rho_in"],
+            cache["rho_out"],
             vf=vf_gq,
             spin=spin,
         )
+        if map_grids:
+            pass
+        else:
+            vrho_out_tmp = vrho_out
+            vrho_out = np.zeros(cache["rho_in"].shape)
+            vrho_out[:, idx_map] = vrho_out_tmp[:, :ngrids]
+        if grad_mode:
+            excsum = self.interpolator.project_orb2grid_grad(cache["conv_vq"], vf_gq)
         vtheta_gq = self._perform_bwd_convolution(vf_gq)
         varg_g = np.einsum("gq,gq->g", cache["dp_gq"], vtheta_gq) * cache["func_g"]
         vfunc_g = np.einsum("gq,gq->g", cache["p_gq"], vtheta_gq)
         varg_g[:] *= self.grids_indexer.all_weights
+        if grad_mode:
+            cidergg_g = vfunc_g * cache["func_g"]
         vfunc_g[:] *= self.grids_indexer.all_weights
 
-        varg_out_g = np.zeros(ngrid_out)
-        varg_out_g[:ngrids] = varg_g[idx_map]
-        vfunc_out_g = np.zeros(ngrid_out)
-        vfunc_out_g[:ngrids] = vfunc_g[idx_map]
+        if map_grids:
+            varg_out_g = np.zeros(ngrid_out)
+            varg_out_g[:ngrids] = varg_g[idx_map]
+            vfunc_out_g = np.zeros(ngrid_out)
+            vfunc_out_g[:ngrids] = vfunc_g[idx_map]
+        else:
+            varg_out_g = varg_g
+            vfunc_out_g = vfunc_g
         vrho_out[0] += (
             varg_out_g * cache["darg_in_g"][0] + vfunc_out_g * cache["dfunc_in_g"][0]
         )
@@ -247,4 +278,9 @@ class LCAONLDFGenerator:
                 + vfunc_out_g * cache["dfunc_in_g"][2]
             )
         # self._cache[spin] = None
-        return vrho_out
+        if grad_mode:
+            if map_grids:
+                raise NotImplementedError("map_grids and grad mode at same time")
+            return vrho_out, cidergg_g, excsum
+        else:
+            return vrho_out

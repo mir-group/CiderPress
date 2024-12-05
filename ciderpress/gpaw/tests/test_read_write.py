@@ -1,3 +1,23 @@
+#!/usr/bin/env python
+# CiderPress: Machine-learning based density functional theory calculations
+# Copyright (C) 2024 The President and Fellows of Harvard College
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>
+#
+# Author: Kyle Bystrom <kylebystrom@gmail.com>
+#
+
 import unittest
 
 import numpy as np
@@ -19,13 +39,14 @@ from ciderpress.gpaw.calculator import (
 def run_load_write(xc, use_pp=False, is_cider=False, is_nl=False):
     k = 3
     si = bulk("Si")
+    mypar = {"domain": min(2, world.size), "augment_grids": True}
     kwargs = dict(
         mode=PW(250),
         mixer=Mixer(0.7, 5, 50.0),
         xc=xc,
         kpts=(k, k, k),
         convergence={"energy": 1e-8},
-        parallel={"domain": min(2, world.size)},
+        parallel=mypar,
         occupations={"name": "fermi-dirac", "width": 0.0},
         setups="sg15" if use_pp else "paw",
         txt="si.txt",
@@ -36,20 +57,20 @@ def run_load_write(xc, use_pp=False, is_cider=False, is_nl=False):
     calc = si.calc
 
     calc.write("_tmp.gpw")
-    si1, calc1 = restart("_tmp.gpw", Class=CiderGPAW)
+    si1, calc1 = restart("_tmp.gpw", Class=CiderGPAW, parallel=mypar)
     if is_cider and is_nl:
         xc0 = calc.hamiltonian.xc
         xc1 = calc1.hamiltonian.xc
         assert_equal(xc0.encut, xc1.encut)
         assert_equal(xc0.Nalpha, xc1.Nalpha)
         assert_equal(xc0.lambd, xc1.lambd)
-    calc1.set(mode=PW(250))
+    calc1.new(mode=PW(250))
     e1 = si1.get_potential_energy()
     assert_almost_equal(e0, e1)
     if is_cider and is_nl:
-        assert_almost_equal(xc0.alphas, xc1.alphas)
-    calc.set(mode=PW(320))
-    calc1.set(mode=PW(320))
+        assert_almost_equal(xc0.Nalpha, xc1.Nalpha)
+    calc.new(mode=PW(320))
+    calc1.new(mode=PW(320))
     e2 = calc.get_potential_energy()
     e3 = calc1.get_potential_energy()
     assert_almost_equal(e2, e3)
@@ -69,7 +90,7 @@ def run_load_write(xc, use_pp=False, is_cider=False, is_nl=False):
     del calc1
 
 
-def get_xc(fname, use_paw=True, force_nl=False):
+def get_xc(fname, use_paw=True):
     return get_cider_functional(
         fname,
         qmax=300,
@@ -78,7 +99,6 @@ def get_xc(fname, use_paw=True, force_nl=False):
         pasdw_ovlp_fit=True,
         pasdw_store_funcs=False,
         use_paw=use_paw,
-        _force_nonlocal=force_nl,
     )
 
 

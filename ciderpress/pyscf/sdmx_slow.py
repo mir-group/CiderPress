@@ -19,7 +19,6 @@
 #
 
 import ctypes
-import time
 
 import numpy as np
 from pyscf.dft.numint import _contract_rho, _dot_ao_ao, _dot_ao_dm, _scale_ao, eval_ao
@@ -124,13 +123,11 @@ def eval_conv_gto(
 
     # normal call tree is GTOval_sph_deriv0 -> GTOval_sph -> GTOeval_sph_drv
     drv = getattr(libcgto, "GTOeval_sph_drv")
-    tt = 0
     for i, alpha in enumerate(alphas):
         libcider.set_global_convolution_exponent(
             ctypes.c_double(alpha),
             ctypes.c_double(alpha_norms[i]),
         )
-        t0 = time.monotonic()
         drv(
             eval_fn,
             contract_fn,
@@ -148,13 +145,11 @@ def eval_conv_gto(
             ctypes.c_int(nbas),
             env.ctypes.data_as(ctypes.c_void_p),
         )
-        tt += time.monotonic() - t0
     if comp == 1:
         if "spinor" in eval_name:
             ao = ao[:, 0]
         else:
             ao = ao[0]
-    print("orb time", tt)
     return ao
 
 
@@ -232,7 +227,6 @@ def eval_conv_gto_fast(
             gaunt_lmax = max(lmax - 1, gaunt_lmax)
     ylm = np.ndarray((cpa, ylm_atom_loc[-1], ngrids), buffer=ylm_buf)
     atom_coords = np.ascontiguousarray(mol.atom_coords(unit="Bohr"))
-    t0 = time.monotonic()
     libcider.SDMXylm_loop(
         ctypes.c_int(coords.shape[0]),
         ylm.ctypes.data_as(ctypes.c_void_p),
@@ -258,8 +252,6 @@ def eval_conv_gto_fast(
         ylm_atom_loc.ctypes.data_as(ctypes.c_void_p),
         ctypes.c_int(mol.natm),
     )
-    t1 = time.monotonic()
-    print("ylm time", t1 - t0)
 
     if ao_loc is None:
         ao_loc = make_loc(bas, eval_name)
@@ -281,8 +273,6 @@ def eval_conv_gto_fast(
         else:
             non0tab = make_screen_index(mol, coords, shls_slice, cutoff)
 
-    tt = 0
-    t0 = time.monotonic()
     drv(
         iter_fn,
         eval_fn,
@@ -306,13 +296,11 @@ def eval_conv_gto_fast(
         alpha_norms.ctypes.data_as(ctypes.c_void_p),
         ctypes.c_int(alphas.size),
     )
-    tt += time.monotonic() - t0
     if comp == 1:
         if "spinor" in eval_name:
             ao = ao[:, 0]
         else:
             ao = ao[0]
-    print("orb time", tt)
     return ao
 
 
@@ -452,8 +440,6 @@ class EXXSphGenerator:
         if nalpha is None:
             max_exp = np.max(mol._env[mol._bas[:, PTR_EXP]])
             nalpha = 1 + int(1 + np.log(max_exp / alpha0) / np.log(lambd))
-            # nalpha += 2 # buffer exponents
-        print("NALPHA", nalpha)
         if isinstance(settings, SDMXFullSettings):
             plan = SDMXFullPlan(settings, nspin, alpha0, lambd, nalpha)
         elif isinstance(settings, SDMXSettings):

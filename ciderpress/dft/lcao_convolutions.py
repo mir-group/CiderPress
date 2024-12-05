@@ -102,7 +102,6 @@ def get_etb_from_expnt_range(
     ns = nmaxs - nmins + 1
     etb = []
     for l, n in enumerate(np.ceil(ns).astype(int)):
-        # print(l, n, emin_by_l[l], emax_by_l[l], beta)
         if n > 0 and l <= lmax:
             etb.append((l, n, emin_by_l[l], beta))
     return etb

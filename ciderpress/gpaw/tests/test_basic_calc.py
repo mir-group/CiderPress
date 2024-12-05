@@ -1,3 +1,23 @@
+#!/usr/bin/env python
+# CiderPress: Machine-learning based density functional theory calculations
+# Copyright (C) 2024 The President and Fellows of Harvard College
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>
+#
+# Author: Kyle Bystrom <kylebystrom@gmail.com>
+#
+
 import unittest
 
 import numpy as np
@@ -7,7 +27,14 @@ from numpy.testing import assert_almost_equal
 
 from ciderpress.gpaw.calculator import CiderGPAW, get_cider_functional
 
-USE_FAST_GPAW = True
+NKPT = 4
+REFERENCE_ENERGIES = {
+    "CIDER23X_SL_GGA": -12.866290987790224,
+    "CIDER23X_NL_GGA": -13.046155856903937,
+    "CIDER23X_SL_MGGA": -12.265893307629582,
+    "CIDER23X_NL_MGGA_DTR": -12.53022643638701,
+}
+USE_AUGMENT_GRIDS = True
 
 
 def run_calc(xc, spinpol, setups="paw"):
@@ -21,7 +48,6 @@ def run_calc(xc, spinpol, setups="paw"):
         pasdw_store_funcs=True,
         pasdw_ovlp_fit=True,  # not USE_FAST_GPAW,
         use_paw=False if setups == "sg15" else True,
-        fast=USE_FAST_GPAW,
     )
 
     atoms.calc = CiderGPAW(
@@ -30,17 +56,19 @@ def run_calc(xc, spinpol, setups="paw"):
         mode=PW(520),  # plane-wave mode with 520 eV cutoff.
         txt="-",  # output file, '-' for stdout
         occupations={"name": "fermi-dirac", "width": 0.01},
-        kpts={"size": (12, 12, 12), "gamma": False},  # kpt mesh parameters
-        convergence={"energy": 1e-5},  # convergence energy in eV/electron
+        kpts={"size": (NKPT, NKPT, NKPT), "gamma": False},  # kpt mesh parameters
+        convergence={"energy": 1e-7},  # convergence energy in eV/electron
         spinpol=spinpol,
         setups=setups,
-        parallel={"augment_grids": True},
+        parallel={"augment_grids": USE_AUGMENT_GRIDS},
     )
     etot = atoms.get_potential_energy()  # run the calculation
     return etot
 
 
-def generate_test(xcname, e_ref):
+def generate_test(xcname):
+    e_ref = REFERENCE_ENERGIES[xcname]
+
     def run_test(self):
         with np.errstate(all="ignore"):
             e_rks = run_calc(xcname, False)
@@ -53,13 +81,13 @@ def generate_test(xcname, e_ref):
 
 class TestEnergy(unittest.TestCase):
 
-    test_sl_gga = generate_test("CIDER23X_SL_GGA", -12.868728302199766)
+    test_sl_gga = generate_test("CIDER23X_SL_GGA")
 
-    test_nl_gga = generate_test("CIDER23X_NL_GGA", -13.045337504398542)
+    test_nl_gga = generate_test("CIDER23X_NL_GGA")
 
-    test_sl_mgga = generate_test("CIDER23X_SL_MGGA", -12.267997644473239)
+    test_sl_mgga = generate_test("CIDER23X_SL_MGGA")
 
-    test_nl_mgga = generate_test("CIDER23X_NL_MGGA_DTR", -12.537128965314368)
+    test_nl_mgga = generate_test("CIDER23X_NL_MGGA_DTR")
 
 
 if __name__ == "__main__":

@@ -21,6 +21,7 @@
 import ctypes
 
 import numpy as np
+from pyscf import lib as pyscflib
 
 from ciderpress import lib
 from ciderpress.dft.lcao_convolutions import (
@@ -375,6 +376,14 @@ class LCAOInterpolator:
         return self.atco.natm
 
     def _set_num_ai(self, all_coords):
+        """
+        This function computes the number of coordinates in
+        all_coords that fall in each spline "box" for the radial
+        interpolation grid on each atom. The result is then
+        used to create the _loc_ai member, which in turn
+        is used by the _compute_sline_ind_order function
+        to order grid coordinates by their spline box on a given atom.
+        """
         if all_coords is None:
             assert self.is_num_ai_setup
             return
@@ -424,26 +433,18 @@ class LCAOInterpolator:
         self.is_num_ai_setup = True
 
     def _compute_spline_ind_order(self, a):
+        """
+        Assuming _set_num_ai has been called previously, order
+        self.all_coords such that each coordinate is in increasing
+        order of spline index for the radial interpolation grid
+        on atom a.
+        """
         if not self.is_num_ai_setup:
             raise RuntimeError
         ngrids_tot = self.all_coords.shape[0]
         nrad = self.num_ai.shape[1]
         assert self.all_coords.shape[1] == 3
         assert self.all_coords.flags.c_contiguous
-        """libcider.compute_spline_ind_order(
-            self._loc_ai[a].ctypes.data_as(ctypes.c_void_p),
-            self.all_coords.ctypes.data_as(ctypes.c_void_p),
-            self.atom_coords[a].ctypes.data_as(ctypes.c_void_p),
-            self._coords_ord.ctypes.data_as(ctypes.c_void_p),
-            self._ind_ord_fwd.ctypes.data_as(ctypes.c_void_p),
-            self._ind_ord_bwd.ctypes.data_as(ctypes.c_void_p),
-            ctypes.c_double(self.aparam),
-            ctypes.c_double(self.dparam),
-            ctypes.c_int(ngrids_tot),
-            ctypes.c_int(nrad),
-            self._ga_loc_ptr,
-            ctypes.c_int(a),
-        )"""
         libcider.compute_spline_ind_order_new(
             self._loc_ai[a].ctypes.data_as(ctypes.c_void_p),
             self.all_coords.ctypes.data_as(ctypes.c_void_p),
@@ -465,10 +466,18 @@ class LCAOInterpolator:
         return self._coords_ord, self._ind_ord_fwd
 
     def _eval_spline_bas_single(self, a):
+        """
+        Note that _set_num_ai must have been called previously, because
+        it is required for _compute_spline_ind_order to work, which
+        is called by this function. TODO might be better to have a cleaner
+        solution for this algorithm.
+        """
         self._compute_spline_ind_order(a)
         ngrids = self._coords_ord.shape[0]
         if self.onsite_direct:
-            ngrids -= self._ga_loc[a + 1] - self._ga_loc[a]
+            # TODO maybe a bit inefficient, should clean this up
+            # when I get around to parallelizing _compute_spline_ind_order
+            ngrids -= np.sum(self.grids_indexer.iatom_list == a)
         nlm = self.nlm
         nrad = self.nrad
         atm_coord = self.atom_coords[a]
@@ -488,6 +497,32 @@ class LCAOInterpolator:
         )
         return auxo_gl, auxo_gp
 
+    def _eval_spline_bas_single_deriv(self, a):
+        self._compute_spline_ind_order(a)
+        ngrids = self._coords_ord.shape[0]
+        if self.onsite_direct:
+            # TODO maybe a bit inefficient, should clean this up
+            # when I get around to parallelizing _compute_spline_ind_order
+            ngrids -= np.sum(self.grids_indexer.iatom_list == a)
+        nlm = self.nlm
+        nrad = self.nrad
+        atm_coord = self.atom_coords[a]
+        auxo_vgl = np.ndarray((4, ngrids, nlm), order="C")
+        auxo_vgp = np.ndarray((4, ngrids, 4), order="C")
+        libcider.compute_spline_bas_separate_deriv(
+            auxo_vgl.ctypes.data_as(ctypes.c_void_p),
+            auxo_vgp.ctypes.data_as(ctypes.c_void_p),
+            self._coords_ord.ctypes.data_as(ctypes.c_void_p),
+            atm_coord.ctypes.data_as(ctypes.c_void_p),
+            ctypes.c_int(1),
+            ctypes.c_int(ngrids),
+            ctypes.c_int(nrad),
+            ctypes.c_int(nlm),
+            ctypes.c_double(self.aparam),
+            ctypes.c_double(self.dparam),
+        )
+        return auxo_vgl, auxo_vgp
+
     def _call_l1_fill(self, f_gq, atom_coord, fwd):
         if fwd:
             l1_fn = libcider.add_lp1_term_fwd
@@ -501,6 +536,28 @@ class LCAOInterpolator:
                 self.all_coords.ctypes.data_as(ctypes.c_void_p),
                 atom_coord.ctypes.data_as(ctypes.c_void_p),
                 ctypes.c_int(f_gq.shape[0]),
+                ctypes.c_int(ig),
+                ctypes.c_int(ix + 0),
+                ctypes.c_int(ix + 1),
+                ctypes.c_int(ix + 2),
+                ctypes.c_int(f_gq.shape[1]),
+            )
+
+    def _call_l1_fill_grad(self, excsum, f_gq, vf_gq, ia):
+        natm = self.atco.natm
+        iatom_list = self.grids_indexer.iatom_list
+        n = iatom_list.size
+        for i1 in range(self._n1):
+            ig = self.num_out + i1 - self._n1
+            ix = self._n0 + 3 * i1
+            libcider.add_lp1_term_grad(
+                excsum.ctypes.data_as(ctypes.c_void_p),
+                f_gq.ctypes.data_as(ctypes.c_void_p),
+                vf_gq.ctypes.data_as(ctypes.c_void_p),
+                iatom_list.ctypes.data_as(ctypes.c_void_p),
+                ctypes.c_int(ia),
+                ctypes.c_int(natm),
+                ctypes.c_int(n),
                 ctypes.c_int(ig),
                 ctypes.c_int(ix + 0),
                 ctypes.c_int(ix + 1),
@@ -528,7 +585,6 @@ class LCAOInterpolator:
                     ngrids -= self._ga_loc[a + 1] - self._ga_loc[a]
                 if not fwd:
                     self._call_l1_fill(f_gq, self.atom_coords[a], fwd)
-                self._loc_ai[a][-1]
                 fn(
                     f_gq.ctypes.data_as(ctypes.c_void_p),
                     f_arlpq[a].ctypes.data_as(ctypes.c_void_p),
@@ -544,6 +600,67 @@ class LCAOInterpolator:
                 )
                 if fwd:
                     self._call_l1_fill(f_gq, self.atom_coords[a], fwd)
+
+    def _contract_grad_terms(self, excsum, f_g, a, v):
+        iatom_list = self.grids_indexer.iatom_list
+        assert iatom_list is not None
+        assert iatom_list.flags.c_contiguous
+        ngrids = iatom_list.size
+        libcider.contract_grad_terms_parallel(
+            excsum.ctypes.data_as(ctypes.c_void_p),
+            f_g.ctypes.data_as(ctypes.c_void_p),
+            ctypes.c_int(self.atco.natm),
+            ctypes.c_int(a),
+            ctypes.c_int(v),
+            ctypes.c_int(ngrids),
+            iatom_list.ctypes.data_as(ctypes.c_void_p),
+        )
+
+    def _interpolate_nopar_atom_deriv(self, f_arlpq, f_gq):
+        assert self.is_num_ai_setup
+        ngrids_tot = self.all_coords.shape[0]
+        nalpha = f_arlpq.shape[-1]
+        assert f_arlpq.shape[-1] == f_gq.shape[-1]
+        fn = libcider.compute_mol_convs_single_new
+        excsum = np.zeros((self.atco.natm, 3))
+        ftmp_gq = np.empty_like(f_gq)
+        for a in range(self.atco.natm):
+            auxo_vgl, auxo_vgp = self._eval_spline_bas_single_deriv(a)
+            if self.onsite_direct and len(self._loc_ai) == 1:
+                pass
+            else:
+                ngrids = ngrids_tot
+                if self.onsite_direct:
+                    ngrids -= self._ga_loc[a + 1] - self._ga_loc[a]
+                args = [
+                    ftmp_gq.ctypes.data_as(ctypes.c_void_p),
+                    f_arlpq[a].ctypes.data_as(ctypes.c_void_p),
+                    auxo_vgl[0].ctypes.data_as(ctypes.c_void_p),
+                    auxo_vgp[0].ctypes.data_as(ctypes.c_void_p),
+                    self._loc_ai[a].ctypes.data_as(ctypes.c_void_p),
+                    self._ind_ord_fwd.ctypes.data_as(ctypes.c_void_p),
+                    ctypes.c_int(nalpha),
+                    ctypes.c_int(self.nrad),
+                    ctypes.c_int(ngrids),
+                    ctypes.c_int(self.nlm),
+                    ctypes.c_int(self._maxg),
+                ]
+                if self._n1 > 0:
+                    ftmp_gq[:] = 0
+                    fn(*args)
+                    self._call_l1_fill_grad(excsum, ftmp_gq, f_gq, a)
+                for v in range(3):
+                    ftmp_gq[:] = 0
+                    args[2] = auxo_vgl[0].ctypes.data_as(ctypes.c_void_p)
+                    args[3] = auxo_vgp[v + 1].ctypes.data_as(ctypes.c_void_p)
+                    fn(*args)
+                    args[2] = auxo_vgl[v + 1].ctypes.data_as(ctypes.c_void_p)
+                    args[3] = auxo_vgp[0].ctypes.data_as(ctypes.c_void_p)
+                    fn(*args)
+                    self._call_l1_fill(ftmp_gq, self.atom_coords[a], True)
+                    ftmp = pyscflib.einsum("gq,gq->g", ftmp_gq, f_gq)
+                    self._contract_grad_terms(excsum, ftmp, a, v)
+        return excsum
 
     def set_coords(self, coords):
         self._set_num_ai(coords)
@@ -572,6 +689,15 @@ class LCAOInterpolator:
         self._interpolate_nopar_atom(f_arlpq, f_gq, True)
         return f_gq
 
+    def interpolate_grad(self, f_arlpq, f_gq):
+        if not self.is_num_ai_setup:
+            raise ValueError("Need to set up indexes and coordinates first")
+        assert self.all_coords is not None
+        assert self.all_coords.ndim == 2
+        assert self.all_coords.shape[1] == 3
+        excsum = self._interpolate_nopar_atom_deriv(f_arlpq, f_gq)
+        return excsum
+
     def interpolate_bwd(self, f_gq, f_arlpq=None):
         if not self.is_num_ai_setup:
             raise ValueError("Need to set up indexes and coordinates first")
@@ -589,7 +715,6 @@ class LCAOInterpolator:
         Args:
             f_uq:
             f_gq:
-            spline_buf: Must be all zeros (TODO this is unsafe)
 
         Returns:
 
@@ -597,6 +722,11 @@ class LCAOInterpolator:
         f_arlpq = self.conv2spline(f_uq)
         f_gq = self.interpolate_fwd(f_arlpq=f_arlpq, f_gq=f_gq)
         return f_gq
+
+    def project_orb2grid_grad(self, f_uq, f_gq):
+        f_arlpq = self.conv2spline(f_uq)
+        excsum = self.interpolate_grad(f_arlpq=f_arlpq, f_gq=f_gq)
+        return excsum
 
     def project_grid2orb(self, f_gq, f_uq=None):
         f_arlpq = self.interpolate_bwd(f_gq=f_gq)
@@ -649,6 +779,10 @@ class LCAOInterpolatorDirect(LCAOInterpolator):
         else:
             self._ga_loc_ptr = lib.c_null_ptr()
             self._iatom_loc_ptr = lib.c_null_ptr()
+
+    @property
+    def grid_loc_atom(self):
+        return self._ga_loc.copy()
 
     def set_coords(self, coords):
         assert coords.shape[0] == (
@@ -719,7 +853,6 @@ class LCAOInterpolatorDirect(LCAOInterpolator):
         Args:
             f_uq:
             f_gq:
-            spline_buf: Must be all zeros (TODO this is unsafe)
 
         Returns:
 

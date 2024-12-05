@@ -1,14 +1,34 @@
+#!/usr/bin/env python
+# CiderPress: Machine-learning based density functional theory calculations
+# Copyright (C) 2024 The President and Fellows of Harvard College
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>
+#
+# Author: Kyle Bystrom <kylebystrom@gmail.com>
+#
+
 import unittest
 
 import numpy as np
 from ase.build import bulk
 from ase.parallel import parprint
 from gpaw import GPAW, PW, Mixer
-from gpaw.mpi import world
 
 from ciderpress.gpaw.calculator import get_cider_functional
 
 USE_STORED_REF = True
+USE_AUGMENT_GRIDS = True
 
 
 def _run_pw_si_stress(xc, use_pp=False, s_numerical=None):
@@ -21,7 +41,7 @@ def _run_pw_si_stress(xc, use_pp=False, s_numerical=None):
         xc=xc,
         kpts=(k, k, k),
         convergence={"energy": 1e-8},
-        parallel={"domain": min(2, world.size)},
+        parallel={"augment_grids": USE_AUGMENT_GRIDS},
         setups="sg15" if use_pp else "paw",
         txt="si.txt",
     )
@@ -30,19 +50,11 @@ def _run_pw_si_stress(xc, use_pp=False, s_numerical=None):
         np.dot(si.cell, [[1.02, 0, 0.03], [0, 0.99, -0.02], [0.2, -0.01, 1.03]]),
         scale_atoms=True,
     )
-
-    etot = si.get_potential_energy()
-    print(etot)
+    si.get_potential_energy()
 
     # Trigger nasty bug (fixed in !486):
     si.calc.wfs.pt.blocksize = si.calc.wfs.pd.maxmyng - 1
-
     s_analytical = si.get_stress()
-    parprint(s_analytical)
-    # TEST_CIDER_GGA Numerical
-    # [-0.00261187 -0.03790705 -0.03193711 -0.0209582   0.13427714  0.00928778]
-    # TEST_CIDER_MGGA Numerical
-    # [-0.00681636 -0.04026119 -0.03689781 -0.02227667  0.14441494  0.00907815]
     if s_numerical is None:
         s_numerical = si.calc.calculate_numerical_stress(si, 1e-5)
     s_err = s_numerical - s_analytical
@@ -61,10 +73,10 @@ def run_pw_si_stress(xc, use_pp=False, s_numerical=None):
 def get_xc(fname, use_paw=True):
     return get_cider_functional(
         fname,
-        qmax=120,
+        qmax=300,
         lambd=1.8,
         xmix=0.25,
-        pasdw_ovlp_fit=True,
+        pasdw_ovlp_fit=False,
         pasdw_store_funcs=True,
         use_paw=use_paw,
     )
@@ -76,12 +88,12 @@ class TestStress(unittest.TestCase):
         if USE_STORED_REF:
             s_numerical = np.array(
                 [
-                    0.00041062,
-                    -0.03364324,
-                    -0.03095064,
-                    -0.02067178,
-                    0.12828351,
-                    0.01013872,
+                    0.00070889,
+                    -0.03356804,
+                    -0.03070831,
+                    -0.02075609,
+                    0.12834234,
+                    0.01009197,
                 ]
             )
             run_pw_si_stress(xc, s_numerical=s_numerical)
@@ -93,12 +105,12 @@ class TestStress(unittest.TestCase):
         if USE_STORED_REF:
             s_numerical = np.array(
                 [
-                    -0.00737784,
-                    -0.04081598,
-                    -0.03757383,
-                    -0.0222981,
-                    0.14454075,
-                    0.00917949,
+                    -0.00761698,
+                    -0.04097609,
+                    -0.03780994,
+                    -0.022234,
+                    0.14451133,
+                    0.00919595,
                 ]
             )
             run_pw_si_stress(xc, s_numerical=s_numerical)
@@ -144,12 +156,12 @@ class TestStress(unittest.TestCase):
         if USE_STORED_REF:
             s_numerical = np.array(
                 [
-                    0.02085583,
-                    -0.01765656,
-                    -0.00976421,
-                    -0.02005148,
-                    0.12475251,
-                    0.01070791,
+                    0.0208956,
+                    -0.01761566,
+                    -0.00972346,
+                    -0.02004954,
+                    0.12474854,
+                    0.01070437,
                 ]
             )
             run_pw_si_stress(xc, use_pp=True, s_numerical=s_numerical)

@@ -20,6 +20,7 @@
 
 import unittest
 
+import pyscf.dft.radi
 from numpy.testing import assert_almost_equal
 from pyscf import dft, gto
 
@@ -29,6 +30,10 @@ from ciderpress.pyscf.dft import make_cider_calc
 This is a high-level test to make sure RKS SCF energies are consistent between
 commits. It also checks that the functionals are not accidentally changed.
 """
+
+# This is for backward consistency
+pyscf.dft.radi.ATOM_SPECIFIC_TREUTLER_GRIDS = False
+
 
 XCVALS = {
     "CIDER23X_SL_GGA": -199.442504774708,
@@ -58,7 +63,6 @@ def run_functional(xcname):
         ks, xcfile, xmix=0.25, xkernel="GGA_X_PBE", ckernel="GGA_C_PBE"
     )
     ks = ks.density_fit(auxbasis="def2-universal-jfit")
-    ks.small_rho_cutoff = 0.0
     etot = ks.kernel()
     mol.stdout.close()
     assert_almost_equal(etot, XCVALS[xcname], 5)

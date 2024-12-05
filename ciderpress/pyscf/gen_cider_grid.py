@@ -57,13 +57,19 @@ class CiderGrids(Grids):
 
     def __init__(self, mol, lmax=CIDER_DEFAULT_LMAX):
         super(CiderGrids, self).__init__(mol)
-        # self.becke_scheme = becke_lko
         self.lmax = lmax
         self.nlm = (lmax + 1) * (lmax + 1)
         self.grids_indexer = None
 
     def gen_atomic_grids(
-        self, mol, atom_grid=None, radi_method=None, level=None, prune=None, **kwargs
+        self,
+        mol,
+        atom_grid=None,
+        radi_method=None,
+        level=None,
+        prune=None,
+        build_indexer=False,
+        **kwargs
     ):
         """
         Same as gen_atomic_grids for PySCF grids, except it also
@@ -89,9 +95,10 @@ class CiderGrids(Grids):
         ) = gen_atomic_grids_cider(
             mol, atom_grid, self.radi_method, level, prune, **kwargs
         )
-        self.grids_indexer = AtomicGridsIndexer.from_tabs(
-            mol, self.lmax, rad_loc_tab, ylm_loc_tab, rad_tab, ylm_tab
-        )
+        if build_indexer:
+            self.grids_indexer = AtomicGridsIndexer.from_tabs(
+                mol, self.lmax, rad_loc_tab, ylm_loc_tab, rad_tab, ylm_tab
+            )
         return atom_grids_tab
 
     def build(self, mol=None, with_non0tab=False, sort_grids=True, **kwargs):
@@ -105,15 +112,17 @@ class CiderGrids(Grids):
         if self.verbose >= logger.WARN:
             self.check_sanity()
         atom_grids_tab = self.gen_atomic_grids(
-            mol, self.atom_grid, self.radi_method, self.level, self.prune, **kwargs
+            mol,
+            self.atom_grid,
+            self.radi_method,
+            self.level,
+            self.prune,
+            build_indexer=True,
+            **kwargs
         )
-        # TODO cleaner version of this way of calling VXCgen_grid_lko
-        # tmp = libdft.VXCgen_grid
-        # libdft.VXCgen_grid = libcider.VXCgen_grid_lko
         self.coords, self.weights = self.get_partition(
             mol, atom_grids_tab, self.radii_adjust, self.atomic_radii, self.becke_scheme
         )
-        # libdft.VXCgen_grid = tmp
         self.grids_indexer.set_weights(self.weights)
 
         if sort_grids:
@@ -180,7 +189,7 @@ class CiderGrids(Grids):
                         [self.coords, np.repeat([[1e-4] * 3], padding, axis=0)]
                     )
                     self.weights = np.hstack([self.weights, np.zeros(padding)])
-                    self.grids_indexer.set_padding(padding)
+                self.grids_indexer.set_padding(padding)
             self.non0tab = self.make_mask(mol, self.coords)
             self.screen_index = self.non0tab
             self.coords = np.asarray(self.coords, order="C")

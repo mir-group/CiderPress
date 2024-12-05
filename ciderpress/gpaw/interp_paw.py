@@ -22,12 +22,9 @@ import numpy as np
 from gpaw.atom.radialgd import AERadialGridDescriptor
 from gpaw.sphere.lebedev import R_nv, Y_nL, weight_n
 from gpaw.xc.gga import GGA, radial_gga_vars
-from gpaw.xc.kernel import XCKernel
 from gpaw.xc.mgga import MGGA
 from gpaw.xc.pawcorrection import rnablaY_nLv
 from numpy import pi, sqrt
-from pyscf.dft.gen_grid import RAD_GRIDS
-from pyscf.dft.libxc import eval_xc
 from scipy.interpolate import interp1d
 
 from ciderpress.gpaw.gpaw_grids import GCRadialGridDescriptor
@@ -149,17 +146,14 @@ class DiffPAWXCCorrection:
             xcc = setup.xc_correction
 
         tab = np.array((2, 10, 18, 36, 54, 86, 118))
-        period = (setup.Z > tab).sum()
+        (setup.Z > tab).sum()
         rcut = xcc.rgd.r_g[-1]
-        # rgd = GCRadialGridDescriptor(int(setup.Z), RAD_GRIDS[9,period])
-        # rgd = GCRadialGridDescriptor(int(setup.Z), 500)
         if setup.Z > 36 and hasattr(setup.rgd, "a") and hasattr(setup.rgd, "b"):
-            # print(setup.Z, setup.rgd.a, setup.rgd.b, setup.rgd.N)
             rgd = AERadialGridDescriptor(setup.rgd.a, setup.rgd.b, setup.rgd.N)
             gcut = rgd.ceil(rcut)
             rgd = rgd.new(gcut)
         else:
-            rgd = GCRadialGridDescriptor(int(setup.Z), RAD_GRIDS[9, period])
+            rgd = GCRadialGridDescriptor(int(setup.Z), 200)
             gcut = rgd.ceil(rcut)
             rgd = rgd.make_cut(gcut)
 
@@ -302,8 +296,6 @@ class DiffPAWXCCorrection:
         self.taut_npg = taut_npg
         self.tauc_g = tauc_g
         self.tauct_g = tauct_g
-        # print('SETUP MINS AE', np.min(self.tauc_g - self.dc_g**2 / (8 * self.nc_g + 1e-16)))
-        # print('SETUP MINS PS', np.min(self.tauct_g - self.dct_g**2 / (8 * self.nct_g + 1e-16)))
         if self.tau_npg is not None:
             NP = self.tau_npg.shape[1]
             self.tau_pg = np.ascontiguousarray(
@@ -581,56 +573,6 @@ class CiderRadialExpansion:
                 E += w * rgd.integrate(e_g)
 
             return E, dEdD_sqL
-
-        elif self.rcalc.mode == "potential2":
-
-            """
-            WARNING TODO: DRAFT CODE
-            """
-            dedn_sg, b_vsg, a_sg, dedsigma_xg = self.rcalc(
-                rgd,
-                n_sLg,
-                Y_nL[:, :Lmax],
-                dndr_sLg,
-                rnablaY_nLv[:, :Lmax],
-                self.F_sbg,
-                self.y_sbg,
-                ae=ae,
-            )
-
-            nn = Y_nL.shape[0]
-
-            dedn_sng = dedn_sg.reshape(nspins, nn, -1)
-            dedsigma_xng = dedsigma_xg.reshape(2 * nspins - 1, nn, -1)
-            b_vsng = b_vsg.reshape(3, nspins, nn, -1)
-            a_sng = a_sg.reshape(nspins, nn, -1)
-
-            dEdD_snq = np.dot(dedn_sng, n_qg.T)
-            dEdD_snq += 2 * np.dot(dedsigma_xng[::nspins] * a_sng, dndr_qg.T)
-            if nspins == 2:
-                dEdD_snq += np.dot(dedsigma_xng[1] * a_sng[::-1], dndr_qg.T)
-
-            dEdD_sqL = np.einsum(
-                "snq,nL->sqL", dEdD_snq, weight_n[:, None] * Y_nL[:, :Lmax]
-            )
-
-            # dedsigma_xng *= rgd.dr_g
-            dedsigma_xng *= 1.0 / (4 * np.pi * rgd.r_g * rgd.r_g)
-            B_vsng = dedsigma_xng[::2] * b_vsng
-            if nspins == 2:
-                B_vsng += 0.5 * dedsigma_xng[1] * b_vsng[:, ::-1]
-            B_vsnq = np.dot(B_vsng, n_qg.T)
-            dEdD_sqL += (
-                8
-                * np.pi
-                * np.einsum(
-                    "nLv,vsnq->sqL",
-                    weight_n[:, None, None] * rnablaY_nLv[:, :Lmax],
-                    B_vsnq,
-                )
-            )
-
-            return dEdD_sqL
 
         elif self.rcalc.mode == "energy_v2":
             e_g, dedn_sg, dedgrad_svg, v_sbg = self.rcalc(
@@ -959,37 +901,3 @@ class DiffMGGA2(DiffMGGA):
                 setup.xc_correction = DiffPAWXCCorrection.from_setup(
                     setup, build_kinetic=True, ke_order_ng=False
                 )
-
-
-class PyscfGGAKernel(XCKernel):
-    def __init__(self, name):
-        self.name = "PBE"
-        self._xcname = name
-
-    def calculate(self, e_g, n_sg, dedn_sg, sigma_xg, dedsigma_xg):
-        if n_sg.shape[0] == 1:
-            spin = 0
-            ngrid = n_sg.shape[1]
-            rho = np.zeros(4, ngrid)
-            rho[0] = n_sg[0]
-            rho[1] = np.sqrt(sigma_xg[0])
-        else:
-            spin = 1
-            ngrid = n_sg.shape[1]
-            rho = np.zeros(2, 4, ngrid)
-            rho[:, 0] = n_sg
-            gu = np.sqrt(sigma_xg[0])
-            gd = np.sqrt(sigma_xg[2])
-            costheta = sigma_xg[1] / (gu * gd + 1e-32)
-            sintheta = np.sqrt(1 - costheta**2)
-            rho[0, 1] = gu
-            rho[1, 1] = gd * costheta
-            rho[1, 2] = gd * sintheta
-        e_xc, v_xc = eval_xc(self._xcname, rho, spin=spin)[:2]
-        e_g[:] = e_xc
-        if spin == 0:
-            dedn_sg[0, :] = v_xc[0]
-            dedsigma_xg[0, :] = v_xc[1]
-        else:
-            dedn_sg[:, :] = v_xc[0].T
-            dedsigma_xg[:, :] = v_xc[1].T

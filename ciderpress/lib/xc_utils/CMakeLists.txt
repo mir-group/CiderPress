@@ -10,5 +10,5 @@ set_target_properties(xc_utils PROPERTIES
 
 target_link_libraries(xc_utils ${LIBXC_LIBRARIES})
 # target_link_libraries(xc_utils ${BLAS_LIBRARIES})
-target_link_libraries(xc_utils ${MKL_LIBRARIES})
+target_link_libraries(xc_utils ${MKL_IMPORTED_TARGETS})
 target_include_directories(xc_utils PRIVATE ${MKL_INCLUDE_DIR})
