@@ -41,7 +41,15 @@ def make_cider_calc(
     rhocut=None,
 ):
     mlfunc = load_cider_model(mlfunc, mlfunc_format)
-    ks.xc = get_slxc_settings(xc, xkernel, ckernel, xmix)
+    ks._xc = get_slxc_settings(xc, xkernel, ckernel, xmix)
+    # Assign the PySCF-facing functional to be a simple SL
+    # functional to avoid hybrid DFT being called.
+    # NOTE this might need to be changed to some nicer
+    # approach later.
+    if mlfunc.settings.sl_settings.level == "MGGA":
+        ks.xc = "R2SCAN"
+    else:
+        ks.xc = "PBE"
     new_ks = _CiderKS(
         ks,
         mlfunc,
@@ -115,6 +123,7 @@ class _CiderKS(_MolCiderKS):
                 cls = CiderNumInt
         self._numint = cls(
             mlxc,
+            self._xc,
             nldf_init,
             sdmx_init,
             xmix=xmix,

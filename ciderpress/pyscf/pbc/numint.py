@@ -593,6 +593,7 @@ class CiderKNumInt(CiderNumIntMixin, numint.KNumInt):
     def __init__(
         self,
         mlxc,
+        slxc,
         nldf_init,
         sdmx_init,
         xmix=1.0,
@@ -604,6 +605,7 @@ class CiderKNumInt(CiderNumIntMixin, numint.KNumInt):
 
         Args:
             mlxc (MappedXC): Model for XC energy
+            slxc (str): Semilocal part of XC functional
             nldf_init (PySCFNLDFInitializer)
             sdmx_init (PySCFSDMXInitializer)
             xmix (float): Mixing fraction of ML functional
@@ -611,6 +613,7 @@ class CiderKNumInt(CiderNumIntMixin, numint.KNumInt):
             dense_mesh (3-tuple or array): Denser mesh for XC integrations
         """
         self.mlxc = mlxc
+        self.slxc = slxc
         self.xmix = xmix
         self.rhocut = DEFAULT_RHOCUT if rhocut is None else rhocut
         self.mol = None
