@@ -20,6 +20,7 @@
 #include <complex.h>
 #include <math.h>
 #include <mkl.h>
+#include <mkl_dfti.h>
 #include <mkl_types.h>
 #include <omp.h>
 #include <pyscf_gto.h>
@@ -73,7 +74,7 @@ void apply_orb_phases(double complex *ao, int *atom_list, int *ang_list,
     }
 }
 
-void CHECK_STATUS(int status) {
+void pbc_check_status(int status) {
     if (status != 0) {
         printf("FFT ROUTINE FAILED WITH STATUS %d:\n", status);
         char *message = DftiErrorMessage(status);
@@ -143,7 +144,7 @@ void fft3d(double complex *xin, double complex *xout, int *fftg,
         else
             status = DftiComputeBackward(handle, xin, xout);
     }
-    CHECK_STATUS(status);
+    pbc_check_status(status);
 }
 
 void prune_r2c_real(double *xreal, int *fftg, int num_fft) {
@@ -219,13 +220,13 @@ void run_ffts(double complex *xin_list, double complex *xout_list, double scale,
         recip_distance = fftg[0] * fftg[1] * fftg[2];
         real_distance = recip_distance;
     }
-    CHECK_STATUS(status);
+    pbc_check_status(status);
     if (fwd) {
         status = DftiSetValue(handle, DFTI_FORWARD_SCALE, scale);
     } else {
         status = DftiSetValue(handle, DFTI_BACKWARD_SCALE, scale);
     }
-    CHECK_STATUS(status);
+    pbc_check_status(status);
     int i;
     if (mklpar) {
         status = DftiSetValue(handle, DFTI_NUMBER_OF_TRANSFORMS, num_fft);
@@ -242,17 +243,17 @@ void run_ffts(double complex *xin_list, double complex *xout_list, double scale,
             status = DftiSetValue(handle, DFTI_PLACEMENT, DFTI_INPLACE);
         }
         status = DftiCommitDescriptor(handle);
-        CHECK_STATUS(status);
+        pbc_check_status(status);
         fft3d(xin_list, xout_list, fftg, handle, fwd);
     } else if (xout_list == NULL) {
         status = DftiCommitDescriptor(handle);
-        CHECK_STATUS(status);
+        pbc_check_status(status);
         for (i = 0; i < num_fft; i++) {
             fft3d(xin_list + i * recip_distance, NULL, fftg, handle, fwd);
         }
     } else {
         status = DftiCommitDescriptor(handle);
-        CHECK_STATUS(status);
+        pbc_check_status(status);
         for (i = 0; i < num_fft; i++) {
             fft3d(xin_list + i * recip_distance, xout_list + i * recip_distance,
                   fftg, handle, fwd);

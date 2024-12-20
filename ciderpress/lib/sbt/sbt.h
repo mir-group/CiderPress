@@ -17,18 +17,22 @@
 // Author: Kyle Bystrom <kylebystrom@gmail.com>
 //
 
-/** \file
-The following routines are based on the Fortran program NumSBT written by J.
-Talman. The algorithm performs a spherical Bessel transform in O(NlnN) time. If
-you adapt this code for any purpose, please cite: Talman, J. Computer Physics
-Communications 2009, 180, 332-338. The code is distributed under the Standard
-CPC license.
-*/
+// The following routines are based on the Fortran program NumSBT written by
+// J. Talman. The algorithm performs a spherical Bessel transform in O(NlnN)
+// time. If you adapt this code for any purpose, please cite: Talman,
+// J. Computer Physics Communications 2009, 180, 332-338. The original NumSBT
+// code is distributed under the Standard CPC license.
 
 #ifndef SBT_H
 #define SBT_H
+// #include "config.h"
 #include <complex.h>
+#define USE_MKL 1
+#if USE_MKL
 #include <mkl.h>
+#else
+#include <fftw3.h>
+#endif
 
 /**
 Contains the parameters for a fast spherical Bessel transform.
@@ -47,7 +51,11 @@ typedef struct sbt_descriptor {
     double *k32;                 ///< (Recip space grid)^1.5
     double *r32;                 ///< (Real space grid)^1.5
     int lmax;
+#if USE_MKL
     DFTI_DESCRIPTOR_HANDLE handle;
+#else
+    fftw_plan handle;
+#endif
 } sbt_descriptor_t;
 
 /**
@@ -85,8 +93,11 @@ Free all the memory associated with an sbt descriptor.
 */
 void free_sbt_descriptor(sbt_descriptor_t *d);
 
-void CHECK_ALLOCATION(void *ptr);
-void ALLOCATION_FAILED(void);
-void CHECK_STATUS(int status);
+/** Check whether an array was allocated. If not, exit. */
+void sbt_check_allocation(void *ptr);
+void sbt_allocation_failed(void);
+
+/** Check status of a MKL call. */
+void sbt_check_status(int status);
 
 #endif

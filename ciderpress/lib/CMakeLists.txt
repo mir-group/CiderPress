@@ -117,6 +117,7 @@ add_subdirectory(numint_cider)
 add_subdirectory(pwutil)
 add_subdirectory(sbt)
 add_subdirectory(xc_utils)
+add_subdirectory(fft_wrapper)
 
 if(ENABLE_FFTW AND BUILD_FFTW)
     ExternalProject_Add(libfftw3
