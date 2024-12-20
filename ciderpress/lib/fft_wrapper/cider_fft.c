@@ -3,8 +3,8 @@
 #define FFT_MKL_BACKEND 0
 #define FFT_FFTW_BACKEND 1
 
-#define FFT_BACKEND FFT_MKL_BACKEND
-// #define FFT_BACKEND FFT_FFTW_BACKEND
+// #define FFT_BACKEND FFT_MKL_BACKEND
+#define FFT_BACKEND FFT_FFTW_BACKEND
 
 #if FFT_BACKEND == FFT_MKL_BACKEND
 #include <mkl.h>
@@ -25,6 +25,7 @@
 #endif
 #include <complex.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 
 typedef struct fft_plan {
@@ -49,27 +50,6 @@ typedef struct fft_plan {
     fftw_plan plan;
 #endif
 } fft_plan_t;
-
-/*fft_plan_t* allocate_fft1d_single_inplace_plan(int n, int r2c, int fwd) {
-    fft_plan_t *plan = (fft_plan_t *)malloc(sizeof(fft_plan_t));
-#if FFT_BACKEND == FFT_MKL_BACKEND
-    MKL_LONG dims[1] = {n};
-    if (r2c) {
-        DftiCreateDescriptor(&(plan->handle), DFTI_DOUBLE, DFTI_REAL, 1, dims);
-    } else {
-        DftiCreateDescriptor(&(plan->handle), DFTI_DOUBLE, DFTI_COMPLEX, 1,
-dims);
-    }
-#else
-    if (r2c && fwd) {
-        rfftw_create_plan(n, FFTW_REAL_TO_COMPLEX, FFTW_ESTIMATE);
-    } else if (r2c) {
-        rfftw_create_plan(n, FFTW_COMPLEX_TO_REAL, FFTW_ESTIMATE);
-    } else {
-        fftw_create_plan(n, fwd ? FFTW_FORWARD : FFTW_BACKWARD, FFTW_ESTIMATE);
-    }
-#endif
-}*/
 
 #if FFT_BACKEND == FFT_MKL_BACKEND
 void cider_fft_check_status(int status) {
@@ -98,7 +78,6 @@ fft_plan_t *allocate_fftnd_plan(int ndim, int *dims, int fwd, int r2c,
     plan->inplace = inplace;
     plan->in = NULL;
     plan->out = NULL;
-    printf("HERE1\n");
 
     if (r2c) {
         size_t real_dist, recip_dist;
@@ -145,7 +124,6 @@ fft_plan_t *allocate_fftnd_plan(int ndim, int *dims, int fwd, int r2c,
     plan->idist = idist;
     plan->odist = odist;
 
-    printf("HERE2\n");
 #if FFT_BACKEND == FFT_MKL_BACKEND
     MKL_LONG status;
     MKL_LONG ldims[ndim];
@@ -153,15 +131,17 @@ fft_plan_t *allocate_fftnd_plan(int ndim, int *dims, int fwd, int r2c,
     for (int i = 0; i < ndim; i++) {
         ldims[i] = plan->dims[i];
     }
+    MKL_LONG rstrides[ndim + 1];
+    MKL_LONG cstrides[ndim + 1];
+    rstrides[ndim] = stride;
+    cstrides[ndim] = stride;
+    rstrides[0] = 0;
+    cstrides[0] = 0;
     if (r2c) {
         if (ndim > 1) {
             status = DftiCreateDescriptor(&(plan->handle), DFTI_DOUBLE,
                                           DFTI_REAL, ndim, ldims);
             cider_fft_check_status(status);
-            MKL_LONG rstrides[ndim + 1];
-            MKL_LONG cstrides[ndim + 1];
-            rstrides[ndim] = stride;
-            cstrides[ndim] = stride;
             cstrides[ndim - 1] = (ldims[ndim - 1] / 2 + 1) * cstrides[ndim];
             if (inplace) {
                 rstrides[ndim - 1] = 2 * cstrides[ndim - 1];
@@ -172,36 +152,17 @@ fft_plan_t *allocate_fftnd_plan(int ndim, int *dims, int fwd, int r2c,
                 rstrides[d] = rstrides[d + 1] * ldims[d];
                 cstrides[d] = cstrides[d + 1] * ldims[d];
             }
-            rstrides[0] = 0;
-            cstrides[0] = 0;
-            if (fwd) {
-                status =
-                    DftiSetValue(plan->handle, DFTI_INPUT_STRIDES, rstrides);
-                cider_fft_check_status(status);
-                status =
-                    DftiSetValue(plan->handle, DFTI_OUTPUT_STRIDES, cstrides);
-                cider_fft_check_status(status);
-            } else {
-                status =
-                    DftiSetValue(plan->handle, DFTI_INPUT_STRIDES, cstrides);
-                cider_fft_check_status(status);
-                status =
-                    DftiSetValue(plan->handle, DFTI_OUTPUT_STRIDES, rstrides);
-                cider_fft_check_status(status);
-            }
         } else {
             status = DftiCreateDescriptor(&(plan->handle), DFTI_DOUBLE,
                                           DFTI_REAL, ndim, ldims[0]);
             cider_fft_check_status(status);
         }
-        printf("HERE3\n");
         status = DftiSetValue(plan->handle, DFTI_CONJUGATE_EVEN_STORAGE,
                               DFTI_COMPLEX_COMPLEX);
         cider_fft_check_status(status);
         status =
             DftiSetValue(plan->handle, DFTI_PACKED_FORMAT, DFTI_CCE_FORMAT);
         cider_fft_check_status(status);
-        printf("HERE35\n");
     } else {
         if (ndim == 1) {
             status = DftiCreateDescriptor(&(plan->handle), DFTI_DOUBLE,
@@ -211,28 +172,39 @@ fft_plan_t *allocate_fftnd_plan(int ndim, int *dims, int fwd, int r2c,
                                           DFTI_COMPLEX, ndim, ldims);
         }
         cider_fft_check_status(status);
+        for (int d = ndim - 1; d > 0; d--) {
+            rstrides[d] = rstrides[d + 1] * ldims[d];
+            cstrides[d] = cstrides[d + 1] * ldims[d];
+        }
     }
-    printf("HERE36\n");
-    // status = DftiSetValue(plan->handle, DFTI_NUMBER_OF_TRANSFORMS, (MKL_LONG)
-    // plan->ntransform);
+    if (fwd) {
+        status = DftiSetValue(plan->handle, DFTI_INPUT_STRIDES, rstrides);
+        cider_fft_check_status(status);
+        status = DftiSetValue(plan->handle, DFTI_OUTPUT_STRIDES, cstrides);
+        cider_fft_check_status(status);
+    } else {
+        status = DftiSetValue(plan->handle, DFTI_INPUT_STRIDES, cstrides);
+        cider_fft_check_status(status);
+        status = DftiSetValue(plan->handle, DFTI_OUTPUT_STRIDES, rstrides);
+        cider_fft_check_status(status);
+    }
+    status = DftiSetValue(plan->handle, DFTI_NUMBER_OF_TRANSFORMS,
+                          (MKL_LONG)plan->ntransform);
     cider_fft_check_status(status);
-    // status = DftiSetValue(plan->handle, DFTI_INPUT_DISTANCE, (MKL_LONG)
-    // plan->idist); status = DftiSetValue(plan->handle, DFTI_OUTPUT_DISTANCE,
-    // (MKL_LONG) plan->odist);
-    printf("HERE37\n");
+    status =
+        DftiSetValue(plan->handle, DFTI_INPUT_DISTANCE, (MKL_LONG)plan->idist);
+    status =
+        DftiSetValue(plan->handle, DFTI_OUTPUT_DISTANCE, (MKL_LONG)plan->odist);
     if (inplace) {
         status = DftiSetValue(plan->handle, DFTI_PLACEMENT, DFTI_INPLACE);
     } else {
         status = DftiSetValue(plan->handle, DFTI_PLACEMENT, DFTI_NOT_INPLACE);
     }
-    printf("HERE38 %p\n", plan->handle);
     status = DftiCommitDescriptor(plan->handle);
     cider_fft_check_status(status);
-    printf("HERE39 %d\n", status);
 #else
     plan->plan = NULL;
 #endif
-    printf("HERE4\n");
 
     return plan;
 }
@@ -273,7 +245,7 @@ int initialize_fft_plan(fft_plan_t *plan, void *in_array, void *out_array) {
             return 1;
         }
         plan->in = in_array;
-        plan->out = out_array;
+        plan->out = in_array;
     } else {
         if (in_array == NULL || out_array == NULL) {
             return 1;
@@ -303,7 +275,6 @@ void execute_fft_plan(fft_plan_t *plan) {
         }
     }
 #else
-    printf("%p\n", plan->plan);
     fftw_execute(plan->plan);
 #endif
 }
@@ -351,12 +322,25 @@ void *malloc_fft_plan_out_array(fft_plan_t *plan) {
 }
 
 void write_fft_input(fft_plan_t *plan, void *input) {
-    size_t size = plan->ntransform * plan->fft_in_size;
+    const size_t size = plan->ntransform * plan->fft_in_size;
     if (plan->r2c && plan->fwd) {
         double *src = (double *)input;
         double *dst = (double *)plan->in;
-        for (size_t i = 0; i < size; i++) {
-            dst[i] = src[i];
+        if (plan->inplace) {
+            size_t nt = plan->batch_first ? 1 : plan->ntransform;
+            size_t dm1 = plan->dims[plan->ndim - 1];
+            const size_t last_dim = dm1 * nt;
+            const size_t last_dim1 = 2 * (dm1 / 2 + 1) * nt;
+            const size_t blksize = size / last_dim1;
+            for (size_t i = 0; i < blksize; i++) {
+                for (size_t j = 0; j < last_dim; j++) {
+                    dst[i * last_dim1 + j] = src[i * last_dim + j];
+                }
+            }
+        } else {
+            for (size_t i = 0; i < size; i++) {
+                dst[i] = src[i];
+            }
         }
     } else {
         double complex *src = (double complex *)input;
@@ -368,18 +352,30 @@ void write_fft_input(fft_plan_t *plan, void *input) {
 }
 
 void read_fft_output(fft_plan_t *plan, void *output) {
-    size_t size = plan->ntransform * plan->fft_out_size;
+    const size_t size = plan->ntransform * plan->fft_out_size;
     if (plan->r2c && (!plan->fwd)) {
         double *src = (double *)plan->out;
         double *dst = (double *)output;
-        for (size_t i = 0; i < size; i++) {
-            dst[i] = src[i];
+        if (plan->inplace) {
+            size_t nt = plan->batch_first ? 1 : plan->ntransform;
+            size_t dm1 = plan->dims[plan->ndim - 1];
+            const size_t last_dim = dm1 * nt;
+            const size_t last_dim1 = 2 * (dm1 / 2 + 1) * nt;
+            const size_t blksize = size / last_dim1;
+            for (size_t i = 0; i < blksize; i++) {
+                for (size_t j = 0; j < last_dim; j++) {
+                    dst[i * last_dim + j] = src[i * last_dim1 + j];
+                }
+            }
+        } else {
+            for (size_t i = 0; i < size; i++) {
+                dst[i] = src[i];
+            }
         }
     } else {
         double complex *src = (double complex *)plan->out;
         double complex *dst = (double complex *)output;
         for (size_t i = 0; i < size; i++) {
-            // printf("%lf %lf\n", creal(src[i]), cimag(src[i]));
             dst[i] = src[i];
         }
     }
