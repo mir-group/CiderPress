@@ -1,58 +1,7 @@
-
-#define HAVE_MPI 0
-#define FFT_MKL_BACKEND 0
-#define FFT_FFTW_BACKEND 1
-
-// #define FFT_BACKEND FFT_MKL_BACKEND
-#define FFT_BACKEND FFT_FFTW_BACKEND
+#include "cider_fft.h"
 
 #if FFT_BACKEND == FFT_MKL_BACKEND
-#include <mkl.h>
-#include <mkl_dfti.h>
-#include <mkl_types.h>
-#define FFT_DIM MKL_LONG
-#define FFT_MPI_DIM MKL_LONG
-#define FFT_SIZE MKL_LONG
-#else // FFTW
-#include <fftw3.h>
-#include <limits.h>
-#define FFT_DIM int
-#define FFT_MPI_DIM ptrdiff_t
-#define FFT_SIZE ptrdiff_t
-#endif
-#if HAVE_MPI
-#include <mpi.h>
-#endif
-#include <complex.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-
-typedef struct fft_plan {
-    int is_initialized;
-    int ndim;
-    int *dims;
-    int r2c;
-    int ntransform;
-    size_t fft_in_size;
-    size_t fft_out_size;
-    int fwd;
-    int batch_first;
-    int inplace;
-    int stride;
-    int idist;
-    int odist;
-    void *in;
-    void *out;
-#if FFT_BACKEND == FFT_MKL_BACKEND
-    DFTI_DESCRIPTOR_HANDLE handle;
-#else // FFTW
-    fftw_plan plan;
-#endif
-} fft_plan_t;
-
-#if FFT_BACKEND == FFT_MKL_BACKEND
-void cider_fft_check_status(int status) {
+static void cider_fft_check_status(int status) {
     if (status != 0) {
         printf("FFT ROUTINE FAILED WITH STATUS %d:\n", status);
         char *message = DftiErrorMessage(status);
@@ -210,7 +159,7 @@ fft_plan_t *allocate_fftnd_plan(int ndim, int *dims, int fwd, int r2c,
 }
 
 #if FFT_BACKEND == FFT_FFTW_BACKEND
-void initialize_fftw_settings(fft_plan_t *plan) {
+static void initialize_fftw_settings(fft_plan_t *plan) {
     if (plan->plan != NULL) {
         fftw_destroy_plan(plan->plan);
         plan->plan = NULL;

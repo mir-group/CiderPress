@@ -9,5 +9,5 @@ set_target_properties(sbt PROPERTIES
   LINK_FLAGS ${OpenMP_C_FLAGS})
 
 # target_link_libraries(sbt ${BLAS_LIBRARIES})
-target_link_libraries(sbt ${MKL_IMPORTED_TARGETS})
+target_link_libraries(sbt MKL::MKL)
 target_include_directories(sbt PRIVATE ${MKL_INCLUDE_DIR})

@@ -1,6 +1,7 @@
 
 add_library(fft_wrapper SHARED
   cider_fft.c
+  cider_mpi_fft.c
 )
 
 set_target_properties(fft_wrapper PROPERTIES
@@ -8,6 +9,26 @@ set_target_properties(fft_wrapper PROPERTIES
   COMPILE_FLAGS ${OpenMP_C_FLAGS}
   LINK_FLAGS ${OpenMP_C_FLAGS})
 
-# target_link_libraries(mcider ${BLAS_LIBRARIES})
-target_link_libraries(fft_wrapper ${MKL_IMPORTED_TARGETS})
-target_include_directories(fft_wrapper PRIVATE ${MKL_INCLUDE_DIR})
+configure_file(
+  ${PROJECT_SOURCE_DIR}/fft_wrapper/config.h.in
+  ${PROJECT_SOURCE_DIR}/fft_wrapper/cider_fft_config.h
+  NEWLINE_STYLE UNIX
+)
+
+if (HAVE_MPI)
+  target_link_libraries(fft_wrapper PUBLIC MPI::MPI_C)
+endif()
+
+if (FFT_BACKEND_NUMBER EQUAL 0)
+  target_include_directories(fft_wrapper PUBLIC ${MKL_INCLUDE_DIR})
+  target_link_libraries(fft_wrapper PUBLIC MKL::MKL)
+  if (HAVE_MPI)
+    target_link_libraries(fft_wrapper PUBLIC MKL::MKL_CDFT)
+  endif()
+else()
+  target_link_libraries(fft_wrapper PRIVATE fftw3)
+  if (HAVE_MPI)
+    target_link_libraries(fft_wrapper PUBLIC MKL::MKL_CDFT)
+    target_link_libraries(fft_wrapper PRIVATE fftw3_mpi)
+  endif()
+endif()

@@ -3,6 +3,7 @@
 build/
 ciderpress/lib/deps/
 ciderpress/lib/pwutil/config.h
+ciderpress/lib/fft_wrapper/cider_fft_config.h
 dist/
 docs/_build
 docs/_static
