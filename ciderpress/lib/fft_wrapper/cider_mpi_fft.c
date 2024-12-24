@@ -1,4 +1,6 @@
 #include "cider_mpi_fft.h"
+#include "cider_fft.h"
+#include <omp.h>
 
 #define MIN(X, Y) ((X) < (Y) ? (X) : (Y))
 #define MAX(X, Y) ((X) > (Y) ? (X) : (Y))
@@ -16,14 +18,18 @@ static void cider_fft_check_status(int status) {
 
 mpi_fft3d_plan_t *allocate_mpi_fft3d_plan(MPI_Comm comm, int *dims, int r2c,
                                           int ntransform) {
+    cider_fft_initialize();
 #if FFT_BACKEND == FFT_MKL_BACKEND
 #else
-    fftw_mpi_init();
+    // int provided;
+    // MPI_Query_thread(&provided);
+    // int threads_ok = provided >= MPI_THREAD_FUNNELED;
+    // if (threads_ok) threads_ok = fftw_init_threads();
+    // fftw_mpi_init();
 #endif
     mpi_fft3d_plan_t *plan =
         (mpi_fft3d_plan_t *)malloc(sizeof(mpi_fft3d_plan_t));
     plan->comm = comm;
-    plan->is_initialized = 0;
     plan->r_Nglobal[0] = dims[0];
     plan->r_Nglobal[1] = dims[1];
     plan->r_Nglobal[2] = dims[2];
@@ -47,63 +53,14 @@ mpi_fft3d_plan_t *allocate_mpi_fft3d_plan(MPI_Comm comm, int *dims, int r2c,
     plan->work = NULL;
 
 #if FFT_BACKEND == FFT_MKL_BACKEND
-    MKL_LONG status;
+    // MKL_LONG status;
     plan->xhandle = NULL;
     plan->yhandle = NULL;
     plan->zhandle = NULL;
-    MKL_LONG zstrides[2] = {0, plan->ntransform};
-    MKL_LONG ystrides[2] = {0, plan->k_Nglobal[2] * plan->ntransform};
-    MKL_LONG xstrides[2] = {0, plan->k_Nglobal[2] * plan->ntransform};
-    if (r2c) {
-        status = DftiCreateDescriptor(&(plan->zhandle), DFTI_DOUBLE, DFTI_REAL,
-                                      1, plan->r_Nglobal[2]);
-        cider_fft_check_status(status);
-        status = DftiSetValue(plan->zhandle, DFTI_CONJUGATE_EVEN_STORAGE,
-                              DFTI_COMPLEX_COMPLEX);
-        cider_fft_check_status(status);
-        status =
-            DftiSetValue(plan->zhandle, DFTI_PACKED_FORMAT, DFTI_CCE_FORMAT);
-        cider_fft_check_status(status);
-    } else {
-        status = DftiCreateDescriptor(&(plan->zhandle), DFTI_DOUBLE,
-                                      DFTI_COMPLEX, 1, plan->r_Nglobal[2]);
-        cider_fft_check_status(status);
-    }
-    status = DftiSetValue(plan->zhandle, DFTI_INPUT_STRIDES, zstrides);
-    status = DftiSetValue(plan->zhandle, DFTI_OUTPUT_STRIDES, zstrides);
-    status = DftiSetValue(plan->zhandle, DFTI_INPUT_DISTANCE, 1);
-    status = DftiSetValue(plan->zhandle, DFTI_OUTPUT_DISTANCE, 1);
-    status =
-        DftiSetValue(plan->zhandle, DFTI_NUMBER_OF_TRANSFORMS, zstrides[1]);
-    cider_fft_check_status(status);
-    status = DftiCommitDescriptor(plan->zhandle);
-    cider_fft_check_status(status);
-
-    status = DftiCreateDescriptor(&(plan->yhandle), DFTI_DOUBLE, DFTI_COMPLEX,
-                                  1, plan->r_Nglobal[1]);
-    cider_fft_check_status(status);
-    status = DftiSetValue(plan->yhandle, DFTI_INPUT_STRIDES, ystrides);
-    status = DftiSetValue(plan->yhandle, DFTI_OUTPUT_STRIDES, ystrides);
-    status = DftiSetValue(plan->yhandle, DFTI_INPUT_DISTANCE, 1);
-    status = DftiSetValue(plan->yhandle, DFTI_OUTPUT_DISTANCE, 1);
-    status =
-        DftiSetValue(plan->yhandle, DFTI_NUMBER_OF_TRANSFORMS, ystrides[1]);
-    cider_fft_check_status(status);
-    status = DftiCommitDescriptor(plan->yhandle);
-    cider_fft_check_status(status);
-
-    status = DftiCreateDescriptor(&(plan->xhandle), DFTI_DOUBLE, DFTI_COMPLEX,
-                                  1, plan->r_Nglobal[0]);
-    cider_fft_check_status(status);
-    status = DftiSetValue(plan->xhandle, DFTI_INPUT_STRIDES, xstrides);
-    status = DftiSetValue(plan->xhandle, DFTI_OUTPUT_STRIDES, xstrides);
-    status = DftiSetValue(plan->xhandle, DFTI_INPUT_DISTANCE, 1);
-    status = DftiSetValue(plan->xhandle, DFTI_OUTPUT_DISTANCE, 1);
-    status =
-        DftiSetValue(plan->xhandle, DFTI_NUMBER_OF_TRANSFORMS, xstrides[1]);
-    cider_fft_check_status(status);
-    status = DftiCommitDescriptor(plan->xhandle);
-    cider_fft_check_status(status);
+    cider_fft_init_fft3d_1d_parts(plan->ntransform, plan->r_Nglobal[0],
+                                  plan->r_Nglobal[1], plan->r_Nglobal[2],
+                                  plan->r2c, 1, 1, &(plan->xhandle),
+                                  &(plan->yhandle), &(plan->zhandle));
 
     int comm_size;
     MPI_Comm_size(plan->comm, &comm_size);
@@ -201,6 +158,8 @@ void transpose_data_helper(MPI_Comm comm, int nx, int xpp, int ypp,
     }
 }
 
+// NOTE would be nice to parallelize this, but it would require
+// a higher level of threading support in MPI that FFTW3 needs.
 void transpose_data_loop(MPI_Comm comm, const int nx, const int ny,
                          const int nz, const int xpp, const int ypp,
                          double complex *work) {
@@ -261,10 +220,16 @@ void transpose_data_loop_world(const int nx, const int ny, const int nz,
 
 void execute_mpi_fft3d_fwd(mpi_fft3d_plan_t *plan) {
 #if FFT_BACKEND == FFT_MKL_BACKEND
+    int nthread = mkl_get_max_threads();
+    mkl_set_num_threads(cider_fft_get_num_mkl_threads());
     double complex *work;
     size_t nzt = plan->k_Nglobal[2] * plan->ntransform;
-    for (int ix = 0; ix < plan->r_Nlocal[0]; ix++) {
-        for (int iy = 0; iy < plan->r_Nlocal[1]; iy++) {
+    const int nxloc = plan->r_Nlocal[0];
+    const int nyglob = plan->r_Nlocal[1];
+    const int nyloc = plan->k_Nlocal[1];
+    for (int ix = 0; ix < nxloc; ix++) {
+#pragma omp parallel for
+        for (int iy = 0; iy < nyglob; iy++) {
             work = (double complex *)plan->work;
             work = work + (ix * plan->r_Nlocal[1] + iy) * nzt;
             DftiComputeForward(plan->zhandle, work);
@@ -274,11 +239,12 @@ void execute_mpi_fft3d_fwd(mpi_fft3d_plan_t *plan) {
         DftiComputeForward(plan->yhandle, work);
     }
     transpose_fft3d_work_fwd(plan);
-    for (int iy = 0; iy < plan->k_Nlocal[1]; iy++) {
+    for (int iy = 0; iy < nyloc; iy++) {
         work = (double complex *)plan->work;
         work = work + iy * plan->k_Nlocal[0] * nzt;
         DftiComputeForward(plan->xhandle, work);
     }
+    mkl_set_num_threads(nthread);
 #else
     fftw_execute(plan->fwd_plan);
 #endif
@@ -288,17 +254,21 @@ void execute_mpi_fft3d_bwd(mpi_fft3d_plan_t *plan) {
 #if FFT_BACKEND == FFT_MKL_BACKEND
     double complex *work;
     size_t nzt = plan->k_Nglobal[2] * plan->ntransform;
-    for (int iy = 0; iy < plan->k_Nlocal[1]; iy++) {
+    const int nxloc = plan->r_Nlocal[0];
+    const int nyglob = plan->r_Nlocal[1];
+    const int nyloc = plan->k_Nlocal[1];
+    for (int iy = 0; iy < nyloc; iy++) {
         work = (double complex *)plan->work;
         work = work + iy * plan->k_Nlocal[0] * nzt;
         DftiComputeBackward(plan->xhandle, work);
     }
     transpose_fft3d_work_bwd(plan);
-    for (int ix = 0; ix < plan->r_Nlocal[0]; ix++) {
+    for (int ix = 0; ix < nxloc; ix++) {
         work = (double complex *)plan->work;
         work = work + ix * plan->r_Nlocal[1] * nzt;
         DftiComputeBackward(plan->yhandle, work);
-        for (int iy = 0; iy < plan->r_Nlocal[1]; iy++) {
+#pragma omp parallel for
+        for (int iy = 0; iy < nyglob; iy++) {
             work = (double complex *)plan->work;
             work = work + (ix * plan->r_Nlocal[1] + iy) * nzt;
             DftiComputeBackward(plan->zhandle, work);
@@ -342,6 +312,7 @@ void write_mpi_fft3d_input(mpi_fft3d_plan_t *plan, void *input, int fwd) {
         const size_t last_dim = dm1 * nt;
         const size_t last_dim1 = 2 * (dm1 / 2 + 1) * nt;
         const size_t blksize = plan->r_Nlocal[0] * plan->r_Nlocal[1];
+#pragma omp parallel for
         for (size_t i = 0; i < blksize; i++) {
             for (size_t j = 0; j < last_dim; j++) {
                 dst[i * last_dim1 + j] = src[i * last_dim + j];
@@ -352,6 +323,7 @@ void write_mpi_fft3d_input(mpi_fft3d_plan_t *plan, void *input, int fwd) {
                             plan->r_Nlocal[1] * plan->r_Nlocal[2];
         double complex *src = (double complex *)input;
         double complex *dst = (double complex *)plan->work;
+#pragma omp parallel for
         for (size_t i = 0; i < size; i++) {
             dst[i] = src[i];
         }
@@ -360,6 +332,7 @@ void write_mpi_fft3d_input(mpi_fft3d_plan_t *plan, void *input, int fwd) {
                             plan->k_Nlocal[1] * plan->k_Nlocal[2];
         double complex *src = (double complex *)input;
         double complex *dst = (double complex *)plan->work;
+#pragma omp parallel for
         for (size_t i = 0; i < size; i++) {
             dst[i] = src[i];
         }
@@ -375,6 +348,7 @@ void read_mpi_fft3d_output(mpi_fft3d_plan_t *plan, void *output, int fwd) {
         const size_t last_dim = dm1 * nt;
         const size_t last_dim1 = 2 * (dm1 / 2 + 1) * nt;
         const size_t blksize = plan->r_Nlocal[0] * plan->r_Nlocal[1];
+#pragma omp parallel for
         for (size_t i = 0; i < blksize; i++) {
             for (size_t j = 0; j < last_dim; j++) {
                 dst[i * last_dim + j] = src[i * last_dim1 + j];
@@ -385,6 +359,7 @@ void read_mpi_fft3d_output(mpi_fft3d_plan_t *plan, void *output, int fwd) {
                             plan->k_Nlocal[1] * plan->k_Nlocal[2];
         double complex *src = (double complex *)plan->work;
         double complex *dst = (double complex *)output;
+#pragma omp parallel for
         for (size_t i = 0; i < size; i++) {
             dst[i] = src[i];
         }
@@ -393,6 +368,7 @@ void read_mpi_fft3d_output(mpi_fft3d_plan_t *plan, void *output, int fwd) {
                             plan->r_Nlocal[1] * plan->r_Nlocal[2];
         double complex *src = (double complex *)plan->work;
         double complex *dst = (double complex *)output;
+#pragma omp parallel for
         for (size_t i = 0; i < size; i++) {
             dst[i] = src[i];
         }

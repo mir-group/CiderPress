@@ -1,4 +1,83 @@
 #include "cider_fft.h"
+#if HAVE_MPI
+#include <mpi.h>
+#if FFT_BACKEND == FFT_FFTW_BACKEND
+#include <fftw3-mpi.h>
+#endif
+#endif
+#include <omp.h>
+
+int CIDER_FFT_THREADED = 0;
+int CIDER_FFT_INITIALIZED = 0;
+#if FFT_BACKEND == FFT_MKL_BACKEND
+int CIDER_FFT_MKL_NTHREAD = 1;
+#endif
+
+int cider_fft_is_initialized() { return CIDER_FFT_INITIALIZED; }
+
+int cider_fft_is_threaded() { return CIDER_FFT_THREADED; }
+
+#if FFT_BACKEND == FFT_MKL_BACKEND
+int cider_fft_get_num_mkl_threads() { return CIDER_FFT_MKL_NTHREAD; }
+#endif
+
+void cider_fft_initialize() {
+#if HAVE_MPI
+    int already_initialized = 1;
+    // Check whether MPI is already initialized
+    MPI_Initialized(&already_initialized);
+    if (already_initialized) {
+        int provided;
+        MPI_Query_thread(&provided);
+        int threads_ok = provided >= MPI_THREAD_FUNNELED;
+#if FFT_BACKEND == FFT_FFTW_BACKEND
+        if (threads_ok)
+            threads_ok = fftw_init_threads();
+        fftw_mpi_init();
+#endif
+        CIDER_FFT_THREADED = threads_ok;
+    } else {
+#if FFT_BACKEND == FFT_FFTW_BACKEND
+        fftw_init_threads();
+#endif
+        CIDER_FFT_THREADED = 1;
+    }
+#else
+#if FFT_BACKEND == FFT_FFTW_BACKEND
+    fftw_init_threads();
+#endif
+    CIDER_FFT_THREADED = 1;
+#endif
+    CIDER_FFT_INITIALIZED = 1;
+}
+
+/** Set the number of threads to use in FFTs.
+ * This function first calls cider_fft_initialize().
+ * Next, if CIDER_FFT_THREADED is 0/false, no other action
+ * is performed. If CIDER_FFT_THREADED is 1/true, the number
+ * of threads for FFTs is set.
+ * If nthread == -1, the maximum number of available threads is used.
+ * If nthread == 0, the number of threads is not changed.
+ * If nthread > 0. the number of threads is set to nthread.
+ */
+void cider_fft_set_nthread(int nthread) {
+    cider_fft_initialize();
+    if (CIDER_FFT_THREADED) {
+#if FFT_BACKEND == FFT_MKL_BACKEND
+        if (nthread == -1) {
+            CIDER_FFT_MKL_NTHREAD = mkl_get_max_threads();
+        } else if (nthread > 0) {
+            CIDER_FFT_MKL_NTHREAD = nthread;
+        }
+#else
+        if (nthread == -1) {
+            fftw_plan_with_nthreads(omp_get_max_threads());
+        } else if (nthread > 0) {
+            fftw_plan_with_nthreads(nthread);
+        }
+#endif
+    }
+}
 
 #if FFT_BACKEND == FFT_MKL_BACKEND
 static void cider_fft_check_status(int status) {
@@ -11,8 +90,169 @@ static void cider_fft_check_status(int status) {
 }
 #endif
 
+#if FFT_BACKEND == FFT_MKL_BACKEND
+void cider_fft_init_fft3d_1d_parts(const int ntransform, const int nx,
+                                   const int ny, const int nz, const int r2c,
+                                   const int transpose, const int inplace,
+                                   DFTI_DESCRIPTOR_HANDLE *xhandlep,
+                                   DFTI_DESCRIPTOR_HANDLE *yhandlep,
+                                   DFTI_DESCRIPTOR_HANDLE *zhandlep) {
+    MKL_LONG status;
+    MKL_LONG zstrides[2] = {0, ntransform};
+    int stride;
+    if (r2c) {
+        stride = nz / 2 + 1;
+    } else {
+        stride = nz;
+    }
+    MKL_LONG ystrides[2] = {0, stride * ntransform};
+    MKL_LONG xstrides[2] = {0, stride * ntransform};
+    if (!transpose) {
+        xstrides[1] *= ny;
+    }
+    if (r2c) {
+        status = DftiCreateDescriptor(zhandlep, DFTI_DOUBLE, DFTI_REAL, 1, nz);
+        cider_fft_check_status(status);
+        status = DftiSetValue(*zhandlep, DFTI_CONJUGATE_EVEN_STORAGE,
+                              DFTI_COMPLEX_COMPLEX);
+        cider_fft_check_status(status);
+        status = DftiSetValue(*zhandlep, DFTI_PACKED_FORMAT, DFTI_CCE_FORMAT);
+        cider_fft_check_status(status);
+    } else {
+        status =
+            DftiCreateDescriptor(zhandlep, DFTI_DOUBLE, DFTI_COMPLEX, 1, nz);
+        cider_fft_check_status(status);
+    }
+    status = DftiSetValue(*zhandlep, DFTI_INPUT_STRIDES, zstrides);
+    status = DftiSetValue(*zhandlep, DFTI_OUTPUT_STRIDES, zstrides);
+    status = DftiSetValue(*zhandlep, DFTI_INPUT_DISTANCE, 1);
+    status = DftiSetValue(*zhandlep, DFTI_OUTPUT_DISTANCE, 1);
+    status = DftiSetValue(*zhandlep, DFTI_NUMBER_OF_TRANSFORMS, zstrides[1]);
+    status = DftiSetValue(*zhandlep, DFTI_THREAD_LIMIT, 1);
+    if (inplace) {
+        status = DftiSetValue(*zhandlep, DFTI_PLACEMENT, DFTI_INPLACE);
+    } else {
+        status = DftiSetValue(*zhandlep, DFTI_PLACEMENT, DFTI_NOT_INPLACE);
+    }
+    cider_fft_check_status(status);
+    status = DftiCommitDescriptor(*zhandlep);
+    cider_fft_check_status(status);
+
+    status = DftiCreateDescriptor(yhandlep, DFTI_DOUBLE, DFTI_COMPLEX, 1, ny);
+    cider_fft_check_status(status);
+    status = DftiSetValue(*yhandlep, DFTI_INPUT_STRIDES, ystrides);
+    status = DftiSetValue(*yhandlep, DFTI_OUTPUT_STRIDES, ystrides);
+    status = DftiSetValue(*yhandlep, DFTI_INPUT_DISTANCE, 1);
+    status = DftiSetValue(*yhandlep, DFTI_OUTPUT_DISTANCE, 1);
+    status = DftiSetValue(*yhandlep, DFTI_NUMBER_OF_TRANSFORMS, ystrides[1]);
+    status = DftiSetValue(*yhandlep, DFTI_PLACEMENT, DFTI_INPLACE);
+    if (!transpose) {
+        status = DftiSetValue(*yhandlep, DFTI_THREAD_LIMIT, 1);
+    }
+    cider_fft_check_status(status);
+    status = DftiCommitDescriptor(*yhandlep);
+    cider_fft_check_status(status);
+
+    status = DftiCreateDescriptor(xhandlep, DFTI_DOUBLE, DFTI_COMPLEX, 1, nx);
+    cider_fft_check_status(status);
+    status = DftiSetValue(*xhandlep, DFTI_INPUT_STRIDES, xstrides);
+    status = DftiSetValue(*xhandlep, DFTI_OUTPUT_STRIDES, xstrides);
+    status = DftiSetValue(*xhandlep, DFTI_INPUT_DISTANCE, 1);
+    status = DftiSetValue(*xhandlep, DFTI_OUTPUT_DISTANCE, 1);
+    status = DftiSetValue(*xhandlep, DFTI_NUMBER_OF_TRANSFORMS, xstrides[1]);
+    status = DftiSetValue(*xhandlep, DFTI_PLACEMENT, DFTI_INPLACE);
+    cider_fft_check_status(status);
+    status = DftiCommitDescriptor(*xhandlep);
+    cider_fft_check_status(status);
+}
+
+void cider_fft_init_mkl_handle(fft_plan_t *plan) {
+    MKL_LONG status;
+    int ndim = plan->ndim;
+    MKL_LONG ldims[ndim];
+    plan->handle = NULL;
+    for (int i = 0; i < ndim; i++) {
+        ldims[i] = plan->dims[i];
+    }
+    MKL_LONG rstrides[ndim + 1];
+    MKL_LONG cstrides[ndim + 1];
+    rstrides[ndim] = plan->stride;
+    cstrides[ndim] = plan->stride;
+    rstrides[0] = 0;
+    cstrides[0] = 0;
+    if (plan->r2c) {
+        if (ndim > 1) {
+            status = DftiCreateDescriptor(&(plan->handle), DFTI_DOUBLE,
+                                          DFTI_REAL, ndim, ldims);
+            cider_fft_check_status(status);
+            cstrides[ndim - 1] = (ldims[ndim - 1] / 2 + 1) * cstrides[ndim];
+            if (plan->inplace) {
+                rstrides[ndim - 1] = 2 * cstrides[ndim - 1];
+            } else {
+                rstrides[ndim - 1] = ldims[ndim - 1] * plan->stride;
+            }
+            for (int d = ndim - 2; d > 0; d--) {
+                rstrides[d] = rstrides[d + 1] * ldims[d];
+                cstrides[d] = cstrides[d + 1] * ldims[d];
+            }
+        } else {
+            status = DftiCreateDescriptor(&(plan->handle), DFTI_DOUBLE,
+                                          DFTI_REAL, ndim, ldims[0]);
+            cider_fft_check_status(status);
+        }
+        status = DftiSetValue(plan->handle, DFTI_CONJUGATE_EVEN_STORAGE,
+                              DFTI_COMPLEX_COMPLEX);
+        cider_fft_check_status(status);
+        status =
+            DftiSetValue(plan->handle, DFTI_PACKED_FORMAT, DFTI_CCE_FORMAT);
+        cider_fft_check_status(status);
+    } else {
+        if (ndim == 1) {
+            status = DftiCreateDescriptor(&(plan->handle), DFTI_DOUBLE,
+                                          DFTI_COMPLEX, ndim, ldims[0]);
+        } else {
+            status = DftiCreateDescriptor(&(plan->handle), DFTI_DOUBLE,
+                                          DFTI_COMPLEX, ndim, ldims);
+        }
+        cider_fft_check_status(status);
+        for (int d = ndim - 1; d > 0; d--) {
+            rstrides[d] = rstrides[d + 1] * ldims[d];
+            cstrides[d] = cstrides[d + 1] * ldims[d];
+        }
+    }
+    if (plan->fwd) {
+        status = DftiSetValue(plan->handle, DFTI_INPUT_STRIDES, rstrides);
+        cider_fft_check_status(status);
+        status = DftiSetValue(plan->handle, DFTI_OUTPUT_STRIDES, cstrides);
+        cider_fft_check_status(status);
+    } else {
+        status = DftiSetValue(plan->handle, DFTI_INPUT_STRIDES, cstrides);
+        cider_fft_check_status(status);
+        status = DftiSetValue(plan->handle, DFTI_OUTPUT_STRIDES, rstrides);
+        cider_fft_check_status(status);
+    }
+    status = DftiSetValue(plan->handle, DFTI_NUMBER_OF_TRANSFORMS,
+                          (MKL_LONG)plan->ntransform);
+    cider_fft_check_status(status);
+    status =
+        DftiSetValue(plan->handle, DFTI_INPUT_DISTANCE, (MKL_LONG)plan->idist);
+    status =
+        DftiSetValue(plan->handle, DFTI_OUTPUT_DISTANCE, (MKL_LONG)plan->odist);
+    if (plan->inplace) {
+        status = DftiSetValue(plan->handle, DFTI_PLACEMENT, DFTI_INPLACE);
+    } else {
+        status = DftiSetValue(plan->handle, DFTI_PLACEMENT, DFTI_NOT_INPLACE);
+    }
+    status = DftiSetValue(plan->handle, DFTI_NUMBER_OF_USER_THREADS,
+                          mkl_get_max_threads());
+    status = DftiCommitDescriptor(plan->handle);
+    cider_fft_check_status(status);
+}
+#endif
+
 fft_plan_t *allocate_fftnd_plan(int ndim, int *dims, int fwd, int r2c,
                                 int ntransform, int inplace, int batch_first) {
+    cider_fft_initialize();
     fft_plan_t *plan = (fft_plan_t *)malloc(sizeof(fft_plan_t));
     plan->is_initialized = 0;
     plan->ndim = ndim;
@@ -74,83 +314,19 @@ fft_plan_t *allocate_fftnd_plan(int ndim, int *dims, int fwd, int r2c,
     plan->odist = odist;
 
 #if FFT_BACKEND == FFT_MKL_BACKEND
-    MKL_LONG status;
-    MKL_LONG ldims[ndim];
-    plan->handle = NULL;
-    for (int i = 0; i < ndim; i++) {
-        ldims[i] = plan->dims[i];
-    }
-    MKL_LONG rstrides[ndim + 1];
-    MKL_LONG cstrides[ndim + 1];
-    rstrides[ndim] = stride;
-    cstrides[ndim] = stride;
-    rstrides[0] = 0;
-    cstrides[0] = 0;
-    if (r2c) {
-        if (ndim > 1) {
-            status = DftiCreateDescriptor(&(plan->handle), DFTI_DOUBLE,
-                                          DFTI_REAL, ndim, ldims);
-            cider_fft_check_status(status);
-            cstrides[ndim - 1] = (ldims[ndim - 1] / 2 + 1) * cstrides[ndim];
-            if (inplace) {
-                rstrides[ndim - 1] = 2 * cstrides[ndim - 1];
-            } else {
-                rstrides[ndim - 1] = ldims[ndim - 1] * stride;
+    if (plan->ndim == 3 && !plan->batch_first && plan->inplace) {
+        cider_fft_init_fft3d_1d_parts(
+            plan->ntransform, dims[0], dims[1], dims[2], r2c, 0, plan->inplace,
+            &(plan->xhandle), &(plan->yhandle), &(plan->zhandle));
+        /*if (!inplace) {
+            MKL_LONG rstrides[2] = {0, }
+            if (fwd) {
+
             }
-            for (int d = ndim - 2; d > 0; d--) {
-                rstrides[d] = rstrides[d + 1] * ldims[d];
-                cstrides[d] = cstrides[d + 1] * ldims[d];
-            }
-        } else {
-            status = DftiCreateDescriptor(&(plan->handle), DFTI_DOUBLE,
-                                          DFTI_REAL, ndim, ldims[0]);
-            cider_fft_check_status(status);
-        }
-        status = DftiSetValue(plan->handle, DFTI_CONJUGATE_EVEN_STORAGE,
-                              DFTI_COMPLEX_COMPLEX);
-        cider_fft_check_status(status);
-        status =
-            DftiSetValue(plan->handle, DFTI_PACKED_FORMAT, DFTI_CCE_FORMAT);
-        cider_fft_check_status(status);
+        }*/
     } else {
-        if (ndim == 1) {
-            status = DftiCreateDescriptor(&(plan->handle), DFTI_DOUBLE,
-                                          DFTI_COMPLEX, ndim, ldims[0]);
-        } else {
-            status = DftiCreateDescriptor(&(plan->handle), DFTI_DOUBLE,
-                                          DFTI_COMPLEX, ndim, ldims);
-        }
-        cider_fft_check_status(status);
-        for (int d = ndim - 1; d > 0; d--) {
-            rstrides[d] = rstrides[d + 1] * ldims[d];
-            cstrides[d] = cstrides[d + 1] * ldims[d];
-        }
+        cider_fft_init_mkl_handle(plan);
     }
-    if (fwd) {
-        status = DftiSetValue(plan->handle, DFTI_INPUT_STRIDES, rstrides);
-        cider_fft_check_status(status);
-        status = DftiSetValue(plan->handle, DFTI_OUTPUT_STRIDES, cstrides);
-        cider_fft_check_status(status);
-    } else {
-        status = DftiSetValue(plan->handle, DFTI_INPUT_STRIDES, cstrides);
-        cider_fft_check_status(status);
-        status = DftiSetValue(plan->handle, DFTI_OUTPUT_STRIDES, rstrides);
-        cider_fft_check_status(status);
-    }
-    status = DftiSetValue(plan->handle, DFTI_NUMBER_OF_TRANSFORMS,
-                          (MKL_LONG)plan->ntransform);
-    cider_fft_check_status(status);
-    status =
-        DftiSetValue(plan->handle, DFTI_INPUT_DISTANCE, (MKL_LONG)plan->idist);
-    status =
-        DftiSetValue(plan->handle, DFTI_OUTPUT_DISTANCE, (MKL_LONG)plan->odist);
-    if (inplace) {
-        status = DftiSetValue(plan->handle, DFTI_PLACEMENT, DFTI_INPLACE);
-    } else {
-        status = DftiSetValue(plan->handle, DFTI_PLACEMENT, DFTI_NOT_INPLACE);
-    }
-    status = DftiCommitDescriptor(plan->handle);
-    cider_fft_check_status(status);
 #else
     plan->plan = NULL;
 #endif
@@ -208,20 +384,99 @@ int initialize_fft_plan(fft_plan_t *plan, void *in_array, void *out_array) {
     return 0;
 }
 
+#if FFT_BACKEND == FFT_MKL_BACKEND
+void execute_mkl_fft3d_fwd(fft_plan_t *plan) {
+    double *work;
+    double *out;
+    size_t nzt_r = plan->dims[2] * plan->ntransform;
+    size_t nzt_k;
+    if (plan->r2c) {
+        nzt_k = 2 * (plan->dims[2] / 2 + 1) * plan->ntransform;
+    } else {
+        nzt_r *= 2;
+        nzt_k = nzt_r;
+    }
+    if (plan->inplace) {
+        nzt_r = nzt_k;
+    }
+    const int ny = plan->dims[1];
+    const int nx = plan->dims[0];
+#pragma omp parallel for
+    for (int ix = 0; ix < nx; ix++) {
+        // if (plan->inplace) {
+        for (int iy = 0; iy < ny; iy++) {
+            work = (double *)plan->in;
+            work = work + (ix * ny + iy) * nzt_r;
+            DftiComputeForward(plan->zhandle, work);
+        }
+        //} else {
+        //    for (int iy = 0; iy < ny; iy++) {
+        //        work = (double *)plan->in;
+        //        work = work + (ix * ny + iy) * nzt_r;
+        //        out = (double *)plan->out;
+        //        out = work + (ix * ny + iy) * nzt_k;
+        //        DftiComputeForward(plan->zhandle, work, out);
+        //    }
+        //}
+        work = (double *)plan->out;
+        work = work + ix * ny * nzt_k;
+        DftiComputeForward(plan->yhandle, work);
+    }
+    DftiComputeForward(plan->xhandle, plan->out);
+}
+
+void execute_mkl_fft3d_bwd(fft_plan_t *plan) {
+    double *work;
+    size_t nzt_r = plan->dims[2] * plan->ntransform;
+    size_t nzt_k;
+    if (plan->r2c) {
+        nzt_k = 2 * (plan->dims[2] / 2 + 1) * plan->ntransform;
+    } else {
+        nzt_r *= 2;
+        nzt_k = nzt_r;
+    }
+    const int ny = plan->dims[1];
+    const int nx = plan->dims[0];
+    DftiComputeBackward(plan->xhandle, plan->in);
+#pragma omp parallel for
+    for (int ix = 0; ix < nx; ix++) {
+        work = (double *)plan->in;
+        work = work + ix * ny * nzt_k;
+        DftiComputeBackward(plan->yhandle, work);
+        for (int iy = 0; iy < ny; iy++) {
+            work = (double *)plan->in;
+            work = work + (ix * ny + iy) * nzt_k;
+            DftiComputeBackward(plan->zhandle, work);
+        }
+    }
+}
+#endif
+
 void execute_fft_plan(fft_plan_t *plan) {
 #if FFT_BACKEND == FFT_MKL_BACKEND
-    if (plan->inplace) {
+    if (plan->ndim == 3 && !plan->batch_first && plan->inplace) {
         if (plan->fwd) {
-            DftiComputeForward(plan->handle, plan->in);
+            execute_mkl_fft3d_fwd(plan);
         } else {
-            DftiComputeBackward(plan->handle, plan->in);
+            execute_mkl_fft3d_bwd(plan);
         }
     } else {
-        if (plan->fwd) {
-            DftiComputeForward(plan->handle, plan->in, plan->out);
+        int nthread = mkl_get_max_threads();
+        mkl_set_num_threads(cider_fft_get_num_mkl_threads());
+        if (plan->inplace) {
+            if (plan->fwd) {
+                DftiComputeForward(plan->handle, plan->in);
+            } else {
+                DftiComputeBackward(plan->handle, plan->in);
+            }
         } else {
-            DftiComputeBackward(plan->handle, plan->in, plan->out);
+            if (plan->fwd) {
+                DftiComputeForward(plan->handle, plan->in, plan->out);
+            } else {
+                DftiComputeBackward(plan->handle, plan->in, plan->out);
+            }
         }
+        mkl_set_num_threads(nthread);
     }
 #else
     fftw_execute(plan->plan);
@@ -231,7 +486,13 @@ void execute_fft_plan(fft_plan_t *plan) {
 void free_fft_plan(fft_plan_t *plan) {
     free(plan->dims);
 #if FFT_BACKEND == FFT_MKL_BACKEND
-    DftiFreeDescriptor(&(plan->handle));
+    if (plan->ndim == 3 && !plan->batch_first && plan->inplace) {
+        DftiFreeDescriptor(&(plan->xhandle));
+        DftiFreeDescriptor(&(plan->yhandle));
+        DftiFreeDescriptor(&(plan->zhandle));
+    } else {
+        DftiFreeDescriptor(&(plan->handle));
+    }
 #else
     fftw_destroy_plan(plan->plan);
 #endif
@@ -281,12 +542,14 @@ void write_fft_input(fft_plan_t *plan, void *input) {
             const size_t last_dim = dm1 * nt;
             const size_t last_dim1 = 2 * (dm1 / 2 + 1) * nt;
             const size_t blksize = size / last_dim1;
+#pragma omp parallel for
             for (size_t i = 0; i < blksize; i++) {
                 for (size_t j = 0; j < last_dim; j++) {
                     dst[i * last_dim1 + j] = src[i * last_dim + j];
                 }
             }
         } else {
+#pragma omp parallel for
             for (size_t i = 0; i < size; i++) {
                 dst[i] = src[i];
             }
@@ -294,6 +557,7 @@ void write_fft_input(fft_plan_t *plan, void *input) {
     } else {
         double complex *src = (double complex *)input;
         double complex *dst = (double complex *)plan->in;
+#pragma omp parallel for
         for (size_t i = 0; i < size; i++) {
             dst[i] = src[i];
         }
@@ -311,12 +575,14 @@ void read_fft_output(fft_plan_t *plan, void *output) {
             const size_t last_dim = dm1 * nt;
             const size_t last_dim1 = 2 * (dm1 / 2 + 1) * nt;
             const size_t blksize = size / last_dim1;
+#pragma omp parallel for
             for (size_t i = 0; i < blksize; i++) {
                 for (size_t j = 0; j < last_dim; j++) {
                     dst[i * last_dim + j] = src[i * last_dim1 + j];
                 }
             }
         } else {
+#pragma omp parallel for
             for (size_t i = 0; i < size; i++) {
                 dst[i] = src[i];
             }
@@ -324,6 +590,7 @@ void read_fft_output(fft_plan_t *plan, void *output) {
     } else {
         double complex *src = (double complex *)plan->out;
         double complex *dst = (double complex *)output;
+#pragma omp parallel for
         for (size_t i = 0; i < size; i++) {
             dst[i] = src[i];
         }

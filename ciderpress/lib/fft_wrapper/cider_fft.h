@@ -38,10 +38,32 @@ typedef struct fft_plan {
     void *out;
 #if FFT_BACKEND == FFT_MKL_BACKEND
     DFTI_DESCRIPTOR_HANDLE handle;
+    DFTI_DESCRIPTOR_HANDLE xhandle;
+    DFTI_DESCRIPTOR_HANDLE yhandle;
+    DFTI_DESCRIPTOR_HANDLE zhandle;
 #else // FFTW
     fftw_plan plan;
 #endif
 } fft_plan_t;
+
+int cider_fft_is_initialized();
+
+int cider_fft_is_threaded();
+
+#if FFT_BACKEND == FFT_MKL_BACKEND
+int cider_fft_get_num_mkl_threads();
+#endif
+
+void cider_fft_initialize();
+
+#if FFT_BACKEND == FFT_MKL_BACKEND
+void cider_fft_init_fft3d_1d_parts(const int ntransform, const int nx,
+                                   const int ny, const int nz, const int r2c,
+                                   const int transpose, const int inplace,
+                                   DFTI_DESCRIPTOR_HANDLE *xhandlep,
+                                   DFTI_DESCRIPTOR_HANDLE *yhandlep,
+                                   DFTI_DESCRIPTOR_HANDLE *zhandlep);
+#endif
 
 fft_plan_t *allocate_fftnd_plan(int ndim, int *dims, int fwd, int r2c,
                                 int ntransform, int inplace, int batch_first);

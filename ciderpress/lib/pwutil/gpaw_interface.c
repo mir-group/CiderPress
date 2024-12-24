@@ -49,9 +49,10 @@ void mpi_ensure_initialized(void) {
     if (!already_initialized) {
         // if not, let's initialize it
         int use_threads = 0;
-#ifdef GPAW_GPU
-        use_threads = 1;
-#endif
+// GPAW turns on threading for GPUs, but we don't have GPU support yet.
+// #ifdef GPAW_GPU
+//         use_threads = 1;
+// #endif
 #ifdef _OPENMP
         use_threads = 1;
 #endif

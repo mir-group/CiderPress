@@ -92,9 +92,9 @@ class MPIFFTWrapper:
             ctypes.c_int(1 if fwd else 0),
         )
         if fwd:
-            libfft.execute_mpi_fft3d_fwd(self._ptr)
+            self._execute_fwd()
         else:
-            libfft.execute_mpi_fft3d_bwd(self._ptr)
+            self._execute_bwd()
         libfft.read_mpi_fft3d_output(
             self._ptr,
             out.ctypes.data_as(ctypes.c_void_p),

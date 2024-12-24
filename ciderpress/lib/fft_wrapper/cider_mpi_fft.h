@@ -31,7 +31,6 @@ typedef struct mpi_fft3d_plan {
     int k_Nglobal[3];
     int xpp;
     int ypp;
-    int is_initialized;
     int r2c;
     int ntransform;
     size_t fft_in_size;
