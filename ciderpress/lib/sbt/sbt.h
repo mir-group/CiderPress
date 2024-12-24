@@ -26,13 +26,8 @@
 #ifndef SBT_H
 #define SBT_H
 // #include "config.h"
+#include "cider_fft.h"
 #include <complex.h>
-#define USE_MKL 1
-#if USE_MKL
-#include <mkl.h>
-#else
-#include <fftw3.h>
-#endif
 
 /**
 Contains the parameters for a fast spherical Bessel transform.
@@ -51,11 +46,8 @@ typedef struct sbt_descriptor {
     double *k32;                 ///< (Recip space grid)^1.5
     double *r32;                 ///< (Real space grid)^1.5
     int lmax;
-#if USE_MKL
-    DFTI_DESCRIPTOR_HANDLE handle;
-#else
-    fftw_plan handle;
-#endif
+    double complex *buffer;
+    fft_plan_t *plan;
 } sbt_descriptor_t;
 
 /**
@@ -96,8 +88,5 @@ void free_sbt_descriptor(sbt_descriptor_t *d);
 /** Check whether an array was allocated. If not, exit. */
 void sbt_check_allocation(void *ptr);
 void sbt_allocation_failed(void);
-
-/** Check status of a MKL call. */
-void sbt_check_status(int status);
 
 #endif

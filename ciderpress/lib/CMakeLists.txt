@@ -1,6 +1,6 @@
 
 
-cmake_minimum_required (VERSION 3.5)
+cmake_minimum_required (VERSION 3.20)
 project (ciderpress)
 
 if (NOT CMAKE_BUILD_TYPE)
@@ -137,6 +137,8 @@ add_subdirectory(pwutil)
 add_subdirectory(sbt)
 add_subdirectory(xc_utils)
 add_subdirectory(fft_wrapper)
+add_dependencies(mcider fft_wrapper)
+add_dependencies(sbt fft_wrapper)
 
 if(ENABLE_FFTW AND BUILD_FFTW)
     ExternalProject_Add(libfftw3

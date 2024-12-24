@@ -56,6 +56,8 @@ int cider_fft_get_num_mkl_threads();
 
 void cider_fft_initialize();
 
+void cider_fft_set_nthread(int nthread);
+
 #if FFT_BACKEND == FFT_MKL_BACKEND
 void cider_fft_init_fft3d_1d_parts(const int ntransform, const int nx,
                                    const int ny, const int nz, const int r2c,

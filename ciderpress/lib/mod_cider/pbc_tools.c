@@ -17,11 +17,9 @@
 // Author: Kyle Bystrom <kylebystrom@gmail.com>
 //
 
+#include "cider_fft.h"
 #include <complex.h>
 #include <math.h>
-#include <mkl.h>
-#include <mkl_dfti.h>
-#include <mkl_types.h>
 #include <omp.h>
 #include <pyscf_gto.h>
 #include <stdio.h>
@@ -129,24 +127,6 @@ void fast_conj(double complex *a, size_t size) {
     }
 }
 
-void fft3d(double complex *xin, double complex *xout, int *fftg,
-           DFTI_DESCRIPTOR_HANDLE handle, int fwd) {
-    MKL_LONG status = 0;
-    int inplace = (xout == NULL);
-    if (fwd) {
-        if (inplace)
-            status = DftiComputeForward(handle, xin);
-        else
-            status = DftiComputeForward(handle, xin, xout);
-    } else {
-        if (inplace)
-            status = DftiComputeBackward(handle, xin);
-        else
-            status = DftiComputeBackward(handle, xin, xout);
-    }
-    pbc_check_status(status);
-}
-
 void prune_r2c_real(double *xreal, int *fftg, int num_fft) {
     size_t real_stride = 2 * (fftg[2] / 2 + 1);
     size_t num_stride = fftg[0] * fftg[1] * num_fft;
@@ -165,10 +145,6 @@ void prune_r2c_real(double *xreal, int *fftg, int num_fft) {
 void prune_r2c_complex(double complex *x, int *fftg, int num_fft) {
     size_t stride = fftg[2] / 2 + 1;
     size_t num_stride = fftg[0] * fftg[1] * num_fft;
-#pragma omp parallel for
-    for (size_t xy = 0; xy < num_stride; xy++) { // 0 component should be real
-        // x[xy * stride] = creal(x[xy * stride]);
-    }
     if (fftg[2] % 2 == 0) { // N/2 component should be real for even mesh
 #pragma omp parallel for
         for (size_t xy = 0; xy < num_stride; xy++) {
@@ -178,116 +154,24 @@ void prune_r2c_complex(double complex *x, int *fftg, int num_fft) {
 }
 
 void run_ffts(double complex *xin_list, double complex *xout_list, double scale,
-              int *fftg, int fwd, int num_fft, int mklpar, int r2c) {
-    MKL_LONG status = 0;
-    DFTI_DESCRIPTOR_HANDLE handle = 0;
-    MKL_LONG dim = 3;
-    MKL_LONG length[3] = {fftg[0], fftg[1], fftg[2]};
-    MKL_LONG real_distance, recip_distance;
-    int nthread = mkl_get_max_threads();
-    mkl_set_num_threads(nthread);
-    if (r2c) {
-        status =
-            DftiCreateDescriptor(&handle, DFTI_DOUBLE, DFTI_REAL, dim, length);
-        MKL_LONG sy = fftg[2] / 2 + 1;
-        MKL_LONG sx = fftg[1] * sy;
-        recip_distance = fftg[0] * fftg[1] * sy;
-        real_distance = recip_distance * 2;
-        MKL_LONG rstrides[] = {0, 2 * sx, 2 * sy, 1};
-        MKL_LONG cstrides[] = {0, sx, sy, 1};
-        if (xout_list != NULL) {
-            rstrides[1] = fftg[1] * fftg[2];
-            rstrides[2] = fftg[2];
-            real_distance = fftg[0] * fftg[1] * fftg[2];
-        }
-        if (fwd) {
-            status = DftiSetValue(handle, DFTI_INPUT_STRIDES, rstrides);
-            status = DftiSetValue(handle, DFTI_OUTPUT_STRIDES, cstrides);
-        } else {
-            status = DftiSetValue(handle, DFTI_INPUT_STRIDES, cstrides);
-            status = DftiSetValue(handle, DFTI_OUTPUT_STRIDES, rstrides);
-        }
-        DftiSetValue(handle, DFTI_CONJUGATE_EVEN_STORAGE, DFTI_COMPLEX_COMPLEX);
-        DftiSetValue(handle, DFTI_PACKED_FORMAT, DFTI_CCE_FORMAT);
-        if (fwd && xout_list == NULL) {
-            prune_r2c_real((double *)xin_list, fftg, num_fft);
-        } else if (!fwd) {
-            // prune_r2c_complex(xin_list, fftg, num_fft);
-        }
+              int *fftg, int fwd, int num_fft, int parallel, int r2c) {
+    if (parallel) {
+        cider_fft_set_nthread(-1);
     } else {
-        status = DftiCreateDescriptor(&handle, DFTI_DOUBLE, DFTI_COMPLEX, dim,
-                                      length);
-        recip_distance = fftg[0] * fftg[1] * fftg[2];
-        real_distance = recip_distance;
+        cider_fft_set_nthread(1);
     }
-    pbc_check_status(status);
-    if (fwd) {
-        status = DftiSetValue(handle, DFTI_FORWARD_SCALE, scale);
-    } else {
-        status = DftiSetValue(handle, DFTI_BACKWARD_SCALE, scale);
+    fft_plan_t *plan;
+    plan =
+        allocate_fftnd_plan(3, fftg, fwd, r2c, num_fft, xout_list == NULL, 1);
+    if (r2c && fwd && xout_list == NULL) {
+        prune_r2c_real((double *)xin_list, fftg, num_fft);
     }
-    pbc_check_status(status);
-    int i;
-    if (mklpar) {
-        status = DftiSetValue(handle, DFTI_NUMBER_OF_TRANSFORMS, num_fft);
-        if (fwd) {
-            status = DftiSetValue(handle, DFTI_INPUT_DISTANCE, real_distance);
-            status = DftiSetValue(handle, DFTI_OUTPUT_DISTANCE, recip_distance);
-        } else {
-            status = DftiSetValue(handle, DFTI_OUTPUT_DISTANCE, real_distance);
-            status = DftiSetValue(handle, DFTI_INPUT_DISTANCE, recip_distance);
-        }
-        if (xout_list != NULL) {
-            status = DftiSetValue(handle, DFTI_PLACEMENT, DFTI_NOT_INPLACE);
-        } else {
-            status = DftiSetValue(handle, DFTI_PLACEMENT, DFTI_INPLACE);
-        }
-        status = DftiCommitDescriptor(handle);
-        pbc_check_status(status);
-        fft3d(xin_list, xout_list, fftg, handle, fwd);
-    } else if (xout_list == NULL) {
-        status = DftiCommitDescriptor(handle);
-        pbc_check_status(status);
-        for (i = 0; i < num_fft; i++) {
-            fft3d(xin_list + i * recip_distance, NULL, fftg, handle, fwd);
-        }
-    } else {
-        status = DftiCommitDescriptor(handle);
-        pbc_check_status(status);
-        for (i = 0; i < num_fft; i++) {
-            fft3d(xin_list + i * recip_distance, xout_list + i * recip_distance,
-                  fftg, handle, fwd);
-        }
+    initialize_fft_plan(plan, xin_list, xout_list);
+    execute_fft_plan(plan);
+    if (r2c && (!fwd) && xout_list == NULL) {
+        prune_r2c_real((double *)xin_list, fftg, num_fft);
     }
-    DftiFreeDescriptor(&handle);
-    mkl_set_num_threads(nthread);
-    if (r2c) {
-        if (!fwd && xout_list == NULL) {
-            prune_r2c_real((double *)xin_list, fftg, num_fft);
-        } else if (fwd && xout_list == NULL) {
-            // prune_r2c_complex(xin_list, fftg, num_fft);
-        } else if (fwd) {
-            // prune_r2c_complex(xout_list, fftg, num_fft);
-        }
-    }
-    return;
-    if (r2c &&
-        !fwd) { // transformed into real, which gives extra indeterminate values
-        double *xreal = (double *)xin_list;
-        int real_stride = 2 * (fftg[2] / 2 + 1);
-        int num_stride = fftg[0] * fftg[1] * num_fft;
-#pragma omp parallel for
-        for (int xy = 0; xy < num_stride; xy++) {
-            xreal[xy * real_stride + fftg[2]] = 0;
-        }
-        if (fftg[2] % 2 == 0) {
-#pragma omp parallel for
-            for (int xy = 0; xy < num_stride; xy++) {
-                xreal[xy * real_stride + fftg[2] + 1] = 0;
-            }
-        }
-    }
-    //}
+    free_fft_plan(plan);
 }
 
 void weight_symm_gpts(double complex *x, size_t dim1, size_t dz) {
@@ -399,8 +283,6 @@ void recip_conv_kernel_ws(double *conv, double *vq, double *Gvec, double *lat,
         int ix, iy, iz, ii;
         double *gvec;
         double itpi = 1.0 / (2 * M_PI);
-        // printf("%lf %lf %lf %lf %lf %lf\n", maxqv[0], maxqv[1], maxqv[2],
-        // lat[0], lat[1], lat[2]);
 #pragma omp for
         for (g = 0; g < ng; g++) {
             gvec = Gvec + 3 * g;
@@ -412,24 +294,10 @@ void recip_conv_kernel_ws(double *conv, double *vq, double *Gvec, double *lat,
                 ix = (int)round(gx * itpi);
                 iy = (int)round(gy * itpi);
                 iz = (int)round(gz * itpi);
-                /*if (ix > mesh[0] / 2 || ix < -(mesh[0] / 2) || iy > mesh[1] /
-                2
-                    || iy < -(mesh[1] / 2) || iz > mesh[2] / 2 || iz < -(mesh[2]
-                / 2)) { printf("%d %d %d %lf %lf %lf\n", ix, iy, iz, gvec[0],
-                           gvec[1], gvec[2]);
-                    printf("%d %d %d %lf %lf %lf\n", mesh[0], mesh[1], mesh[2],
-                           maxqv[0], maxqv[1], maxqv[2]);
-                    exit(-1);
-                }*/
                 ix = (ix % mesh[0] + mesh[0]) % mesh[0];
                 iy = (iy % mesh[1] + mesh[1]) % mesh[1];
                 iz = (iz % mesh[2] + mesh[2]) % mesh[2];
                 ii = (ix * mesh[1] + iy) * mesh[2] + iz;
-                /*if (vq[ii] != vq[ii] || gx != gx || gy != gy || gz != gz) {
-                    printf("%lf %lf %lf %d %d\n", gx * itpi, gy * itpi, gz *
-                itpi, g, ii); printf("%d %d %d %d %d\n", ix, iy, iz, g, ii);
-                    exit(-1);
-                }*/
                 conv[g] = vq[ii];
             } else {
                 conv[g] = 0.0;
@@ -555,49 +423,4 @@ void map_between_fft_meshes(double complex *x1, const int *fftg1,
             }
         }
     }
-}
-
-void test_fft3d(double *xr, double complex *xk, int nx, int ny, int nz,
-                int fwd) {
-    // taken from MKL examples:
-    // https://www.smcm.iqfr.csic.es/docs/intel/mkl/mkl_manual/appendices/mkl_appC_DFT.htm
-    // float x[32][100][19];
-    // float _Complex y[32][100][10]; /* 10 = 19/2 + 1 */
-    DFTI_DESCRIPTOR_HANDLE my_desc_handle;
-    MKL_LONG status, l[3];
-    MKL_LONG strides_out[4];
-    int nzc = nz / 2 + 1;
-
-    //...put input data into x[j][k][s] 0<=j<=31, 0<=k<=99, 0<=s<=18
-    l[0] = nx;
-    l[1] = ny;
-    l[2] = nz;
-
-    strides_out[0] = 0;
-    strides_out[1] = ny * nzc;
-    strides_out[2] = nzc;
-    strides_out[3] = 1;
-
-    status =
-        DftiCreateDescriptor(&my_desc_handle, DFTI_DOUBLE, DFTI_REAL, 3, l);
-    status = DftiSetValue(my_desc_handle, DFTI_CONJUGATE_EVEN_STORAGE,
-                          DFTI_COMPLEX_COMPLEX);
-    status = DftiSetValue(my_desc_handle, DFTI_PLACEMENT, DFTI_NOT_INPLACE);
-    if (fwd) {
-        status = DftiSetValue(my_desc_handle, DFTI_OUTPUT_STRIDES, strides_out);
-    } else {
-        status = DftiSetValue(my_desc_handle, DFTI_INPUT_STRIDES, strides_out);
-    }
-    status = DftiSetValue(my_desc_handle, DFTI_BACKWARD_SCALE, 1.0);
-    status = DftiSetValue(my_desc_handle, DFTI_FORWARD_SCALE, 1.0);
-
-    status = DftiCommitDescriptor(my_desc_handle);
-    if (fwd) {
-        status = DftiComputeForward(my_desc_handle, xr, xk);
-    } else {
-        status = DftiComputeBackward(my_desc_handle, xk, xr);
-    }
-    status = DftiFreeDescriptor(&my_desc_handle);
-    /* result is the complex value z(j,k,s) 0<=j<=31; 0<=k<=99, 0<=s<=9
-    and is stored in complex matrix y in CCE format. */
 }

@@ -11,5 +11,7 @@ set_target_properties(mcider PROPERTIES
   LINK_FLAGS ${OpenMP_C_FLAGS})
 
 # target_link_libraries(mcider ${BLAS_LIBRARIES})
-target_link_libraries(mcider MKL::MKL)
+target_link_libraries(mcider PRIVATE MKL::MKL)
 target_include_directories(mcider PRIVATE ${MKL_INCLUDE_DIR})
+target_include_directories(mcider PRIVATE ../fft_wrapper)
+target_link_libraries(mcider PRIVATE fft_wrapper)

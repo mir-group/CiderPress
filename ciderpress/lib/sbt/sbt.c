@@ -24,12 +24,11 @@
 // code is distributed under the Standard CPC license.
 
 #include "sbt.h"
+#include "cider_fft.h"
 #include <assert.h>
 #include <complex.h>
 #include <float.h>
 #include <math.h>
-#include <mkl.h>
-#include <mkl_types.h>
 #include <omp.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -47,15 +46,6 @@ void sbt_check_allocation(void *ptr) {
 void sbt_allocation_failed(void) {
     printf("ALLOCATION FAILED\n");
     exit(-1);
-}
-
-void sbt_check_status(int status) {
-    if (status != 0) {
-        printf("ROUTINE FAILED WITH STATUS %d:\n", status);
-        char *message = DftiErrorMessage(status);
-        printf("%s\n", message);
-        exit(-1);
-    }
 }
 
 sbt_descriptor_t *spherical_bessel_transform_setup(double encut, int lmax,
@@ -129,14 +119,10 @@ sbt_descriptor_t *spherical_bessel_transform_setup(double encut, int lmax,
         r32[i] = pow(rs[i], 1.5);
     }
 
-    descriptor->handle = 0;
-    MKL_LONG dim = 1;
-    MKL_LONG length = N;
-    MKL_LONG status = 0;
-
-    status = DftiCreateDescriptor(&(descriptor->handle), DFTI_DOUBLE,
-                                  DFTI_COMPLEX, dim, length);
-    status = DftiCommitDescriptor(descriptor->handle);
+    int dims[1] = {N};
+    descriptor->plan = allocate_fftnd_plan(1, dims, 0, 0, 1, 1, 1);
+    descriptor->buffer = malloc_fft_plan_in_array(descriptor->plan);
+    initialize_fft_plan(descriptor->plan, descriptor->buffer, NULL);
 
     descriptor->kmin = kmin;
     descriptor->kappamin = kappamin;
@@ -158,7 +144,6 @@ void wave_spherical_bessel_transform(sbt_descriptor_t *d, double *f, int l,
                                      double *vals, int l_add) {
     // vals has shape d->N / 2
     // f is input, vals is output
-    MKL_LONG status = 0;
     int N = d->N;
     double complex **M = d->mult_table;
     double *r = d->rs;
@@ -173,28 +158,22 @@ void wave_spherical_bessel_transform(sbt_descriptor_t *d, double *f, int l,
     for (int i = N / 2; i < N; i++) {
         fs[i] = f[i - N / 2];
     }
-
-    double complex *x = mkl_calloc(N, sizeof(double complex), 64);
-
+    double complex *x = d->buffer;
     for (int m = 0; m < N; m++) {
         x[m] = r32[m] * fs[m];
     }
-    status = DftiComputeBackward(d->handle, x);
-    sbt_check_status(status);
+    execute_fft_plan(d->plan);
     for (int n = 0; n < N / 2; n++) {
         x[n] *= M[l][n];
     }
     for (int n = N / 2; n < N; n++) {
         x[n] = 0;
     }
-    status = DftiComputeBackward(d->handle, x);
-    sbt_check_status(status);
+    execute_fft_plan(d->plan);
     for (int p = 0; p < N / 2; p++) {
         vals[p] = creal(x[p]);
         vals[p] *= 2 / k32[p];
     }
-
-    mkl_free(x);
     free(fs);
 }
 
@@ -202,7 +181,6 @@ void inverse_wave_spherical_bessel_transform(sbt_descriptor_t *d, double *f,
                                              int l, double *vals) {
     // vals has shape d->N / 2
     // f is input, vals is output
-    MKL_LONG status = 0;
     int N = d->N;
     double complex **M = d->mult_table;
     double *k32 = d->r32;
@@ -215,35 +193,29 @@ void inverse_wave_spherical_bessel_transform(sbt_descriptor_t *d, double *f,
     for (int i = N / 2; i < N; i++) {
         fs[i] = 0;
     }
-
-    double complex *x = mkl_malloc(N * sizeof(double complex), 64);
-
+    double complex *x = d->buffer;
     for (int m = 0; m < N; m++) {
         x[m] = r32[m] * fs[m];
     }
-
-    status = DftiComputeBackward(d->handle, x);
-    sbt_check_status(status);
+    execute_fft_plan(d->plan);
     for (int n = 0; n < N / 2; n++) {
         x[n] *= M[l][n];
     }
     for (int n = N / 2; n < N; n++) {
         x[n] = 0;
     }
-    status = DftiComputeBackward(d->handle, x);
-    sbt_check_status(status);
+    execute_fft_plan(d->plan);
     for (int p = 0; p < N / 2; p++) {
         vals[p] = creal(x[p + N / 2]) / PI * 2;
         // vals[p] *= 2 / pow(ks[p], 1.5);
         vals[p] *= 2 / k32[p + N / 2];
     }
-
-    mkl_free(x);
     free(fs);
 }
 
 void free_sbt_descriptor(sbt_descriptor_t *d) {
-    DftiFreeDescriptor(&(d->handle));
+    free_fft_plan(d->plan);
+    free_fft_array(d->buffer);
     for (int l = 0; l <= d->lmax; l++) {
         free(d->mult_table[l]);
     }
