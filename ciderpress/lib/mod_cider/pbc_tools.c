@@ -171,6 +171,23 @@ void run_ffts(double complex *xin_list, double complex *xout_list, double scale,
     if (r2c && (!fwd) && xout_list == NULL) {
         prune_r2c_real((double *)xin_list, fftg, num_fft);
     }
+    if (scale != 1.0) {
+        size_t tmp_size = plan->fft_out_size * plan->ntransform;
+        if (!r2c || fwd) { // output is complex
+            tmp_size *= 2;
+        }
+        const size_t full_size = tmp_size;
+        double *my_output;
+        if (xout_list == NULL) {
+            my_output = (double *)xin_list;
+        } else {
+            my_output = (double *)xout_list;
+        }
+#pragma omp parallel for
+        for (size_t i = 0; i < full_size; i++) {
+            my_output[i] *= scale;
+        }
+    }
     free_fft_plan(plan);
 }
 

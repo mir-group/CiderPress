@@ -362,21 +362,26 @@ def fft_grad_fast(f0, mesh, Gv):
     libcider.run_ffts(
         f0.ctypes.data_as(ctypes.c_void_p),
         f1[0].ctypes.data_as(ctypes.c_void_p),
+        ctypes.c_double(1.0),
         (ctypes.c_int * 3)(*mesh),
         ctypes.c_int(1),
         ctypes.c_int(f0.shape[0]),
         ctypes.c_int(1),
+        ctypes.c_int(0),
     )
     f1[1] = 1j * f1[0] * Gv[:, 1]
     f1[2] = 1j * f1[0] * Gv[:, 2]
     f1[0] *= 1j * Gv[:, 0]
+    scale = 1.0 / np.prod(mesh)
     libcider.run_ffts(
         f1.ctypes.data_as(ctypes.c_void_p),
         None,
+        ctypes.c_double(scale),
         (ctypes.c_int * 3)(*mesh),
         ctypes.c_int(0),
         ctypes.c_int(3 * f0.shape[0]),
         ctypes.c_int(1),
+        ctypes.c_int(0),
     )
     return f1
 

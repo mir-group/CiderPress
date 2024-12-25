@@ -8,6 +8,9 @@ set_target_properties(numint PROPERTIES
   COMPILE_FLAGS ${OpenMP_C_FLAGS}
   LINK_FLAGS ${OpenMP_C_FLAGS})
 
-# target_link_libraries(numint ${BLAS_LIBRARIES})
-target_link_libraries(numint ${MKL_IMPORTED_TARGETS})
-target_include_directories(numint PRIVATE ${MKL_INCLUDE_DIR})
+if (BUILD_WITH_MKL)
+  target_link_libraries(numint PRIVATE MKL::MKL)
+  target_include_directories(numint PRIVATE ${MKL_INCLUDE_DIR})
+else()
+  target_link_libraries(numint PRIVATE ${BLAS_LIBRARIES})
+endif()

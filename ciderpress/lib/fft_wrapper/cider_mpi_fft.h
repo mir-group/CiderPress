@@ -49,8 +49,8 @@ typedef struct mpi_fft3d_plan {
 #endif
 } mpi_fft3d_plan_t;
 
-mpi_fft3d_plan_t *allocate_mpi_fft3d_plan(MPI_Comm comm, int *dims, int r2c,
-                                          int ntransform);
+mpi_fft3d_plan_t *allocate_mpi_fft3d_plan(MPI_Comm comm, const int *dims,
+                                          int r2c, int ntransform);
 
 void execute_mpi_fft3d_fwd(mpi_fft3d_plan_t *plan);
 

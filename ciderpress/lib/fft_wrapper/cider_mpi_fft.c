@@ -16,8 +16,8 @@ static void cider_fft_check_status(int status) {
 }
 #endif
 
-mpi_fft3d_plan_t *allocate_mpi_fft3d_plan(MPI_Comm comm, int *dims, int r2c,
-                                          int ntransform) {
+mpi_fft3d_plan_t *allocate_mpi_fft3d_plan(MPI_Comm comm, const int *dims,
+                                          int r2c, int ntransform) {
     cider_fft_initialize();
 #if FFT_BACKEND == FFT_MKL_BACKEND
 #else
@@ -279,7 +279,7 @@ void execute_mpi_fft3d_bwd(mpi_fft3d_plan_t *plan) {
 #endif
 }
 
-mpi_fft3d_plan_t *allocate_mpi_fft3d_plan_world(int *dims, int r2c,
+mpi_fft3d_plan_t *allocate_mpi_fft3d_plan_world(const int *dims, int r2c,
                                                 int ntransform) {
     return allocate_mpi_fft3d_plan(MPI_COMM_WORLD, dims, r2c, ntransform);
 }
