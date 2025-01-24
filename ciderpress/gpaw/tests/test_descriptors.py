@@ -28,7 +28,9 @@ from ase.units import Ha
 from gpaw import GPAW, PW, Mixer
 from gpaw.mpi import world
 from gpaw.xc import XC
-from numpy.testing import assert_almost_equal
+from gpaw.xc.libxc import LibXC
+from numpy.testing import assert_allclose, assert_almost_equal
+from pyscf.dft.numint import NumInt
 
 from ciderpress.gpaw.calculator import get_cider_functional
 from ciderpress.gpaw.descriptors import (
@@ -509,7 +511,6 @@ def run_sl_feature_test(use_pp=False, spinpol=False):
     # TODO precision is poor for Si. Why is this?
     k = 3
     si = bulk("Si")
-    from gpaw.xc.libxc import LibXC
 
     if use_pp:
         xc0name = "PBE"
@@ -549,8 +550,6 @@ def run_sl_feature_test(use_pp=False, spinpol=False):
     ediff = si.calc.get_xc_difference(xc1) / Ha
     feat0, wt0 = get_descriptors(si.calc, **kwargs)
     feat, dfeat_j, wt = get_descriptors(si.calc, p_i=[p_vbm, p_cbm], **kwargs)
-
-    from pyscf.dft.numint import NumInt
 
     assert_almost_equal(feat, feat0)
     assert_almost_equal(wt, wt0)
@@ -597,6 +596,76 @@ def run_sl_feature_test(use_pp=False, spinpol=False):
     assert_almost_equal(dde_list[0], eigdiff_vbm, 4)
     assert_almost_equal(dde_list[1], eigdiff_cbm, 4)
     assert_almost_equal(dde_list[1] - dde_list[0], eigdiff_cbm - eigdiff_vbm, 4)
+
+
+def run_sl_feature_test2(spinpol=False):
+    """
+    This is to make sure initialization happens correctly.
+    We just want this to make sure the features are
+    equivalent and that we don't get an error.
+    """
+    k = 3
+    si = bulk("Si")
+
+    kwargs = dict(
+        settings="l",
+        use_paw=True,
+        screen_dens=False,
+    )
+
+    si.calc = GPAW(
+        mode=PW(250),
+        mixer=Mixer(0.7, 5, 50.0),
+        xc="PBE",
+        kpts=(k, k, k),
+        convergence={"energy": 1e-8, "density": 1e-10},
+        parallel={"domain": min(2, world.size), "augment_grids": False},
+        occupations={"name": "fermi-dirac", "width": 0.0},
+        spinpol=spinpol,
+        setups="paw",
+        txt="si.txt",
+    )
+    si.get_potential_energy()
+    gap, p_vbm, p_cbm = bandgap(si.calc)
+    afeat0, awt0 = get_descriptors(si.calc, **kwargs)
+    afeat, adfeat_j, awt = get_descriptors(si.calc, p_i=[p_vbm, p_cbm], **kwargs)
+
+    ni = NumInt()
+    xcname = "MGGA_X_R2SCAN+MGGA_C_R2SCAN"
+    exc0, vxc0 = ni.eval_xc_eff(xcname, afeat0.squeeze(), xctype="MGGA")[:2]
+
+    si.calc = GPAW(
+        mode=PW(250),
+        mixer=Mixer(0.7, 5, 50.0),
+        xc=DiffGGA(LibXC("GGA_X_PBE+GGA_C_PBE")),
+        # xc=DiffMGGA(LibXC("MGGA_X_R2SCAN+MGGA_C_R2SCAN")),
+        kpts=(k, k, k),
+        convergence={"energy": 1e-8, "density": 1e-10},
+        parallel={"domain": min(2, world.size), "augment_grids": False},
+        occupations={"name": "fermi-dirac", "width": 0.0},
+        spinpol=spinpol,
+        setups="paw",
+        txt="si.txt",
+    )
+    si.get_potential_energy()
+    gap, p_vbm, p_cbm = bandgap(si.calc)
+    bfeat0, bwt0 = get_descriptors(si.calc, **kwargs)
+    bfeat, bdfeat_j, bwt = get_descriptors(si.calc, p_i=[p_vbm, p_cbm], **kwargs)
+    tol = 1e-6
+    for i in range(5):
+        assert_allclose(afeat0[:, i], bfeat0[:, i], atol=tol, rtol=tol)
+        assert_allclose(afeat[:, i], bfeat[:, i], atol=tol, rtol=tol)
+    assert_allclose(awt0, bwt0, atol=tol, rtol=tol)
+    assert_allclose(awt, bwt, atol=tol, rtol=tol)
+    for p, adfeat, bdfeat in zip([p_vbm, p_cbm], adfeat_j, bdfeat_j):
+        if spinpol:
+            s = p[0]
+            vtmp0 = vxc0[s]
+        else:
+            vtmp0 = vxc0
+        de0 = np.sum(adfeat[: len(vtmp0)] * vtmp0 * awt)
+        de1 = np.sum(bdfeat[: len(vtmp0)] * vtmp0 * bwt)
+        assert_allclose(de0, de1, atol=tol, rtol=tol)
 
 
 class TestDescriptors(unittest.TestCase):
@@ -652,6 +721,10 @@ class TestDescriptors(unittest.TestCase):
         # run_sl_feature_test(spinpol=False, use_pp=True)
         run_sl_feature_test(spinpol=False)
         run_sl_feature_test(spinpol=True)
+        run_sl_feature_test(spinpol=False, use_pp=True)
+        run_sl_feature_test(spinpol=True, use_pp=True)
+        run_sl_feature_test2(spinpol=False)
+        run_sl_feature_test2(spinpol=True)
 
     def test_nl_features(self):
         for use_pp in [True, False]:

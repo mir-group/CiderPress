@@ -315,7 +315,7 @@ class PASDWCiderFeatureKernel(FastPASDWCiderKernel):
         for setup in setups:
             if not hasattr(setup, "cider_contribs") or setup.cider_contribs is None:
                 setup.xc_correction = DiffPAWXCCorrection.from_setup(
-                    setup, build_kinetic=self.is_mgga, ke_order_ng=False
+                    setup, build_kinetic=True, ke_order_ng=False
                 )
                 # TODO it would be good to remove this
                 setup.nlxc_correction = SBTGridContainer.from_setup(

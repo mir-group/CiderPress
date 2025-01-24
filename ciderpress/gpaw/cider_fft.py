@@ -64,7 +64,8 @@ class _CiderBase:
                 # TODO better choice here? depend on feat_params too?
                 amin = nldf_settings.theta_params[0]
                 if hasattr(nldf_settings, "feat_params"):
-                    amin = min(amin, np.min(np.array(nldf_settings.feat_params)[:, 0]))
+                    amin = min(amin, np.min([p[0] for p in nldf_settings.feat_params]))
+                    # amin = min(amin, np.min(np.array(nldf_settings.feat_params)[:, 0]))
                 amin /= 64
                 Nalpha = int(np.ceil(np.log(amax / amin) / np.log(lambd))) + 1
                 lambd = np.exp(np.log(amax / amin) / (Nalpha - 1))

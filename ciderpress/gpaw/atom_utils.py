@@ -1308,7 +1308,7 @@ class FastPASDWCiderKernel:
         for setup in setups:
             if not hasattr(setup, "cider_contribs"):
                 setup.xc_correction = DiffPAWXCCorrection.from_setup(
-                    setup, build_kinetic=self.is_mgga, ke_order_ng=False
+                    setup, build_kinetic=True, ke_order_ng=False
                 )
                 # TODO it would be good to be able to remove this.
                 # Old version of the code used these settings:

@@ -40,6 +40,7 @@ from ciderpress.gpaw.atom_descriptor_utils import (
 )
 from ciderpress.gpaw.calculator import CiderGGAHybridKernel, CiderMGGAHybridKernel
 from ciderpress.gpaw.cider_paw import CiderGGA, CiderGGAPASDW, CiderMGGA, CiderMGGAPASDW
+from ciderpress.gpaw.interp_paw import DiffPAWXCCorrection
 
 
 class RhoVectorSettings(SemilocalSettings):
@@ -885,6 +886,17 @@ class _SLFeatMixin(_FeatureMixin):
         feat_xg.shape = xshape + (-1,)
         return feat_xg
 
+    def _check_setups(self):
+        if hasattr(self, "setups") and self.setups is not None:
+            for setup in self.setups:
+                if (
+                    not isinstance(setup.xc_correction, DiffPAWXCCorrection)
+                    and setup.xc_correction is not None
+                ):
+                    setup.xc_correction = DiffPAWXCCorrection.from_setup(
+                        setup, build_kinetic=True, ke_order_ng=False
+                    )
+
     def get_features_on_grid(self):
         nt_sg = self._get_pseudo_density()
         taut_sg = self._get_taut(nt_sg)[0]
@@ -897,6 +909,7 @@ class _SLFeatMixin(_FeatureMixin):
             feat_sig = plan.get_feat(rho_sxg)
         else:
             feat_sig = rho_sxg
+        self._check_setups()
         return self._collect_feat(feat_sig)
 
     def get_features_on_grid_deriv(self, p_j, drhodf_jxg, DD_aop=None):
@@ -922,6 +935,7 @@ class _SLFeatMixin(_FeatureMixin):
         else:
             feat_sig = rho_sxg
             dfeat_jig = drhodf_jxg
+        self._check_setups()
         return self._collect_feat(feat_sig), self._collect_feat(dfeat_jig)
 
 
