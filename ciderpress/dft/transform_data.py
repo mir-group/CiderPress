@@ -1024,19 +1024,16 @@ class OmegaMap(FeatureNormalizer):
             if n.size == 0 or s2.size == 0 or alpha.size == 0:
                 raise ValueError("n, s2, or alpha is a zero-size array")
             
-            # 检测 NaN 和零值
             n_nan_mask = np.isnan(n)
             n_zero_mask = (n == 0)
             s2_nan_mask = np.isnan(s2)
             alpha_nan_mask = np.isnan(alpha)
 
-            # 准备警告信息
             n_nan_summary = self._summarize_positions(np.where(n_nan_mask)[0])
             n_zero_summary = self._summarize_positions(np.where(n_zero_mask)[0])
             s2_nan_summary = self._summarize_positions(np.where(s2_nan_mask)[0])
             alpha_nan_summary = self._summarize_positions(np.where(alpha_nan_mask)[0])
 
-            # 输出警告信息
             if n_nan_summary != "None":
                 self._print_message(f"NaN found in original n. Positions: {n_nan_summary}")
             if n_zero_summary != "None":
@@ -1048,31 +1045,19 @@ class OmegaMap(FeatureNormalizer):
             if alpha_nan_summary != "None":
                 self._print_message(f"NaN found in original alpha. Positions: {alpha_nan_summary}")
 
-            # 处理 n 中的 NaN 和零值
             n = np.abs(n)
             n[n_nan_mask | n_zero_mask] = 1e-10
 
-            # 处理 s2 和 alpha 中的 NaN 值
             s2[s2_nan_mask] = 0
             alpha[alpha_nan_mask] = 0
 
-            # 应用 clip 操作
             s2 = np.clip(s2, -1e10, 1e10)
             alpha = np.clip(alpha, -1e10, 1e10)
 
-            # 函数主要部分
             inner_term = np.maximum(self.B + self.C * (alpha + 5/3 * s2), 1e-10)
             omega = np.sqrt(n**(2/3) * inner_term)
             denominator = np.maximum(1 + self.c * omega, 1e-10)
             y[:] = self.c * omega / denominator
-
-            # 添加总体统计信息
-            # total_elements = len(n)
-            # nan_percentage = (np.sum(n_nan_mask) + np.sum(s2_nan_mask) + np.sum(alpha_nan_mask)) / (3 * total_elements) * 100
-            # zero_percentage = np.sum(n_zero_mask) / total_elements * 100
-            # self._print_message(f"Summary for mol_id {mol_id}: Total elements: {total_elements}, "
-            #                     f"NaN percentage: {nan_percentage:.2f}%, "
-            #                     f"Zero percentage in n: {zero_percentage:.2f}%")
 
         except ValueError as e:
             self._print_message(f"Error in molecule {mol_id}: {str(e)}")
@@ -1084,12 +1069,6 @@ class OmegaMap(FeatureNormalizer):
             print("Setting y to zeros and continuing...")
             y[:] = 0
 
-        # 输出计算结果的统计信息
-        # self._print_message(f"Output summary for mol_id {mol_id}: "
-        #                     f"y shape: {y.shape}, min: {np.min(y):.2e}, max: {np.max(y):.2e}, "
-        #                     f"mean: {np.mean(y):.2e}, median: {np.median(y):.2e}")
-
-    
     def _print_warning(self, message):
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         print(f"WARNING [{timestamp}]: {message}", file=sys.stderr)
@@ -1116,7 +1095,7 @@ class OmegaMap(FeatureNormalizer):
             self._print_warning(f"Inf found in {name}. Positions: {np.where(np.isinf(arr))}")
 
     def fill_deriv_(self, dfdx, dfdy, x):
-        n = np.maximum(np.abs(x[self.i_n]), 1e-10)  # 确保 n 为正且不为零
+        n = np.maximum(np.abs(x[self.i_n]), 1e-10)
         s2 = np.clip(x[self.i_s], -1e10, 1e10)
         alpha = np.clip(x[self.i_alpha], -1e10, 1e10)
 
@@ -1124,13 +1103,11 @@ class OmegaMap(FeatureNormalizer):
         omega = np.sqrt(n**(2/3) * inner_term)
         denom = np.maximum((1 + self.c * omega)**2, 1e-10)
 
-        # 添加安全检查和警告
         if np.any(denom == 0):
             self._print_warning(f"Zero found in denom. Positions: {np.where(denom == 0)}")
         if np.any(omega == 0):
             self._print_warning(f"Zero found in omega. Positions: {np.where(omega == 0)}")
 
-        # 使用 np.divide 和 np.power 进行安全运算
         term1 = np.divide(dfdy * self.c, 3 * denom, where=denom != 0)
         term2 = np.power(n, -2/3, where=n != 0)
         term3 = np.sqrt(np.abs(inner_term))
@@ -1141,15 +1118,8 @@ class OmegaMap(FeatureNormalizer):
         dfdx[self.i_s] += term4 * term5 * self.C * 5/3
         dfdx[self.i_alpha] += term4 * term5 * self.C
 
-        # 添加数值检查
         self._check_values(dfdx, "dfdx")
         self._check_values(dfdy, "dfdy")
-
-        # # 添加调试信息
-        # print(f"DEBUG: OmegaMap fill_deriv_ output")
-        # print(f"dfdx shape: {dfdx.shape}, min: {np.min(dfdx)}, max: {np.max(dfdx)}")
-        # print(f"dfdy shape: {dfdy.shape}, min: {np.min(dfdy)}, max: {np.max(dfdy)}")
-        # print(f"x shape: {x.shape}, min: {np.min(x)}, max: {np.max(x)}")
     
     def as_dict(self):
         return {
