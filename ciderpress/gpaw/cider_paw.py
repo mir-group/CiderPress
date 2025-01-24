@@ -714,10 +714,10 @@ class CiderGGAPASDW(_CiderPASDW_MPRoutines, CiderGGA):
         **kwargs
     ):
 
-        if mlfunc.desc_version != "d":
-            raise ValueError(
-                "Only implemented for d version, found {}".format(mlfunc.desc_version)
-            )
+        # if mlfunc.desc_version != "d":
+        #     raise ValueError(
+        #         "Only implemented for d version, found {}".format(mlfunc.desc_version)
+        #     )
 
         cider_kernel = CiderGGAHybridKernel(mlfunc, xmix, xkernel, ckernel)
         xc = cls(
@@ -850,10 +850,10 @@ class CiderMGGAPASDW(_CiderPASDW_MPRoutines, CiderMGGA):
         **kwargs
     ):
 
-        if mlfunc.desc_version != "b":
-            raise ValueError(
-                "Only implemented for d version, found {}".format(mlfunc.desc_version)
-            )
+        # if mlfunc.desc_version != "b":
+        #     raise ValueError(
+        #         "Only implemented for d version, found {}".format(mlfunc.desc_version)
+        #     )
 
         cider_kernel = CiderMGGAHybridKernel(mlfunc, xmix, xkernel, ckernel)
 
