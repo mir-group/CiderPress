@@ -1547,10 +1547,12 @@ class NLDFAuxiliaryPlan(ABC):
                 nspin=self.nspin,
             )
             res = a, (dadn, dadsigma)
-        if self._raise_large_expnt_error and np.max(a) > np.max(self.alphas):
-            raise RuntimeError(
-                "NLDF exponent is too large! Please increase nalpha/alpha_max."
-            )
+        if self._raise_large_expnt_error and a.size > 0:
+            ap = a[rho > 1e2 * self.rhocut]  # leave some buffer at small rho
+            if ap.size > 0 and np.max(ap) > np.max(self.alphas):
+                raise RuntimeError(
+                    "NLDF exponent is too large! Please increase nalpha/alpha_max."
+                )
         return res
 
     def _clear_l1_cache(self, s):

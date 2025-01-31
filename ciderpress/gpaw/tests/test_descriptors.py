@@ -550,6 +550,10 @@ def run_sl_feature_test(use_pp=False, spinpol=False):
     ediff = si.calc.get_xc_difference(xc1) / Ha
     feat0, wt0 = get_descriptors(si.calc, **kwargs)
     feat, dfeat_j, wt = get_descriptors(si.calc, p_i=[p_vbm, p_cbm], **kwargs)
+    if spinpol:
+        feat0 *= 0.5
+        feat *= 0.5
+        dfeat_j *= 0.5
 
     assert_almost_equal(feat, feat0)
     assert_almost_equal(wt, wt0)
@@ -596,6 +600,11 @@ def run_sl_feature_test(use_pp=False, spinpol=False):
     assert_almost_equal(dde_list[0], eigdiff_vbm, 4)
     assert_almost_equal(dde_list[1], eigdiff_cbm, 4)
     assert_almost_equal(dde_list[1] - dde_list[0], eigdiff_cbm - eigdiff_vbm, 4)
+
+    if spinpol:
+        return 2 * feat0
+    else:
+        return feat0
 
 
 def run_sl_feature_test2(spinpol=False):
@@ -719,8 +728,10 @@ class TestDescriptors(unittest.TestCase):
 
     def test_sl_features(self):
         # run_sl_feature_test(spinpol=False, use_pp=True)
-        run_sl_feature_test(spinpol=False)
-        run_sl_feature_test(spinpol=True)
+        feat_nsp = run_sl_feature_test(spinpol=False)
+        feat_sp = run_sl_feature_test(spinpol=True)
+        assert_allclose(feat_sp[0], feat_nsp[0], rtol=1e-10, atol=1e-10)
+        assert_allclose(feat_sp[1], feat_nsp[0], rtol=1e-10, atol=1e-10)
         run_sl_feature_test(spinpol=False, use_pp=True)
         run_sl_feature_test(spinpol=True, use_pp=True)
         run_sl_feature_test2(spinpol=False)

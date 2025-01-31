@@ -826,6 +826,10 @@ class _SLFeatMixin(_FeatureMixin):
             for a in list(ae_feat.keys()):
                 ae_feat[a] = plan.get_feat(ae_feat[a])
                 ps_feat[a] = plan.get_feat(ps_feat[a])
+        else:
+            for a in list(ae_feat.keys()):
+                ae_feat[a] *= self.nspin
+                ps_feat[a] *= self.nspin
         return self.communicate_paw_features(
             ae_feat, ps_feat, self.nspin, settings.nfeat
         )
@@ -864,6 +868,11 @@ class _SLFeatMixin(_FeatureMixin):
             ae_dfeat = _ae_drho
             ps_feat = _ps_rho
             ps_dfeat = _ps_drho
+            for a in list(_ae_rho.keys()):
+                ae_feat[a] *= self.nspin
+                ae_dfeat[a] *= self.nspin
+                ps_feat[a] *= self.nspin
+                ps_dfeat[a] *= self.nspin
 
         ae_feat, ps_feat = self.communicate_paw_features(
             ae_feat, ps_feat, self.nspin, settings.nfeat
@@ -908,7 +917,7 @@ class _SLFeatMixin(_FeatureMixin):
             plan = SemilocalPlan(settings, self.nspin)
             feat_sig = plan.get_feat(rho_sxg)
         else:
-            feat_sig = rho_sxg
+            feat_sig = self.nspin * rho_sxg
         self._check_setups()
         return self._collect_feat(feat_sig)
 
@@ -933,8 +942,8 @@ class _SLFeatMixin(_FeatureMixin):
                 )[1]
             feat_sig = plan.get_feat(rho_sxg)
         else:
-            feat_sig = rho_sxg
-            dfeat_jig = drhodf_jxg
+            feat_sig = self.nspin * rho_sxg
+            dfeat_jig = self.nspin * drhodf_jxg
         self._check_setups()
         return self._collect_feat(feat_sig), self._collect_feat(dfeat_jig)
 
