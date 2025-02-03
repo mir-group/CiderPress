@@ -8,7 +8,7 @@ docs/_build
 docs/_static
 docs/xml
 functionals/
-*__pycache__*
+***pycache***
 *.egg-info*
 *.out
 *.err

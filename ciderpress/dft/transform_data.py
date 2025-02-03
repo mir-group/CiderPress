@@ -22,6 +22,9 @@ from abc import ABC, abstractmethod
 
 import numpy as np
 import yaml
+import logging
+from datetime import datetime
+import sys
 
 
 class FeatureNormalizer(ABC):
@@ -988,6 +991,153 @@ class SLDMap(FeatureNormalizer):
         return cls(d["i"], d["j"], d["k"])
 
 
+class OmegaMap(FeatureNormalizer):
+    def __init__(self, i_n, i_s, i_alpha, c, B, C, bounds=None):
+        self.i_n = i_n  
+        self.i_s = i_s  
+        self.i_alpha = i_alpha  
+        self.c = c
+        self.B = B
+        self.C = C
+        self._bounds = bounds or (0, 1)
+
+    def set_current_molecule_id(self, mol_id):
+        self.current_molecule_id = mol_id
+
+    @property
+    def bounds(self):
+        return self._bounds
+
+    @property
+    def num_arg(self):
+        return 3
+
+    def fill_feat_(self, y, x, mol_id=None):
+        try:
+            if x.size == 0:
+                raise ValueError("x is a zero-size array")
+            
+            n = x[self.i_n]
+            s2 = x[self.i_s]
+            alpha = x[self.i_alpha]
+            
+            if n.size == 0 or s2.size == 0 or alpha.size == 0:
+                raise ValueError("n, s2, or alpha is a zero-size array")
+            
+            n_nan_mask = np.isnan(n)
+            n_zero_mask = (n == 0)
+            s2_nan_mask = np.isnan(s2)
+            alpha_nan_mask = np.isnan(alpha)
+
+            n_nan_summary = self._summarize_positions(np.where(n_nan_mask)[0])
+            n_zero_summary = self._summarize_positions(np.where(n_zero_mask)[0])
+            s2_nan_summary = self._summarize_positions(np.where(s2_nan_mask)[0])
+            alpha_nan_summary = self._summarize_positions(np.where(alpha_nan_mask)[0])
+
+            if n_nan_summary != "None":
+                self._print_message(f"NaN found in original n. Positions: {n_nan_summary}")
+            if n_zero_summary != "None":
+                self._print_message(f"Zero values found in original n. Positions: {n_zero_summary}")
+                print(f"n shape: {n.shape}")
+                print(f"n min: {np.min(n)}, n max: {np.max(n)}, n mean: {np.mean(n)}")
+            if s2_nan_summary != "None":
+                self._print_message(f"NaN found in original s2. Positions: {s2_nan_summary}")
+            if alpha_nan_summary != "None":
+                self._print_message(f"NaN found in original alpha. Positions: {alpha_nan_summary}")
+
+            n = np.abs(n)
+            n[n_nan_mask | n_zero_mask] = 1e-10
+
+            s2[s2_nan_mask] = 0
+            alpha[alpha_nan_mask] = 0
+
+            s2 = np.clip(s2, -1e10, 1e10)
+            alpha = np.clip(alpha, -1e10, 1e10)
+
+            inner_term = np.maximum(self.B + self.C * (alpha + 5/3 * s2), 1e-10)
+            omega = np.sqrt(n**(2/3) * inner_term)
+            denominator = np.maximum(1 + self.c * omega, 1e-10)
+            y[:] = self.c * omega / denominator
+
+        except ValueError as e:
+            self._print_message(f"Error in molecule {mol_id}: {str(e)}")
+            print("Setting y to zeros and continuing...")
+            y[:] = 0
+
+        except Exception as e:
+            self._print_message(f"Unexpected error in fill_feat_ for molecule {mol_id}: {str(e)}")
+            print("Setting y to zeros and continuing...")
+            y[:] = 0
+
+    def _print_warning(self, message):
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        print(f"WARNING [{timestamp}]: {message}", file=sys.stderr)
+
+    def _print_message(self, message, is_warning=False):
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        prefix = "WARNING" if is_warning else "INFO"
+        output_stream = sys.stderr if is_warning else sys.stdout
+        print(f"{prefix} [{timestamp}]: {message}", file=output_stream, flush=True)
+
+    def _summarize_positions(self, positions, max_display=5):
+        count = len(positions)
+        if count == 0:
+            return "None"
+        elif count <= max_display:
+            return f"{positions.tolist()} (total: {count})"
+        else:
+            return f"{positions[:max_display].tolist()} ... (total: {count})"
+
+    def _check_values(self, arr, name):
+        if np.any(np.isnan(arr)):
+            self._print_warning(f"NaN found in {name}. Positions: {np.where(np.isnan(arr))}")
+        if np.any(np.isinf(arr)):
+            self._print_warning(f"Inf found in {name}. Positions: {np.where(np.isinf(arr))}")
+
+    def fill_deriv_(self, dfdx, dfdy, x):
+        n = np.maximum(np.abs(x[self.i_n]), 1e-10)
+        s2 = np.clip(x[self.i_s], -1e10, 1e10)
+        alpha = np.clip(x[self.i_alpha], -1e10, 1e10)
+
+        inner_term = np.maximum(self.B + self.C * (alpha + 5/3 * s2), 1e-10)
+        omega = np.sqrt(n**(2/3) * inner_term)
+        denom = np.maximum((1 + self.c * omega)**2, 1e-10)
+
+        if np.any(denom == 0):
+            self._print_warning(f"Zero found in denom. Positions: {np.where(denom == 0)}")
+        if np.any(omega == 0):
+            self._print_warning(f"Zero found in omega. Positions: {np.where(omega == 0)}")
+
+        term1 = np.divide(dfdy * self.c, 3 * denom, where=denom != 0)
+        term2 = np.power(n, -2/3, where=n != 0)
+        term3 = np.sqrt(np.abs(inner_term))
+        dfdx[self.i_n] += term1 * term2 * term3
+
+        term4 = np.divide(dfdy * self.c, 2 * denom * omega, where=(denom != 0) & (omega != 0))
+        term5 = np.power(n, 2/3, where=n != 0)
+        dfdx[self.i_s] += term4 * term5 * self.C * 5/3
+        dfdx[self.i_alpha] += term4 * term5 * self.C
+
+        self._check_values(dfdx, "dfdx")
+        self._check_values(dfdy, "dfdy")
+    
+    def as_dict(self):
+        return {
+            'code': 'Omega',
+            'i_n': self.i_n,
+            'i_s': self.i_s,
+            'i_alpha': self.i_alpha,
+            'c': self.c,
+            'B': self.B,
+            'C': self.C,
+            'bounds': self.bounds,
+        }
+
+    @classmethod
+    def from_dict(cls, d):
+        return cls(d['i_n'], d['i_s'], d['i_alpha'], d['c'], d['B'], d['C'], bounds=d.get('bounds'))
+
+
 ALL_CLASS_DICT = {}
 ALL_CLASSES = [
     LMap,
@@ -1010,6 +1160,7 @@ ALL_CLASSES = [
     SLTMap,
     SLTWMap,
     SLDMap,
+    OmegaMap,
 ]
 for cls in ALL_CLASSES:
     assert cls.code not in ALL_CLASS_DICT
