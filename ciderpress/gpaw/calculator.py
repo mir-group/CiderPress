@@ -1,24 +1,38 @@
+#!/usr/bin/env python
+# CiderPress: Machine-learning based density functional theory calculations
+# Copyright (C) 2024 The President and Fellows of Harvard College
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>
+#
+# Author: Kyle Bystrom <kylebystrom@gmail.com>
+#
+
 import yaml
 from gpaw.calculator import GPAW
 from gpaw.xc.libxc import LibXC
 
 from ciderpress.dft.model_utils import load_cider_model
-from ciderpress.gpaw.cider_fft import (
-    CiderGGA,
-    CiderGGAHybridKernel,
-    CiderMGGA,
-    CiderMGGAHybridKernel,
-)
-from ciderpress.gpaw.cider_paw import (
-    CiderGGAPASDW,
-    CiderMGGAPASDW,
-    DiffGGA,
-    DiffMGGA,
+from ciderpress.gpaw.cider_fft import CiderGGA, CiderMGGA
+from ciderpress.gpaw.cider_kernel import CiderGGAHybridKernel, CiderMGGAHybridKernel
+from ciderpress.gpaw.cider_paw import CiderGGAPASDW, CiderMGGAPASDW
+from ciderpress.gpaw.cider_sl import (
     SLCiderGGA,
     SLCiderGGAHybridWrapper,
     SLCiderMGGA,
     SLCiderMGGAHybridWrapper,
 )
+from ciderpress.gpaw.interp_paw import DiffGGA, DiffMGGA
 
 
 def get_cider_functional(
@@ -33,8 +47,6 @@ def get_cider_functional(
     Nalpha=None,
     qmax=300,
     lambd=1.8,
-    no_paw_atom_kernel=False,
-    fast=False,
     _force_nonlocal=False,
 ):
     """
@@ -53,7 +65,7 @@ def get_cider_functional(
     class is returned to evaluate the semilocal functional.
 
     Args:
-        mlfunc (MappedXC, str): An ML functional object or a str
+        mlfunc (MappedXC, MappedXC2, str): An ML functional object or a str
             corresponding to the file name of a yaml or joblib file
             containing it.
         xmix (float, 1.00): Mixing parameter for CIDER exchnange.
@@ -96,7 +108,7 @@ def get_cider_functional(
         qmax (float, 300):
             Maximum value of q to use for kernel interpolation on FFT grid.
             Default should be fine for most cases.
-        * qmin (not currently a parameter, set automatically):
+        qmin (not currently a parameter, set automatically):
             Mininum value of q to use for kernel interpolation.
             Currently, qmin is set automatically based
             on the minimum regularized value of the kernel exponent.
@@ -120,52 +132,43 @@ def get_cider_functional(
     """
 
     mlfunc = load_cider_model(mlfunc, mlfunc_format)
-    if mlfunc.settings.sl_settings.level == "MGGA":
-        mlfunc.desc_version = "b"
-    else:
-        mlfunc.desc_version = "d"
+    sl_level = mlfunc.settings.sl_settings.level
+    if not mlfunc.settings.nlof_settings.is_empty:
+        raise NotImplementedError("Nonlocal orbital features in GPAW")
+    elif not mlfunc.settings.sdmx_settings.is_empty:
+        raise NotImplementedError("SDMX features in GPAW")
+    elif not mlfunc.settings.nldf_settings.is_empty:
+        if mlfunc.settings.nldf_settings.version != "j":
+            raise NotImplementedError(
+                "Currently only version j NLDF features are implemented in GPAW. "
+                "Other versions are planned for future development. The version "
+                "of this functional's NLDF features is: {}".format(
+                    mlfunc.settings.nldf_settings.version
+                )
+            )
 
-    if mlfunc.desc_version == "b":
+    if sl_level == "MGGA":
         no_nldf = mlfunc.settings.nldf_settings.is_empty
         if no_nldf and not _force_nonlocal:
             # functional is semi-local MGGA
             cider_kernel = SLCiderMGGAHybridWrapper(mlfunc, xmix, xkernel, ckernel)
             return SLCiderMGGA(cider_kernel)
         cider_kernel = CiderMGGAHybridKernel(mlfunc, xmix, xkernel, ckernel)
-        if use_paw and fast:
-            from ciderpress.gpaw.fast_paw import CiderMGGAPASDW as FastMGGAPASDW
-
-            cls = FastMGGAPASDW
-        elif use_paw:
+        if use_paw:
             cls = CiderMGGAPASDW
-        elif fast:
-            from ciderpress.gpaw.fast_fft import CiderMGGA as FastMGGA
-
-            cls = FastMGGA
         else:
             cls = CiderMGGA
-    elif mlfunc.desc_version == "d":
+    else:
         no_nldf = mlfunc.settings.nldf_settings.is_empty
         if no_nldf and not _force_nonlocal:
             # functional is semi-local GGA
             cider_kernel = SLCiderGGAHybridWrapper(mlfunc, xmix, xkernel, ckernel)
             return SLCiderGGA(cider_kernel)
         cider_kernel = CiderGGAHybridKernel(mlfunc, xmix, xkernel, ckernel)
-        if use_paw and fast:
-            from ciderpress.gpaw.fast_paw import CiderGGAPASDW as FastGGAPASDW
-
-            cls = FastGGAPASDW
-        elif use_paw:
+        if use_paw:
             cls = CiderGGAPASDW
-        elif fast:
-            from ciderpress.gpaw.fast_fft import CiderGGA as FastGGA
-
-            cls = FastGGA
         else:
             cls = CiderGGA
-    else:
-        msg = "Only implemented for b and d version, found {}"
-        raise ValueError(msg.format(mlfunc.desc_version))
 
     if use_paw:
         xc = cls(
@@ -221,7 +224,6 @@ class CiderGPAW(GPAW):
         )
 
     def _write(self, writer, mode):
-
         writer = super(CiderGPAW, self)._write(writer, mode)
         if hasattr(self.hamiltonian.xc, "get_mlfunc_data"):
             mlfunc_data = self.hamiltonian.xc.get_mlfunc_data()

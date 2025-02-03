@@ -64,12 +64,12 @@ VI_ID_MAP = {
 
 
 def _get_ovlp_fit_interpolation_coefficients(
-    self, arg_g, i=-1, local=True, vbuf=None, dbuf=None
+    plan, arg_g, i=-1, local=True, vbuf=None, dbuf=None
 ):
     """
 
     Args:
-        self (NLDFAuxiliaryPlan):
+        plan (NLDFAuxiliaryPlan):
         arg_g:
         i:
         local:
@@ -80,21 +80,21 @@ def _get_ovlp_fit_interpolation_coefficients(
 
     """
     ngrids = arg_g.size
-    p = self.empty_coefs(ngrids, local=local, buf=vbuf)
-    dp = self.empty_coefs(ngrids, local=local, buf=dbuf)
+    p = plan.empty_coefs(ngrids, local=local, buf=vbuf)
+    dp = plan.empty_coefs(ngrids, local=local, buf=dbuf)
     if i == -1:
         feat_id = VJ_ID_MAP["se"]
     else:
-        assert 0 <= i < self.nldf_settings.num_feat_param_sets
-        feat_id = VJ_ID_MAP[self.nldf_settings.feat_spec_list[i]]
+        assert 0 <= i < plan.nldf_settings.num_feat_param_sets
+        feat_id = VJ_ID_MAP[plan.nldf_settings.feat_spec_list[i]]
     if feat_id == VJ_ID_MAP["se_erf_rinv"]:
-        extra_args = self._get_extra_args(i)
+        extra_args = plan._get_extra_args(i)
         num_extra_args = len(extra_args)
         extra_args = (ctypes.c_double * num_extra_args)(*extra_args)
     else:
         extra_args = lib.c_null_ptr()
-    alphas = self.local_alphas if local else self.alphas
-    if self.coef_order == "gq":
+    alphas = plan.local_alphas if local else plan.alphas
+    if plan.coef_order == "gq":
         fn = libcider.cider_coefs_gto_gq
         shape = (arg_g.size, len(alphas))
         assert p.shape == shape
@@ -119,6 +119,11 @@ def _get_ovlp_fit_interpolation_coefficients(
         extra_args,
     )
     return p, dp
+
+
+def _stable_solve(a, b):
+    c_and_l = cho_factor(a)
+    return cho_solve(c_and_l, b)
 
 
 def _construct_cubic_splines(coefs_qi, dense_indexes):
@@ -1052,7 +1057,6 @@ class SDMXFullPlan(SDMXBasePlan):
                         + 0.25 * _get_int_d(n, prod, asum)
                         + 0.25 * _get_int_d(n, prod, bsum)
                     )
-                # print(ratio, r, n, rdr, np.linalg.cond(l0mats[-1]))
             for n, rdr in self.settings.iterate_l1_terms(ratio):
                 # num = 0.25 * (ratio ** (0.5 * n) + ratio ** (-0.5 * n))
                 num = 0.5
@@ -1068,25 +1072,19 @@ class SDMXFullPlan(SDMXBasePlan):
                         + 0.25 * _get_int_1d(n, prod, asum)
                         + 0.25 * _get_int_1d(n, prod, bsum)
                     )
-                # print(ratio, r, n, rdr, np.linalg.cond(l1mats[-1]))
         self._num_l0_feat = len(l0mats)
         self._num_l1_feat = len(l1mats)
         coul_list = [m for m in l0mats + l1mats]
         LJ_list = [cholesky(coul, lower=True) for coul in coul_list]
-        # for coul, LJ in zip(coul_list, LJ_list):
-        #     print("HI", np.linalg.norm(coul - LJ.dot(LJ.T)))
         r2vals = 2.0 / self.alphas
         vals = np.exp(-self.alphas[None, :] * r2vals[:, None])
         vals *= self.alpha_norms[None, :]
-        # print(np.linalg.cond(vals))
         self.fit_matrices = [
             np.ascontiguousarray(np.linalg.solve(vals.T, LJ).T) for LJ in LJ_list
         ]
         for coul, LJ in zip(coul_list, self.fit_matrices):
             tmp = np.linalg.solve(vals.T, coul).T
             tmp = np.linalg.solve(vals.T, tmp)
-            # print(0, np.linalg.norm(tmp - tmp.T))
-            # print(1, np.linalg.norm(tmp - LJ.T.dot(LJ)))
         self.alpha_norms = 4 * self.alphas**1.5 / ((4 - np.sqrt(2)) * np.pi**1.5)
 
     @property
@@ -1171,12 +1169,6 @@ class SDMXIntPlan(SDMXBasePlan):
                 rdr = rdr[:-1]
                 rvals = rvals[:-1]
             wt_dict.append(rdr)
-            # a = self.alphas
-            # prod = a**2
-            # isum = 2 * a
-            # ints = _get_int_0(n, prod, isum)
-            # wt_dict.append(np.linalg.solve(vals.T, ints))
-            # print(wt_dict[n])
         self.alphas = 2.0 / (rvals * rvals)
         self.wt_dict = wt_dict
         self.fit_metric = "ovlp"
@@ -1286,6 +1278,7 @@ class NLDFAuxiliaryPlan(ABC):
         proc_inds=None,
         rhocut=1e-10,
         expcut=1e-10,
+        raise_large_expnt_error=True,
     ):
         """
         Initialize NLDFAuxiliaryPlan
@@ -1308,6 +1301,11 @@ class NLDFAuxiliaryPlan(ABC):
                 of integers.
             rhocut (float): Small-density cutoff for stability
             expcut (float): Small-exponent cutoff for stability
+            raise_large_expnt_error (bool, True): If True, raise an error
+                if a convolution exponent is larger than the largest interpolation
+                value. It is generally best to set this to true to make
+                sure a calculation doesn't accidentally lose significant precision
+                to going outside the interpolation range.
         """
         if not isinstance(nldf_settings, NLDFSettings):
             raise ValueError("Require NLDFSettings object")
@@ -1398,6 +1396,7 @@ class NLDFAuxiliaryPlan(ABC):
         else:
             self.alpha_norms = (np.pi / (2 * self.alphas)) ** -0.75
 
+        self._raise_large_expnt_error = raise_large_expnt_error
         self._run_setup()
 
     def new(self, **kwargs):
@@ -1530,7 +1529,7 @@ class NLDFAuxiliaryPlan(ABC):
                 rhocut=self.rhocut,
                 nspin=self.nspin,
             )
-            return a, (dadn, dadsigma, dadtau)
+            res = a, (dadn, dadsigma, dadtau)
         else:
             rho, sigma = rho_tuple
             if i == -1:
@@ -1547,7 +1546,12 @@ class NLDFAuxiliaryPlan(ABC):
                 rhocut=self.rhocut,
                 nspin=self.nspin,
             )
-            return a, (dadn, dadsigma)
+            res = a, (dadn, dadsigma)
+        if self._raise_large_expnt_error and np.max(a) > np.max(self.alphas):
+            raise RuntimeError(
+                "NLDF exponent is too large! Please increase nalpha/alpha_max."
+            )
+        return res
 
     def _clear_l1_cache(self, s):
         self._cached_l1_data[s] = []
@@ -1893,11 +1897,6 @@ class NLDFAuxiliaryPlan(ABC):
 
 class NLDFGaussianPlan(NLDFAuxiliaryPlan):
     def _run_setup(self):
-        # alpha_sinv, norm, transform = get_diff_gaussian_ovlp(
-        #    self.alphas, self.alpha_norms,
-        # )[1:4]
-        # self._alpha_transform = transform.T.dot(alpha_sinv)
-        # self._alpha_transform /= np.sqrt(norm)
         ovlp, _ = _get_ovlp_fit_interpolation_coefficients(
             self, self.alphas, i=-1, local=False
         )
@@ -1923,8 +1922,6 @@ class NLDFGaussianPlan(NLDFAuxiliaryPlan):
             vbuf=vbuf,
             dbuf=dbuf,
         )
-        # p[1:] -= p[:-1]
-        # dp[1:] -= dp[:-1]
         return p, dp
 
     def _get_transformed_interpolation_terms(self, p_xx, i=-1, fwd=True, inplace=False):
@@ -1970,11 +1967,6 @@ class NLDFGaussianPlan(NLDFAuxiliaryPlan):
         return p_xx
 
 
-def _stable_solve(a, b):
-    c_and_l = cho_factor(a)
-    return cho_solve(c_and_l, b)
-
-
 class NLDFSplinePlan(NLDFAuxiliaryPlan):
     def __init__(
         self,
@@ -1989,6 +1981,7 @@ class NLDFSplinePlan(NLDFAuxiliaryPlan):
         spline_size=None,
         rhocut=1e-10,
         expcut=1e-10,
+        raise_large_expnt_error=True,
     ):
         self._spline_size = nalpha if spline_size is None else spline_size
         self._local_alpha_transform = None
@@ -2003,6 +1996,7 @@ class NLDFSplinePlan(NLDFAuxiliaryPlan):
             proc_inds=proc_inds,
             rhocut=rhocut,
             expcut=expcut,
+            raise_large_expnt_error=raise_large_expnt_error,
         )
 
     def _run_setup(self):
@@ -2024,7 +2018,14 @@ class NLDFSplinePlan(NLDFAuxiliaryPlan):
             if self.coef_order == "gq":
                 p = p.T
             p[:, :] *= self.alpha_norms[:, None]
-            coefs_qi = np.ascontiguousarray(_stable_solve(ovlp, p))
+            if p.shape == ovlp.shape:
+                diff = np.max(np.abs(p * self.alpha_norms - ovlp))
+            else:
+                diff = 1e10
+            if diff > 1e-14:
+                coefs_qi = np.ascontiguousarray(_stable_solve(ovlp, p))
+            else:
+                coefs_qi = np.identity(p.shape[0]) / self.alpha_norms
             self._alpha_transform.append(
                 _construct_cubic_splines(coefs_qi, interp_indexes)
             )
@@ -2034,19 +2035,26 @@ class NLDFSplinePlan(NLDFAuxiliaryPlan):
         if self.coef_order == "gq":
             p = p.T
         p[:, :] *= self.alpha_norms[:, None]
-        coefs_qi = np.ascontiguousarray(_stable_solve(ovlp, p))
+        # coefs_qi = np.ascontiguousarray(_stable_solve(ovlp, p))
+        if p.shape == ovlp.shape:
+            diff = np.max(np.abs(p * self.alpha_norms - ovlp))
+        else:
+            diff = 1e10
+        if diff > 1e-14:
+            coefs_qi = np.ascontiguousarray(_stable_solve(ovlp, p))
+        else:
+            coefs_qi = np.identity(p.shape[0]) / self.alpha_norms
         self._alpha_transform.append(_construct_cubic_splines(coefs_qi, interp_indexes))
         self._local_alpha_transform = [
             np.ascontiguousarray(t[:, self.proc_inds, :]) for t in self._alpha_transform
         ]
         if self.alpha_formula == "zexp":
-            self.alpha_norms[0] = 0  # for stability
+            self.alpha_norms[0] = 0  # for numerical stability
 
     def get_a2q_fast(self, exp_g):
         """A fast (parallel C-backend) version of get_a2q that
         also has a local option to get the q values just
         for the local alphas."""
-        # TODO add bounds checking
         di = np.empty_like(exp_g)
         derivi = np.empty_like(exp_g)
         if self.alpha_formula == "etb":
@@ -2061,9 +2069,6 @@ class NLDFSplinePlan(NLDFAuxiliaryPlan):
             ctypes.c_double(self.alpha0),
             ctypes.c_double(self.lambd),
         )
-        # if self.alpha_order == 'decreasing':
-        #    di[:] = self.nalpha - 1 - di
-        #    derivi[:] *= -1
         if self._spline_size != self.nalpha:
             di[:] *= (self._spline_size - 1) / (self.nalpha - 1)
             derivi[:] *= (self._spline_size - 1) / (self.nalpha - 1)
@@ -2104,7 +2109,6 @@ class NLDFSplinePlan(NLDFAuxiliaryPlan):
             w_kap.ctypes.data_as(ctypes.c_void_p),
             ctypes.c_int(ngrids),
             ctypes.c_int(nalpha),
-            ctypes.c_int(w_kap.shape[0]),
             ctypes.c_double(self.lambd),
         )
         return p, dp

@@ -29,8 +29,7 @@ from gpaw.utilities import unpack_hermitian
 from gpaw.xc import XC
 from gpaw.xc.kernel import XCNull
 
-from ciderpress.gpaw.cider_paw import _CiderPASDW_MPRoutines
-from ciderpress.gpaw.fast_paw import _FastPASDW_MPRoutines
+from ciderpress.gpaw.cider_paw import CiderPASDW_MPRoutines
 
 
 def non_self_consistent_eigenvalues(
@@ -137,18 +136,12 @@ def vxc(gs, xc=None, coredensity=True, n1=0, n2=0):
     if dens.nt_sg is None:
         dens.interpolate_pseudo_density()
 
-    thisisatest = not True
-
-    # if xc.orbital_dependent:
-    # xc.set_grid_descriptor(gs._density.finegd)
     gs_gd = gs._hamiltonian.xc.gd
     xc.set_grid_descriptor(gs_gd)
     xc.initialize(gs._density, gs._hamiltonian, gs._wfs)
     xc.set_positions(gs.spos_ac)
-    # gs._hamiltonian.get_xc_difference(xc, gs._density)
-    # gs.get_xc_difference(xc)
 
-    # Calculate XC-potential:
+    # Calculate XC-potential
     vxct_sg = ham.finegd.zeros(gs.nspins)
     redist = gs._hamiltonian.xc_redistributor
     if redist is not None:
@@ -161,12 +154,10 @@ def vxc(gs, xc=None, coredensity=True, n1=0, n2=0):
     if redist is not None:
         redist.collect(_vxc, vxct_sg)
     vxct_sG = ham.restrict_and_collect(vxct_sg)
-    if thisisatest:
-        vxct_sG[:] = 1
 
-    # ... and PAW corrections:
+    # Calculate PAW corrections:
     dvxc_asii = {}
-    if isinstance(xc, (_CiderPASDW_MPRoutines, _FastPASDW_MPRoutines)):
+    if isinstance(xc, CiderPASDW_MPRoutines):
         xc._collect_paw_corrections()
     for a, D_sp in dens.D_asp.items():
         dvxc_sp = np.zeros_like(D_sp)
@@ -176,8 +167,6 @@ def vxc(gs, xc=None, coredensity=True, n1=0, n2=0):
             pawdata, D_sp, dvxc_sp, a=a, addcoredensity=coredensity
         )
         dvxc_asii[a] = [unpack_hermitian(dvxc_p) for dvxc_p in dvxc_sp]
-        if thisisatest:
-            dvxc_asii[a] = [gs.setups[a].dO_ii]
 
     vxc_un = np.empty((gs.kd.mynk * gs.nspins, gs.bd.mynbands))
     for u, vxc_n in enumerate(vxc_un):
@@ -232,25 +221,19 @@ def vxc_mat(gs, xc=None, coredensity=True, n1=0, n2=0):
     if dens.nt_sg is None:
         dens.interpolate_pseudo_density()
 
-    thisisatest = not True
-
-    # if xc.orbital_dependent:
     xc.set_grid_descriptor(gs._density.finegd)
     xc.initialize(gs._density, gs._hamiltonian, gs._wfs)
     xc.set_positions(gs.spos_ac)
     gs._hamiltonian.get_xc_difference(xc, gs._density)
-    # gs.get_xc_difference(xc)
 
-    # Calculate XC-potential:
+    # Calculate XC-potential
     vxct_sg = ham.finegd.zeros(gs.nspins)
     xc.calculate(dens.finegd, dens.nt_sg, vxct_sg)
     vxct_sG = ham.restrict_and_collect(vxct_sg)
-    if thisisatest:
-        vxct_sG[:] = 1
 
-    # ... and PAW corrections:
+    # Calculate PAW corrections:
     dvxc_asii = {}
-    if isinstance(xc, (_CiderPASDW_MPRoutines, _FastPASDW_MPRoutines)):
+    if isinstance(xc, CiderPASDW_MPRoutines):
         xc._collect_paw_corrections()
     for a, D_sp in dens.D_asp.items():
         dvxc_sp = np.zeros_like(D_sp)
@@ -260,8 +243,6 @@ def vxc_mat(gs, xc=None, coredensity=True, n1=0, n2=0):
             pawdata, D_sp, dvxc_sp, a=a, addcoredensity=coredensity
         )
         dvxc_asii[a] = [unpack_hermitian(dvxc_p) for dvxc_p in dvxc_sp]
-        if thisisatest:
-            dvxc_asii[a] = [gs.setups[a].dO_ii]
 
     vxc_n_skn = []
     for n0 in range(gs.bd.mynbands):

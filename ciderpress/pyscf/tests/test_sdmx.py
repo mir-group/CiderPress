@@ -29,7 +29,7 @@ from pyscf.dft.gen_grid import Grids
 from pyscf.gto.mole import ANG_OF, ATOM_OF, NCTR_OF, NPRIM_OF, PTR_COEFF, PTR_EXP
 
 from ciderpress.dft.settings import SDMXG1Settings, SDMXGSettings
-from ciderpress.dft.sph_harm_coeff import get_deriv_ylm_coeff_v2
+from ciderpress.dft.sph_harm_coeff import get_deriv_ylm_coeff
 from ciderpress.lib import load_library as load_cider_library
 from ciderpress.pyscf.sdmx import eval_conv_sh
 from ciderpress.pyscf.sdmx_slow import (
@@ -115,7 +115,7 @@ def get_test_ylm(mol, lmax_list, coords, grad=False, xyz=False):
         ctypes.c_int(mol.natm),
     )
     if grad:
-        gaunt_coeff = get_deriv_ylm_coeff_v2(np.max(lmax_list))
+        gaunt_coeff = get_deriv_ylm_coeff(np.max(lmax_list))
         libcider.SDMXylm_grad(
             ctypes.c_int(coords.shape[0]),
             ylm.ctypes.data_as(ctypes.c_void_p),
@@ -135,16 +135,12 @@ def get_test_ylm(mol, lmax_list, coords, grad=False, xyz=False):
     return ylm
 
 
-class TestYlm(unittest.TestCase):
+class TestSDMX(unittest.TestCase):
     def test_ylm(self):
         for lmax_list in [[3, 4], [3, 0], [2, 1], [4, 4], [5, 6]]:
-            print(lmax_list)
             mol = gto.M(
                 atom="H 0 0 0; F 0 0 0.9", basis="def2-tzvp", output="/dev/null"
             )
-            # lmax_list = [3, 4]
-            # mol = gto.M(atom='He 0 0 0', basis='def2-tzvp')
-            # lmax_list = [3]
 
             grids = Grids(mol)
             grids.level = 0
@@ -189,9 +185,6 @@ class TestYlm(unittest.TestCase):
         for itype in ["gauss_r2", "gauss_diff"]:
             for basis in ["def2-svp", "def2-qzvppd", "cc-pvtz"]:
                 for deriv in [0, 1]:
-                    print(basis, deriv, itype)
-                    # if itype == 'gauss_r2' and deriv == 1:
-                    #     continue
                     mol = gto.M(
                         atom="H 0 0 0; F 0 0 0.9", basis=basis, output="/dev/null"
                     )
@@ -202,17 +195,13 @@ class TestYlm(unittest.TestCase):
                     plan = inits[deriv].initialize_sdmx_generator(mol, 1).plan
                     plan.settings._integral_type = itype
 
-                    t0 = time.monotonic()
                     cao_ref = eval_conv_ao_fast(
                         plan,
                         mol,
                         coords,
                         deriv=deriv,
                     )
-                    t1 = time.monotonic()
                     cao_test = eval_conv_ao(plan, mol, coords, deriv=deriv)
-                    t2 = time.monotonic()
-                    print(t1 - t0, t2 - t1)
                     assert_allclose(cao_test, cao_ref, atol=1e-8, rtol=1e-10)
 
                     mol.stdout.close()
@@ -226,7 +215,6 @@ class TestYlm(unittest.TestCase):
         for itype in ["gauss_r2", "gauss_diff"]:
             for basis in ["def2-svp", "def2-qzvppd", "cc-pvtz"]:
                 for deriv in [0, 1]:
-                    print(basis, deriv, itype)
                     mol = gto.M(
                         atom="H 0 0 0; F 0 0 0.9", basis=basis, output="/dev/null"
                     )
@@ -242,7 +230,7 @@ class TestYlm(unittest.TestCase):
                     ylm_buf = np.empty((25, blksize, nao))
                     t0 = time.monotonic()
                     for i0, i1 in lib.prange(0, grids.coords.shape[0], blksize):
-                        cao_ref = eval_conv_ao_fast(
+                        eval_conv_ao_fast(
                             plan,
                             mol,
                             grids.coords[i0:i1],
@@ -254,7 +242,7 @@ class TestYlm(unittest.TestCase):
                     cao_buf = np.empty((ncomp, blksize, nao))
                     t2 = time.monotonic()
                     for i0, i1 in lib.prange(0, grids.coords.shape[0], blksize):
-                        cao_ref = eval_conv_ao(
+                        eval_conv_ao(
                             plan, mol, grids.coords[i0:i1], deriv=deriv, out=cao_buf
                         )
                     t3 = time.monotonic()
@@ -262,10 +250,9 @@ class TestYlm(unittest.TestCase):
                     cao_buf = np.empty((ncomp, blksize, nao))
                     t4 = time.monotonic()
                     for i0, i1 in lib.prange(0, grids.coords.shape[0], blksize):
-                        cao_ref = eval_conv_sh(
+                        eval_conv_sh(
                             plan, mol, grids.coords[i0:i1], deriv=deriv, out=cao_buf
                         )
-                        print(np.isnan(cao_ref).any())
                     t5 = time.monotonic()
                     print(t1 - t0, t3 - t2, t5 - t4)
                     print()
@@ -286,9 +273,8 @@ class TestYlm(unittest.TestCase):
         init1 = NewSDMXInit(settings1)
         new_inits = {0: init0, 1: init1}
         for itype in ["gauss_diff"]:
-            for basis in ["def2-svp", "def2-tzvpd", "def2-qzvppd"]:
+            for basis in ["def2-svp", "def2-tzvpd", "def2-qzvppd", "aug-cc-pvtz"]:
                 for deriv in [0, 1]:
-                    print(basis, deriv, itype)
                     mol = gto.M(
                         atom="H 0 0 0; F 0 0 0.9", basis=basis, output="/dev/null"
                     )
@@ -307,22 +293,23 @@ class TestYlm(unittest.TestCase):
 
                     t0 = time.monotonic()
                     ref_feat = refgen.get_features(dm, mol, grids.coords, save_buf=True)
-                    ref_feat = refgen.get_features(dm, mol, grids.coords, save_buf=True)
-                    ref_feat = refgen.get_features(dm, mol, grids.coords, save_buf=True)
                     t1 = time.monotonic()
-                    test_feat = testgen.get_features(
-                        dm, mol, grids.coords, save_buf=True
-                    )
-                    test_feat = testgen.get_features(
-                        dm, mol, grids.coords, save_buf=True
-                    )
                     test_feat = testgen.get_features(
                         dm, mol, grids.coords, save_buf=True
                     )
                     t2 = time.monotonic()
                     print(t1 - t0, t2 - t1)
 
+                    np.random.seed(42)
+                    vxc_grid = np.random.normal(size=ref_feat.shape) ** 2
+                    nao = mol.nao_nr()
+                    vxc_mat_ref = np.zeros((nao, nao))
+                    vxc_mat_test = np.zeros((nao, nao))
+                    refgen.get_vxc_(vxc_mat_ref, vxc_grid)
+                    testgen.get_vxc_(vxc_mat_test, vxc_grid)
+
                     assert_allclose(test_feat, ref_feat, rtol=1e-8, atol=1e-10)
+                    assert_allclose(vxc_mat_test, vxc_mat_ref, rtol=1e-8, atol=1e-10)
 
                     mol.stdout.close()
 

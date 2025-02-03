@@ -1155,6 +1155,10 @@ void expand_to_grid(double *in_i, double *out_g, int l, int ia, double *r_g,
     int *bas = atco->bas;
     double *env = atco->env;
     atc_atom *atcc = atco->atc_convs + ia;
+    if (l > atcc->lmax) {
+        printf("INTERNAL ERROR: l > lmax for atcc");
+        exit(-1);
+    }
     int ish0 = atcc->global_l_loc[l];
     int ish1 = atcc->global_l_loc[l + 1];
     int dish = ish1 - ish0;
@@ -1187,6 +1191,10 @@ void contract_from_grid(double *in_g, double *out_i, int l, int ia, double *r_g,
     int *bas = atco->bas;
     double *env = atco->env;
     atc_atom *atcc = atco->atc_convs + ia;
+    if (l > atcc->lmax) {
+        printf("INTERNAL ERROR: l > lmax for atcc");
+        exit(-1);
+    }
     int ish0 = atcc->global_l_loc[l];
     int ish1 = atcc->global_l_loc[l + 1];
     int dish = ish1 - ish0;

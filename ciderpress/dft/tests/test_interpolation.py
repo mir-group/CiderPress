@@ -211,7 +211,6 @@ class TestLCAOInterpolator(unittest.TestCase):
             df_uq[:, q] = 1e-8 * np.random.normal(size=atco.nao)
             fperturb_pred_arlpq = interpolator.conv2spline(f_uq + df_uq)
             energy_perturb, _ = get_e_and_vfeat(fperturb_pred_arlpq)
-            # print(energy, energy_perturb)
             fd_deriv = energy_perturb - energy
             assert_allclose(np.sum(vf_uq * df_uq), fd_deriv, rtol=2e-4)
         n = 194

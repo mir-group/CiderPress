@@ -171,7 +171,7 @@ class AtomicGridsIndexer:
 
     def set_padding(self, padding):
         """Padding is how much bigger target grid is than the grid
-        construct from all_coords[idx]"""
+        constructed from all_coords[idx]"""
         self.padding = padding
 
     def set_weights(self, weights):

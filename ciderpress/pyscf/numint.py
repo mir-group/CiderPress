@@ -101,7 +101,6 @@ def nr_rks(
     Returns:
 
     """
-    max_memory = 2000
     ni.timer.start("nr_rks")
     if relativity != 0:
         raise NotImplementedError
@@ -204,7 +203,6 @@ def nr_rks(
 def nr_uks(
     ni, mol, grids, xc_code, dms, relativity=0, hermi=1, max_memory=2000, verbose=None
 ):
-    max_memory = 2000
     ni.timer.start("nr_uks")
     if relativity != 0:
         raise NotImplementedError
@@ -469,7 +467,6 @@ def nr_rks_nldf(
 def nr_uks_nldf(
     ni, mol, grids, xc_code, dms, relativity=0, hermi=1, max_memory=2000, verbose=None
 ):
-    max_memory = 2000
     ni.timer.start("nr_uks")
     if relativity != 0:
         raise NotImplementedError
@@ -951,7 +948,6 @@ class CiderNumInt(CiderNumIntMixin, numint.NumInt):
             coords = grids.coords[ip0:ip1]
             weight = grids.weights[ip0:ip1]
             mask = screen_index[ip0 // BLKSIZE :]
-            # TODO: pass grids.cutoff to eval_ao
             ao = self.eval_ao(
                 mol, coords, deriv=deriv, non0tab=mask, cutoff=grids.cutoff, out=buf
             )
@@ -1032,7 +1028,6 @@ class _FLNumIntMixin:
             coords = grids.coords[ip0:ip1]
             weight = grids.weights[ip0:ip1]
             mask = screen_index[ip0 // BLKSIZE :]
-            # TODO: pass grids.cutoff to eval_ao
             ao_buf = np.ndarray((comp + kcomp, weight.size * nao), buffer=buf)
             ao = ni.eval_ao(
                 mol, coords, deriv=deriv, non0tab=mask, cutoff=grids.cutoff, out=ao_buf

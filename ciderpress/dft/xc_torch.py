@@ -105,7 +105,6 @@ def simple_map(
 
     my_nn = nncls(X.shape[1], nlayer=nlayer, nhidden=nhidden)
     my_nn = my_nn.double().to(device)
-    print(my_nn)
 
     loss = nn.MSELoss()
     # optimizer = torch.optim.SGD(my_nn.parameters(), lr=1e-2)
@@ -184,7 +183,6 @@ def simple_map(
         Xlst.append(Xp)
         Xlst.append(Xm)
         dy = (eval_gp(Xp) - eval_gp(Xm)) / delta
-        print(dy.shape)
         ylst.append(dy)
     X = np.concatenate(Xlst, axis=0)
     y = np.concatenate(ylst)
@@ -207,16 +205,10 @@ def simple_map(
         else:
             train(X, y, my_nn, loss, optimizer, t, need_closure=True)
     my_nn.eval()
-    import time
-
-    t0 = time.monotonic()
     for i in range(100):
         pred = my_nn(X[:nsamp])
-    t1 = time.monotonic()
-    print(t1 - t0)
     diff = (y[:nsamp] - pred).cpu().detach().numpy()
-    print(np.mean(np.abs(diff)))
-    print(np.sqrt(np.mean(diff**2)))
-    print(np.max(np.abs(diff)))
-    print("Done")
+    print(
+        "Err", np.mean(np.abs(diff)), np.sqrt(np.mean(diff**2)), np.max(np.abs(diff))
+    )
     return my_nn.to(torch.device("cpu"))

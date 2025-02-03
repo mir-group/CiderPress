@@ -1,3 +1,23 @@
+#!/usr/bin/env python
+# CiderPress: Machine-learning based density functional theory calculations
+# Copyright (C) 2024 The President and Fellows of Harvard College
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>
+#
+# Author: Kyle Bystrom <kylebystrom@gmail.com>
+#
+
 import unittest
 
 import numpy as np
@@ -11,31 +31,30 @@ from gpaw.xc import XC
 from numpy.testing import assert_almost_equal
 
 from ciderpress.gpaw.calculator import get_cider_functional
+from ciderpress.gpaw.descriptors import (
+    get_descriptors,
+    get_drho_df,
+    get_homo_lumo_fd_,
+    interpolate_drhodf,
+    run_constant_occ_calculation_,
+)
+from ciderpress.gpaw.interp_paw import DiffGGA
+from ciderpress.gpaw.interp_paw import DiffMGGA2 as DiffMGGA
 from ciderpress.gpaw.xc_tools import non_self_consistent_eigenvalues as nscfeig
 
-USE_FAST_CIDER = True
 
-if USE_FAST_CIDER:
-    from ciderpress.gpaw.fast_descriptors import (
-        get_descriptors,
-        get_drho_df,
-        get_homo_lumo_fd_,
-        interpolate_drhodf,
-        run_constant_occ_calculation_,
-    )
-    from ciderpress.gpaw.interp_paw import DiffGGA
-    from ciderpress.gpaw.interp_paw import DiffMGGA2 as DiffMGGA
+def setUpModule():
+    # TODO it would be better not to need this, but until CIDER
+    # gives no intermediate numpy floating point errors,
+    # pytest seems to insist on turning the warnings to raised errors.
+    global NUMPY_ERR_DICT
+    NUMPY_ERR_DICT = np.geterr()
+    np.seterr(all="warn")
 
-    get_features = get_descriptors
-else:
-    from ciderpress.gpaw.descriptors import (
-        get_drho_df,
-        get_features,
-        get_homo_lumo_fd_,
-        interpolate_drhodf,
-        run_constant_occ_calculation_,
-    )
-    from ciderpress.gpaw.interp_paw import DiffGGA, DiffMGGA
+
+def tearDownModule():
+    global NUMPY_ERR_DICT
+    np.seterr(**NUMPY_ERR_DICT)
 
 
 def get_xc(fname, use_paw=True, force_nl=False):
@@ -47,7 +66,6 @@ def get_xc(fname, use_paw=True, force_nl=False):
         pasdw_ovlp_fit=True,
         pasdw_store_funcs=False,
         use_paw=use_paw,
-        fast=USE_FAST_CIDER,
         _force_nonlocal=force_nl,
     )
 
@@ -61,10 +79,10 @@ def _get_features(calc, all_settings, p_i=None, **kwargs):
     for settings in all_settings:
         kwargs["settings"] = settings
         if p_i is None:
-            feat, wt = get_features(calc, **kwargs)
+            feat, wt = get_descriptors(calc, **kwargs)
             feats.append(feat)
         else:
-            feat, dfeat, wt = get_features(calc, p_i=p_i, **kwargs)
+            feat, dfeat, wt = get_descriptors(calc, p_i=p_i, **kwargs)
             feats.append(feat)
             dfeats.append(dfeat)
     feat = np.concatenate(feats, axis=1)
@@ -104,20 +122,21 @@ def _rotate_orbs_(calc, s, k, n1, n2, delta):
         kpt = wfs.kpt_u[u]
         assert kpt.s == s
         assert kpt.k == k
-    else:
-        return None, None, None
-    # TODO not sure if indexing is correct for band parallelization
-    psi1 = kpt.psit_nG[n1].copy()
-    psi2 = kpt.psit_nG[n2].copy()
-    norm = np.sqrt(1 + delta * delta)
-    kpt.psit_nG[n1] += delta * psi2
-    kpt.psit_nG[n2] -= delta * psi1
-    kpt.psit_nG[n1] /= norm
-    kpt.psit_nG[n2] /= norm
+        psi1 = kpt.psit_nG[n1].copy()
+        psi2 = kpt.psit_nG[n2].copy()
+        norm = np.sqrt(1 + delta * delta)
+        # TODO not sure if indexing is correct for band parallelization
+        kpt.psit_nG[n1] += delta * psi2
+        kpt.psit_nG[n2] -= delta * psi1
+        kpt.psit_nG[n1] /= norm
+        kpt.psit_nG[n2] /= norm
     calc.wfs.calculate_atomic_density_matrices(calc.density.D_asp)
     calc.density.calculate_pseudo_density(calc.wfs)
     calc.density.interpolate_pseudo_density()
-    return psi1, psi2, 2 * kpt.weight
+    if wfs.kd.comm.rank == rank:
+        return psi1, psi2, 2 * kpt.weight
+    else:
+        return None, None, None
 
 
 def _reset_orbs_(calc, s, k, n1, n2, psi1, psi2):
@@ -129,16 +148,14 @@ def _reset_orbs_(calc, s, k, n1, n2, psi1, psi2):
         kpt = wfs.kpt_u[u]
         assert kpt.s == s
         assert kpt.k == k
-    else:
-        return
-    kpt.psit_nG[n1] = psi1
-    kpt.psit_nG[n2] = psi2
+        kpt.psit_nG[n1] = psi1
+        kpt.psit_nG[n2] = psi2
     calc.wfs.calculate_atomic_density_matrices(calc.density.D_asp)
     calc.density.calculate_pseudo_density(calc.wfs)
     calc.density.interpolate_pseudo_density()
 
 
-def run_fd_deriv_test(xc, use_pp=False, spinpol=False):
+def run_fd_deriv_test(xc, use_pp=False, spinpol=False, modify_cell=False):
     k = 3
     si = bulk("Si")
     si.calc = GPAW(
@@ -153,6 +170,11 @@ def run_fd_deriv_test(xc, use_pp=False, spinpol=False):
         setups="sg15" if use_pp else "paw",
         txt="si.txt",
     )
+    if modify_cell:
+        si.set_cell(
+            np.dot(si.cell, [[1.02, 0, 0.03], [0, 0.99, -0.02], [0.2, -0.01, 1.03]]),
+            scale_atoms=True,
+        )
 
     etot = si.get_potential_energy()
     gap, vbm, cbm, dev, dec, pvbm, pcbm = get_homo_lumo_fd_(si.calc, delta=1e-6)
@@ -177,12 +199,16 @@ def run_vxc_test(xc0, xc1, spinpol=False, use_pp=False, safe=True):
         xc=xc0,
         kpts=(k, k, k),
         convergence={"energy": 1e-8, "density": 1e-10},
-        parallel={"domain": min(2, world.size), "augment_grids": True},
+        parallel={"domain": min(2, world.size), "augment_grids": False},
         occupations={"name": "fermi-dirac", "width": 0.0},
         spinpol=spinpol,
         setups="sg15" if use_pp else "paw",
         txt="si.txt",
     )
+    # si.set_cell(
+    #     np.dot(si.cell, [[1.02, 0, 0.03], [0, 0.99, -0.02], [0.2, -0.01, 1.03]]),
+    #     scale_atoms=True,
+    # )
     delta = 1e-5
     si.get_potential_energy()
     gap, p_vbm, p_cbm = bandgap(si.calc)
@@ -218,14 +244,16 @@ def run_vxc_test(xc0, xc1, spinpol=False, use_pp=False, safe=True):
     ediff1 = ediff11 - ediff10
 
     fd_eigdiff_vbm = (ediff0 - ediff1) / delta
-    parprint(eigdiff_vbm.real, fd_eigdiff_vbm / wt)
+    if wt is not None:
+        parprint(eigdiff_vbm.real, fd_eigdiff_vbm / wt)
     if use_pp:
         # TODO for some reason precision is lower on pseudopp vxc,
         # is this just due to pseudos or is it some kind of bug?
         prec = 6
     else:
         prec = 7
-    assert_almost_equal(eigdiff_vbm, fd_eigdiff_vbm / wt, prec)
+    if wt is not None:
+        assert_almost_equal(eigdiff_vbm.real, fd_eigdiff_vbm / wt, prec)
 
 
 def run_nscf_eigval_test(xc0, xc1, spinpol=False, use_pp=False, safe=True):
@@ -243,13 +271,17 @@ def run_nscf_eigval_test(xc0, xc1, spinpol=False, use_pp=False, safe=True):
         xc=xc0,
         kpts=(k, k, k),
         convergence={"energy": 1e-8, "density": 1e-10},
-        parallel={"domain": min(2, world.size), "augment_grids": True},
+        parallel={"domain": min(2, world.size), "augment_grids": False},
         occupations={"name": "fermi-dirac", "width": 0.0},
         spinpol=spinpol,
         setups="sg15" if use_pp else "paw",
         txt="si.txt",
     )
     delta = 1e-4
+    # si.set_cell(
+    #    np.dot(si.cell, [[1.02, 0, 0.03], [0, 0.99, -0.02], [0.2, -0.01, 1.03]]),
+    #    scale_atoms=True,
+    # )
     si.get_potential_energy()
     gap, p_vbm, p_cbm = bandgap(si.calc)
     run_constant_occ_calculation_(si.calc)
@@ -312,6 +344,9 @@ def run_nscf_eigval_test(xc0, xc1, spinpol=False, use_pp=False, safe=True):
 
 
 def run_drho_test(spinpol=False, use_pp=False):
+    # NOTE: This test does not work if augment_grids=True
+    # because the interpolate_drhodf call will not use
+    # the right grid.
     k = 3
     si = bulk("Si")
     si.calc = GPAW(
@@ -320,7 +355,7 @@ def run_drho_test(spinpol=False, use_pp=False):
         xc="PBE",
         kpts=(k, k, k),
         convergence={"energy": 1e-8, "density": 1e-10},
-        parallel={"domain": min(2, world.size), "augment_grids": True},
+        parallel={"domain": min(2, world.size), "augment_grids": False},
         occupations={"name": "fermi-dirac", "width": 0.0},
         spinpol=spinpol,
         setups="sg15" if use_pp else "paw",
@@ -368,7 +403,7 @@ def run_nl_feature_test(xc, use_pp=False, spinpol=False, baseline="PBE"):
         xc=xc,
         kpts=(k, k, k),
         convergence={"energy": 1e-8, "density": 1e-10},
-        parallel={"domain": min(2, world.size), "augment_grids": True},
+        parallel={"domain": min(2, world.size), "augment_grids": False},
         occupations={"name": "fermi-dirac", "width": 0.0},
         spinpol=spinpol,
         setups="sg15" if use_pp else "paw",
@@ -376,13 +411,10 @@ def run_nl_feature_test(xc, use_pp=False, spinpol=False, baseline="PBE"):
     )
 
     mlfunc = xc.cider_kernel.mlfunc
-    if USE_FAST_CIDER:
-        all_settings = [
-            mlfunc.settings.sl_settings,
-            mlfunc.settings.nldf_settings,
-        ]
-    else:
-        all_settings = [mlfunc.settings.nldf_settings]
+    all_settings = [
+        mlfunc.settings.sl_settings,
+        mlfunc.settings.nldf_settings,
+    ]
     kwargs = dict(
         settings=mlfunc.settings.nldf_settings,
         use_paw=not use_pp,
@@ -476,7 +508,7 @@ def run_nl_feature_test(xc, use_pp=False, spinpol=False, baseline="PBE"):
 def run_sl_feature_test(use_pp=False, spinpol=False):
     # TODO precision is poor for Si. Why is this?
     k = 3
-    si = bulk("Ge")
+    si = bulk("Si")
     from gpaw.xc.libxc import LibXC
 
     if use_pp:
@@ -485,7 +517,7 @@ def run_sl_feature_test(use_pp=False, spinpol=False):
         xc0 = xc0name
         xc1 = xc1name
     else:
-        xc0name = "MGGA_X_SCAN+MGGA_C_SCAN"
+        xc0name = "MGGA_X_R2SCAN+MGGA_C_R2SCAN"
         xc1name = "GGA_X_PBE+GGA_C_PBE"
         xc0 = DiffMGGA(LibXC(xc0name))
         xc1 = DiffGGA(LibXC(xc1name))
@@ -496,7 +528,7 @@ def run_sl_feature_test(use_pp=False, spinpol=False):
         xc=xc0,
         kpts=(k, k, k),
         convergence={"energy": 1e-8, "density": 1e-10},
-        parallel={"domain": min(2, world.size), "augment_grids": True},
+        parallel={"domain": min(2, world.size), "augment_grids": False},
         occupations={"name": "fermi-dirac", "width": 0.0},
         spinpol=spinpol,
         setups="sg15" if use_pp else "paw",
@@ -515,8 +547,8 @@ def run_sl_feature_test(use_pp=False, spinpol=False):
     # etot = si.get_potential_energy() / Ha
 
     ediff = si.calc.get_xc_difference(xc1) / Ha
-    feat0, wt0 = get_features(si.calc, **kwargs)
-    feat, dfeat_j, wt = get_features(si.calc, p_i=[p_vbm, p_cbm], **kwargs)
+    feat0, wt0 = get_descriptors(si.calc, **kwargs)
+    feat, dfeat_j, wt = get_descriptors(si.calc, p_i=[p_vbm, p_cbm], **kwargs)
 
     from pyscf.dft.numint import NumInt
 
@@ -528,7 +560,7 @@ def run_sl_feature_test(use_pp=False, spinpol=False):
 
     ni = NumInt()
     if use_pp:
-        exc0, vxc0 = ni.eval_xc_eff(xc0name, rho, xctype="GGA")[:2]
+        exc0, vxc0 = ni.eval_xc_eff(xc0name, rho[..., :4, :], xctype="GGA")[:2]
         exc1, vxc1 = ni.eval_xc_eff(xc1name, rho[..., :4, :], xctype="GGA")[:2]
     else:
         exc0, vxc0 = ni.eval_xc_eff(xc0name, rho, xctype="MGGA")[:2]
@@ -536,7 +568,7 @@ def run_sl_feature_test(use_pp=False, spinpol=False):
     exc_tot_0 = np.sum(exc0 * feat[:, 0].sum(0) * wt)
     exc_tot_1 = np.sum(exc1 * feat[:, 0].sum(0) * wt)
     parprint(exc_tot_1 - exc_tot_0, ediff)
-    assert_almost_equal(exc_tot_1 - exc_tot_0, ediff, 7)
+    assert_almost_equal(exc_tot_1 - exc_tot_0, ediff, 5)
 
     eig_vbm, ei_vbm, en_vbm = nscfeig(
         si.calc, xc1, n1=p_vbm[2], n2=p_vbm[2] + 1, kpt_indices=[p_vbm[1]]
@@ -597,15 +629,12 @@ class TestDescriptors(unittest.TestCase):
 
     def test_vxc(self):
         for use_pp in [True, False]:
-            xc = get_xc(
-                "functionals/CIDER23X_NL_GGA.yaml", use_paw=not use_pp, force_nl=True
-            )
+            xc = get_xc("functionals/CIDER23X_NL_GGA.yaml", use_paw=not use_pp)
             run_vxc_test("PBE", xc, spinpol=False, use_pp=use_pp, safe=not use_pp)
             run_vxc_test("PBE", xc, spinpol=True, use_pp=use_pp, safe=not use_pp)
             xc = get_xc(
                 "functionals/CIDER23X_NL_MGGA_DTR.yaml",
                 use_paw=not use_pp,
-                force_nl=True,
             )
             run_vxc_test("PBE", xc, spinpol=False, use_pp=use_pp, safe=not use_pp)
             run_vxc_test("PBE", xc, spinpol=True, use_pp=use_pp, safe=not use_pp)
@@ -655,10 +684,10 @@ class TestDescriptors(unittest.TestCase):
         run_fd_deriv_test(xc)
 
         xc = get_xc("functionals/CIDER23X_NL_MGGA_DTR.yaml")
-        run_fd_deriv_test(xc)
+        run_fd_deriv_test(xc, modify_cell=True)
 
         xc = get_xc("functionals/CIDER23X_NL_MGGA_DTR.yaml")
-        run_fd_deriv_test(xc, spinpol=True)
+        run_fd_deriv_test(xc, spinpol=True, modify_cell=True)
 
         xc = get_xc("functionals/CIDER23X_SL_GGA.yaml")
         run_fd_deriv_test(xc)

@@ -1,11 +1,33 @@
+#!/usr/bin/env python
+# CiderPress: Machine-learning based density functional theory calculations
+# Copyright (C) 2024 The President and Fellows of Harvard College
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>
+#
+# Author: Kyle Bystrom <kylebystrom@gmail.com>
+#
+
 import unittest
 
 import numpy as np
 from ase import Atoms
-from gpaw import GPAW, PW, FermiDirac
+from gpaw import GPAW, PW, FermiDirac, Mixer
 
 from ciderpress.gpaw.calculator import get_cider_functional
 from ciderpress.gpaw.tests import equal
+
+USE_AUGMENT_GRIDS = True
 
 
 def numeric_force(atoms, a, i, d=0.001, get_xc=None):
@@ -44,14 +66,15 @@ def _run_cider_forces(functional, get_xc=None):
     if get_xc is not None:
         functional = get_xc()
     calc = GPAW(
-        h=0.15,
-        mode=PW(520),
+        h=0.20,
+        mode=PW(350),
         xc=functional,
         nbands="150%",
         occupations=FermiDirac(width=0.01),
-        kpts=(4, 4, 4),
-        convergence={"energy": 1e-7},
-        parallel={"augment_grids": True},
+        kpts=(3, 3, 3),
+        convergence={"energy": 1e-8},
+        mixer=Mixer(0.7, 8, 50),
+        parallel={"augment_grids": USE_AUGMENT_GRIDS},
     )
     bulk.calc = calc
     f1 = bulk.get_forces()[0, 2]
@@ -59,7 +82,7 @@ def _run_cider_forces(functional, get_xc=None):
 
     f2 = numeric_force(bulk, 0, 2, 0.001, get_xc=get_xc)
     print((f1, f2, f1 - f2))
-    equal(f1, f2, 0.005)
+    equal(f1, f2, 0.001)
 
 
 def run_cider_forces(functional, get_xc=None):
@@ -94,7 +117,7 @@ class TestForce(unittest.TestCase):
                 qmax=300,
                 lambd=1.8,
                 xmix=0.25,
-                pasdw_ovlp_fit=False,
+                pasdw_ovlp_fit=True,
                 pasdw_store_funcs=False,
             )
 

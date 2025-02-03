@@ -1,3 +1,22 @@
+// CiderPress: Machine-learning based density functional theory calculations
+// Copyright (C) 2024 The President and Fellows of Harvard College
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>
+//
+// Author: Kyle Bystrom <kylebystrom@gmail.com>
+//
+
 #include "nldf_fft_mpi.h"
 #include "config.h"
 #include "gpaw_interface.h"
@@ -41,6 +60,7 @@ void ciderpw_setup_reciprocal_vectors(ciderpw_data data) {
     data->ky_G = (double *)malloc(sizeof(double) * data->nk);
     data->kz_G = (double *)malloc(sizeof(double) * data->nk);
     data->k2_G = (double *)malloc(sizeof(double) * data->nk);
+    data->wt_G = (uint8_t *)malloc(sizeof(uint8_t) * data->nk);
     for (N1 = 0; N1 < data->icell.Nlocal[1]; N1++) {
         N1glob = N1 + data->icell.offset[1];
         for (N0 = 0; N0 < data->icell.Nlocal[0]; N0++) {
@@ -69,6 +89,9 @@ void ciderpw_setup_reciprocal_vectors(ciderpw_data data) {
                 data->ky_G[kindex] = ky;
                 data->kz_G[kindex] = kz;
                 data->k2_G[kindex] = ksq;
+                data->wt_G[kindex] =
+                    (N2glob == 0 || N2glob == data->icell.Nglobal[2] - 1) ? 1
+                                                                          : 2;
             }
         }
     }
@@ -113,6 +136,7 @@ void ciderpw_init_mpi(ciderpw_data data, MPI_Comm mpi_comm, int nalpha,
 
     assert(fftw_alloc_size % data->kernel.work_size == 0);
     data->work_ska = fftw_alloc_complex(fftw_alloc_size);
+    data->work_array_size = fftw_alloc_size;
 
     if (data->fft_type == CIDERPW_R2C) {
         data->plan_g2k = fftw_mpi_plan_many_dft_r2c(

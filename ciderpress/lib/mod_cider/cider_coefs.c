@@ -222,6 +222,7 @@ void cider_ind_clip(double *di_g, double *derivi_g, int sizem1, int ngrids) {
             cond = di > 0;
             derivi_g[g] = (cond ? derivi_g[g] : 0);
             di_g[g] = (cond ? di : 0);
+            di = di_g[g];
             cond = di < sizem1;
             derivi_g[g] = (cond ? derivi_g[g] : 0);
             di_g[g] = (cond ? di : dsize);

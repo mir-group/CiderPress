@@ -72,6 +72,9 @@ def _get_fl_ueg(s):
 def get_cider_exponent(
     rho, sigma, tau, a0=1.0, grad_mul=0.0, tau_mul=0.03125, rhocut=1e-10, nspin=1
 ):
+    """
+    Evaluate an NLDF length-scale exponent at the MGGA level.
+    """
     if nspin > 2:
         raise ValueError
     if isinstance(rho, np.ndarray):
@@ -113,6 +116,9 @@ def get_cider_exponent(
 
 
 def get_cider_exponent_gga(rho, sigma, a0=1.0, grad_mul=0.03125, rhocut=1e-10, nspin=1):
+    """
+    Evaluate an NLDF length-scale exponent at the GGA level.
+    """
     if nspin > 2:
         raise ValueError
     if isinstance(rho, np.ndarray):
@@ -161,6 +167,13 @@ def _get_ueg_expnt(aval, tval, rho):
 
 
 class BaseSettings(ABC):
+    """
+    This is a base class for storing the settings for different
+    types of density/density matrix feature in CiderPress.
+    Settings objects indicate which features must be evaluated,
+    and with which hyperparameters, to use as input to an ML functional.
+    """
+
     @property
     @abstractmethod
     def nfeat(self):
@@ -171,6 +184,9 @@ class BaseSettings(ABC):
 
     @property
     def is_empty(self):
+        """
+        Return true of this settings object specifies zero features.
+        """
         return self.nfeat == 0
 
     @abstractmethod
@@ -201,6 +217,14 @@ class BaseSettings(ABC):
 
 
 class EmptySettings(BaseSettings):
+    """
+    The EmptySettings class is a representation of a feature set containing
+    zero features. It is used when a certain type of feature is not
+    present in a model. (For example, if a model does not use SDMX
+    features, that model's FeatureSettings.sdmx_settings will be
+    an EmptySettings instance.)
+    """
+
     @property
     def nfeat(self):
         return 0
@@ -226,39 +250,47 @@ class FracLaplSettings(BaseSettings):
         on the indexing of the features, fl_rho is the part of the density
         ingredient vector AFTER the semilocal part.
 
+        Note on the l=1 feature indexing. If l1_dots[i] = (j, k), then::
+
+            fl_feat[i+nk0] = einsum(
+                'xg,xg->g',
+                fl_rho[3*j+nk0 : 3*j+3+nk0],
+                fl_rho[3*k+nk0 : 3*k+3+nk0],
+            )
+
+        If ld_dots[i] = (j, k), then::
+
+            nstart = nk0 + 3 * nk1
+            fl_feat[i + nk0 + len(l1_dots)] = einsum(
+                'xg,xg->g',
+                fl_rho[3*j+nstart : 3*j+3+nstart],
+                fl_rho[3*k+nstart : 3*k+3+nstart],
+            )
+            nstart = nk0 + 3 * nk1 + 3 * nd1
+            fl_feat[i + nk0 + len(l1_dots) + len(ld_dots)] = fl_rho[i + nstart]
+
         Args:
             slist (list of float): s parameters for the fractional
-                Laplacian. For each s, (-Laplacian)**s phi_i is computed
+                Laplacian. For each s, :math:`(-\\Delta)^s \\phi_i` is computed
                 for each single-particle orbital.
             nk0 (int): Number of scalar (l=0) features. Must be <= len(slist).
-                fl_feat[i] = fl_rho[i] = (-Laplacian')**slist[i] rho(r, r') |_r'=r
+                fl_feat[i] = fl_rho[i] = :math:`(-\\Delta')^s \\rho(r, r') |_{r'=r}`,
+                with s=slist[i].
             nk1 (int): Number of vector (l=1) features F_s^1. Must be <= len(slist).
-                fl_rho[3*i+nk0 : 3*i+3+nk0] = nabla'' (-Laplacian')**slist[i]
-                                              rho(r'', r') |_r'=r,r''=r=
+                fl_rho[3*i+nk0 : 3*i+3+nk0] =
+                :math:`\\nabla'' (-\\Delta')^s \\rho(r'', r') |_{r'=r,r''=r}`,
+                with s=slist[i].
             l1_dots (list of (int, int)): List of index tuples for contracting
                 the l=1 F_s^1 features. -1 indicates to use the semilocal
-                density gradient. If l1_dots[i] = (j, k), then
-                    fl_feat[i+nk0] = einsum(
-                        'xg,xg->g',
-                        fl_rho[3*j+nk0 : 3*j+3+nk0],
-                        fl_rho[3*k+nk0 : 3*k+3+nk0],
-                    )
-            nd1 (int): Number of vector features F_s^d. Must be <= len(slist)
-                nstart = nk0 + 3 * nk1
-                fl_rho[i * 3 + nstart : (i+1) * 3 + nstart] =
-                    nabla' (-Laplacian')**slist[i] rho(r, r') |_r'=r
+                density gradient.
+            nd1 (int): Number of vector features F_s^d. Must be ``<= len(slist)``
+                With ``nstart = nk0 + 3 * nk1``,
+                ``fl_rho[i * 3 + nstart : (i+1) * 3 + nstart] =``
+                :math:`\\nabla' (-\\Delta')^s \\rho(r, r') |_{r'=r}`,
+                with s=slist[i].
             ld_dots (list of (int, int)): Same as l1_dots but for the F_s^d
                 features. -1 indicates to use the semilocal density gradient.
-                If ld_dots[i] = (j, k), then
-                    nstart = nk0 + 3 * nk1
-                    fl_feat[i + nk0 + len(l1_dots)] = einsum(
-                        'xg,xg->g',
-                        fl_rho[3*j+nstart : 3*j+3+nstart],
-                        fl_rho[3*k+nstart : 3*k+3+nstart],
-                    )
-            ndd (int): Numer of dot product features F_s^{dd}. Must be <= nd1
-                nstart = nk0 + 3 * nk1 + 3 * nd1
-                fl_feat[i + nk0 + len(l1_dots) + len(ld_dots)] = fl_rho[i + nstart]
+            ndd (int): Numer of dot product features :math:`F_s^{dd}`. Must be <= nd1
         """
         self.slist = slist
         assert nk0 <= self.npow
@@ -449,7 +481,7 @@ class SADMSettings(SDMXBaseSettings):
     the self-repulsion of the exchange hole constructed only from
     the spherically averaged density matrix at a point.
 
-    WARNING DEPRECATED, especially 'exact' which is not numerically
+    WARNING: DEPRECATED, especially 'exact' which is not numerically
     accurate. Use SDMXSettings and its variants instead.
     """
 
@@ -501,8 +533,6 @@ class SDMXSettings(SADMSettings):
                 and features might be poorly defined/numerically inaccurate.
         """
         super(SDMXSettings, self).__init__("smooth")
-        # if mode not in ['diffse', 'r2', 'r4']:
-        #    raise ValueError('Mode must be exact or smooth, got {}'.format(mode))
         self.pows = pows
 
     @property
@@ -546,7 +576,7 @@ class SDMXGSettings(SDMXSettings):
         Initialize SDMXGSettings
 
         Args:
-            pows (list of int): list or 0, 1, 2, see SDMXSettings docstring.
+            pows (list of int): list of 0, 1, 2, see SDMXSettings docstring.
             ndt (int): Number of gradient features H_n^d. Will compute features
                 for the first ndt values of n in pows.
         """
@@ -603,7 +633,7 @@ class SDMX1Settings(SDMXSettings):
         Initialize SDMX1Settings
 
         Args:
-            pows (list of int): list or 0, 1, 2, see SDMXSettings docstring.
+            pows (list of int): list of 0, 1, 2, see SDMXSettings docstring.
             n1 (int): Number of gradient features H_n^1. Will compute features
                 for the first n1 values of n in pows.
         """
@@ -648,7 +678,7 @@ class SDMXG1Settings(SDMXGSettings):
         Initialize SDMXG1Settings
 
         Args:
-            pows (list of int): list or 0, 1, 2, see SDMXSettings docstring.
+            pows (list of int): list of 0, 1, 2, see SDMXSettings docstring.
             nd (int): Number of gradient features H_n^d. Will compute features
                 for the first nd values of n in pows.
             n1 (int): Number of gradient features H_n^1. Will compute features
@@ -893,50 +923,75 @@ class HybridSettings(BaseSettings):
         raise NotImplementedError
 
 
+ALLOWED_I_SPECS_L0 = ["se", "se_r2", "se_apr2", "se_ap", "se_ap2r2", "se_lapl"]
 """
+Allowed spec strings for version i l=0 features.
+
 se: squared-exponential
-se_ap: squared-exponential times the exponent of the
-       r' coordinate.
+
+se_r2: squared-exponential times r^2
+
 se_apr2: squared-exponential times the exponent of the
-         r' coordinate times r^2
+r' coordinate times r^2
+
+se_ap: squared-exponential times the exponent of the
+r' coordinate.
+
 se_ap2r2: squared-exponential times exponent^2 times r^2
+
 se_lapl: laplacian of squared-exponential
 """
-ALLOWED_I_SPECS_L0 = ["se", "se_r2", "se_apr2", "se_ap", "se_ap2r2", "se_lapl"]
 
-
+ALLOWED_I_SPECS_L1 = ["se_grad", "se_rvec"]
 """
+Allowed spec strings for version i l=1 features
+
 se_grad: gradient of squared-exponential
+
 se_rvec: squared-exponential times vector (r'-r)
 """
-ALLOWED_I_SPECS_L1 = ["se_grad", "se_rvec"]
 
-"""
-se: squared-exponential
-se_ar2: squared-exponential * a * r^2
-se_a2r4: squared-exponential * a^2 * r^4
-se_erf_rinv: squared-exponential * 1/r with short-range
-             erf damping
-"""
 ALLOWED_J_SPECS = ["se", "se_ar2", "se_a2r4", "se_erf_rinv"]
+"""
+Allowed spec strings for version j features.
+Version k features have the same allowed spec strings
+
+se: squared-exponential
+
+se_ar2: squared-exponential * a * r^2
+
+se_a2r4: squared-exponential * a^2 * r^4
+
+se_erf_rinv: squared-exponential * 1/r with short-range
+erf damping
+"""
 ALLOWED_K_SPECS = ALLOWED_J_SPECS
+"""
+See ``ALLOWED_J_SPECS``
+"""
 
+ALLOWED_RHO_MULTS = ["one", "expnt"]
 """
-TODO docs here
-"""
-ALLOWED_RHO_MULTS = ["one", "taumix", "dampmix", "expnt"]
+These strings specify the allowed options for what value
+to multiply the density by before integrating it to construct
+NLDF features. The options are:
 
-"""
-TODO docs here
-"""
-ALLOWED_RHO_DAMPS = ["none", "exponential", "asymptotic_const"]
+one: Identity, i.e. multiply density by 1
 
+expnt: Multiply the density by the NLDF exponent specified
+by the theta_params. (NOTE: Experimental, not thoroughly tested.)
 """
-Uniform-scaling powers (USPs) descibe how features scale as the
-density is scaled by n_lambda(r) = lambda^3 n(lambda r). If the
-USP of a functional F is u, then
-F[n_lambda](r) = lambda^u F[n](lambda r)
+
+ALLOWED_RHO_DAMPS = ["exponential"]
 """
+These strings specify the allowed options for how to "damp"
+the density for the version k features. Currently the only allowed
+option is "exponential", which results in the integral
+:math:`\\int g[n](|r-r'|) n(r') exp(-3 a_0[n](r') / 2 a_i[n](r))`,
+where :math:`a_0` is the exponent given by ``theta_params``
+and :math:`a_i` is an exponet given by ``feat_params``.
+"""
+
 SPEC_USPS = {
     "se": 0,
     "se_r2": -2,
@@ -951,10 +1006,14 @@ SPEC_USPS = {
     "se_rvec": -1,
     "grad_rho": 4,
 }
+"""
+Uniform-scaling powers (USPs) descibe how features scale as the
+density is scaled by n_lambda(r) = lambda^3 n(lambda r). If the
+USP of a functional F is u, then
+F[n_lambda](r) = lambda^u F[n](lambda r)
+"""
 RHO_MULT_USPS = {
     "one": 0,
-    "taumix": 0,
-    "dampmix": 0,
     "expnt": 2,
 }
 
@@ -989,7 +1048,7 @@ class NLDFSettings(BaseSettings):
                 Should be an array of 3 floats [a0, grad_mul, tau_mul].
                 tau_mul is ignored if sl_level="GGA" and may therefore be excluded.
             rho_mult (str): Multiply the density that gets integrated
-                by a prefactor. Options: None/'one', 'taumix', 'dampmix', 'expnt'
+                by a prefactor. Options: See ALLOWED_RHO_MULTS.
         """
         self._sl_level = sl_level
         self.theta_params = theta_params
@@ -1103,7 +1162,7 @@ class NLDFSettingsVI(NLDFSettings):
                 'exponent' is not used in the squared-exponential but rather
                 within the density damping scheme (see rho_damp).
             rho_mult (str): Multiply the density that gets integrated
-                by a prefactor. Options: None/'one', 'taumix', 'dampmix', 'expnt'
+                by a prefactor. Options: See ALLOWED_RHO_MULTS.
             l0_feat_specs (list of str): Each item in the list is a str
                 specifying the formula to be used for the scalar (l=0)
                 features. See ALLOWED_I_SPECS_L0 for allowed values.
@@ -1237,7 +1296,7 @@ class NLDFSettingsVJ(NLDFSettings):
                 'exponent' is not used in the squared-exponential but rather
                 within the density damping scheme (see rho_damp).
             rho_mult (str): Multiply the density that gets integrated
-                by a prefactor. Options: None/'one', 'taumix', 'dampmix', 'expnt'
+                by a prefactor. Options: See ALLOWED_RHO_MULTS.
             feat_specs (list of str):
                 Each item in the list is a string specifying the formula
                 to be used for a feature (see ALLOWED_J_SPECS for options).
@@ -1365,7 +1424,7 @@ class NLDFSettingsVIJ(NLDFSettings):
                 'exponent' is not used in the squared-exponential but rather
                 within the density damping scheme (see rho_damp).
             rho_mult (str): Multiply the density that gets integrated
-                by a prefactor. Options: None/'one', 'taumix', 'dampmix', 'expnt'
+                by a prefactor. Options: See ALLOWED_RHO_MULTS.
             l0_feat_specs_i (list of str): Each item in the list is a str
                 specifying the formula to be used for the scalar (l=0)
                 features. See ALLOWED_I_SPECS_L0 for allowed values.
@@ -1477,7 +1536,7 @@ class NLDFSettingsVK(NLDFSettings):
                 'exponent' is not used in the squared-exponential but rather
                 within the density damping scheme (see rho_damp).
             rho_mult (str): Multiply the density that gets integrated
-                by a prefactor. Options: None/'one', 'taumix', 'dampmix', 'expnt'
+                by a prefactor. Options: See ALLOWED_RHO_MULTS.
             feat_params (list of np.ndarray):
                 Each item in the list is an array with the parameters for the
                 feature corresponding to the feat_specs above. Typically, each array
@@ -1495,6 +1554,8 @@ class NLDFSettingsVK(NLDFSettings):
         for s, p in zip(self.feat_specs, self.feat_params):
             self._check_params(p, spec=s)
         self.rho_damp = rho_damp
+        if self.rho_damp not in ALLOWED_RHO_DAMPS:
+            raise ValueError("rho_damp argument must be in ALLOWED_RHO_DAMPS.")
 
     @property
     def num_feat_param_sets(self):

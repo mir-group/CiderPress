@@ -222,7 +222,6 @@ class TestSemilocal(unittest.TestCase):
         for k, orblist in orbs.items():
             for iorb in orblist:
                 dtmp = {k: [iorb]}
-                print(k, iorb)
                 labels, coeffs, en_list, sep_spins = get_labels_and_coeffs(
                     dtmp, mo_coeff, mo_occ, mo_energy
                 )

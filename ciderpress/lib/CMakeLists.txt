@@ -41,12 +41,28 @@ if(EXISTS "${PROJECT_SOURCE_DIR}/cmake.arch.inc")
   include("${PROJECT_SOURCE_DIR}/cmake.arch.inc")
 endif()
 
+find_package(OpenMP)
+if(OPENMP_C_FOUND)
+  set(HAVE_OPENMP 1)
+  message(STATUS "OpenMP_C_LIB_NAMES" ${OpenMP_C_LIB_NAMES})
+  message(STATUS "OpenMP_C_LIBRARY" ${OpenMP_C_LIBRARY})
+  message(STATUS "OpenMP_C_LIBRARIES" ${OpenMP_C_LIBRARIES})
+else ()
+  set(OpenMP_C_FLAGS " ")
+endif()
+
+# We want MKL to use the same threading as the rest of the project
 set(MKL_INTERFACE lp64)
-set(MKL_THREADING gnu_thread)
+if("iomp5" IN_LIST OpenMP_C_LIB_NAMES)
+  set(MKL_THREADING intel_thread)
+elseif("gomp" IN_LIST OpenMP_C_LIB_NAMES)
+  set(MKL_THREADING gnu_thread)
+else()
+  set(MKL_THREADING sequential)
+endif()
 find_package(MKL CONFIG REQUIRED PATHS $ENV{MKLROOT})
 set(MKL_INCLUDE_DIR ${MKL_ROOT}/include)
 message(STATUS "Imported MKL targets: ${MKL_IMPORTED_TARGETS}")
-message(STATUS "MKL libraries in: ${MKL_LIBRARIES}")
 message(STATUS "MKL include path is: ${MKL_INCLUDE_DIR}")
 if (NOT MKL_FOUND)
   message(FATAL_ERROR "MKL not found")
@@ -67,20 +83,15 @@ else ()
   set(FFTW_CONFIGURE_ARGS --enable-static=no --enable-shared=yes --enable-threads --enable-openmp)
   message(STATUS "Did not find MPI: ${FFTW_CONFIGURE_ARGS}")
 endif()
-include_directories(${CMAKE_PYTHON_INCLUDE_PATH})
-link_directories(${CMAKE_PYTHON_LIBRARY_PATH})
+# include_directories(${CMAKE_PYTHON_INCLUDE_PATH})
+# link_directories(${CMAKE_PYTHON_LIBRARY_PATH})
+
+find_package(Python REQUIRED COMPONENTS Interpreter Development)
 
 if (NOT BLAS_LIBRARIES)
   message(FATAL_ERROR "A required library with BLAS API not found.")
 else()
   message(STATUS "BLAS libraries: ${BLAS_LIBRARIES}")
-endif()
-
-find_package(OpenMP)
-if(OPENMP_FOUND)
-  set(HAVE_OPENMP 1)
-else ()
-  set(OpenMP_C_FLAGS " ")
 endif()
 
 include_directories(${PROJECT_SOURCE_DIR})
@@ -92,7 +103,7 @@ link_directories(${CMAKE_INSTALL_PREFIX}/lib ${CMAKE_INSTALL_PREFIX}/lib64)
 # See also https://gitlab.kitware.com/cmake/community/wikis/doc/cmake/RPATH-handling
 set(CMAKE_SKIP_BUILD_RPATH  True)
 set(CMAKE_BUILD_WITH_INSTALL_RPATH True)
-set(CMAKE_INSTALL_RPATH "${PROJECT_SOURCE_DIR}:${PROJECT_SOURCE_DIR}/deps/lib:\$ORIGIN/deps/lib64")
+set(CMAKE_INSTALL_RPATH "\$ORIGIN:\$ORIGIN/deps/lib:\$ORIGIN/deps/lib64")
 message(RPATH=${CMAKE_INSTALL_RPATH})
 
 include(ExternalProject)
@@ -119,9 +130,7 @@ if(ENABLE_FFTW AND BUILD_FFTW)
     add_dependencies(pwutil libfftw3)
 endif()
 
-# TODO some other stuff from pyscf CMake file was here
-
-# TODO some other stuff from pyscf CMake file was here
+# NOTE some other stuff from pyscf CMake file was here
 
 if(EXISTS "${PROJECT_SOURCE_DIR}/cmake.user.inc")
   include("${PROJECT_SOURCE_DIR}/cmake.user.inc")

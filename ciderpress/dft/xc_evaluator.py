@@ -325,7 +325,6 @@ class RBFEvaluator(FuncEvaluator, XCEvalSerializable):
         if dres is None:
             dres = np.zeros(X1.shape)
         elif dres.shape != X1.shape:
-            print(X1.shape, dres.shape)
             raise ValueError
         n = X1.shape[-2]
         for arr in [res, dres, X1]:
@@ -627,11 +626,6 @@ class MappedXC:
         self.kernels = mapped_kernels
         self.settings = settings
         self.libxc_baseline = libxc_baseline
-
-    def set_baseline_mode(self, mode):
-        # TODO baseline can be GPAW or PySCF mode.
-        # Need to implement for more complicated XC.
-        raise NotImplementedError
 
     def __call__(self, X0T, rhocut=0):
         """

@@ -1,12 +1,15 @@
 import sys
 
+import numpy as np
 from ase.build import bulk
 from gpaw import PW, Mixer
 
 from ciderpress.gpaw.calculator import CiderGPAW, get_cider_functional
 
 # NOTE: Run this script as follows:
-# mpirun -np <NPROC> python simple_calc.py
+# mpirun -np <NPROC> gpaw python simple_calc.py
+
+MODIFY_CELL = True
 
 atoms = bulk("Si")
 
@@ -14,8 +17,9 @@ mlfunc = "functionals/{}.yaml".format(sys.argv[1])
 
 # This is the initializer for CIDER functionals for GPAW
 xc = get_cider_functional(
-    # IMPORTANT: NormGPFunctional object or a path to a joblib or yaml file
-    # containing a CIDER functional.
+    # IMPORTANT: Path to a joblib or yaml file containing a CIDER functional.
+    # Object stored in yaml/joblib must be MappedXC or MappedXC2.
+    # Can also pass the object itself rather than a file name.
     mlfunc,
     # IMPORTANT: xmix is the mixing parameter for exact exchange. Default=0.25
     # gives the PBE0/CIDER surrogate hybrid.
@@ -28,27 +32,43 @@ xc = get_cider_functional(
     # pasdw_store_funcs=False (default) saves memory. True reduces cost
     pasdw_store_funcs=False,
     # pasdw_ovlp_fit=True (default) uses overlap fitting to improve precision
-    # of PAW correction terms of features.
-    pasdw_ovlp_fit=True,
-    fast=True,
+    # of PAW correction terms of features. Usually not needed.
+    pasdw_ovlp_fit=False,
 )
 
 # Using CiderGPAW instead of the default GPAW calculator allows calculations
 # to be restarted. GPAW calculations will run with CIDER functionals but
 # cannot be saved and loaded properly.
 atoms.calc = CiderGPAW(
-    h=0.18,  # use a reasonably small grid spacing
-    xc=xc,  # assign the CIDER functional to xc
-    mode=PW(520),  # plane-wave mode with 520 eV cutoff.
-    txt="-",  # output file, '-' for stdout
+    # use a reasonably small grid spacing
+    h=0.18,
+    # assign the CIDER functional to xc
+    xc=xc,
+    # plane-wave mode with 520 eV cutoff
+    mode=PW(520),
+    # output file, '-' for stdout
+    txt="-",
+    # Fermi smearing with 0.01 eV width
     occupations={"name": "fermi-dirac", "width": 0.01},
-    # ^ Fermi smearing with 0.01 eV width
-    kpts={"size": (4, 4, 4), "gamma": False},  # kpt mesh parameters
-    convergence={"energy": 1e-5},  # convergence energy in eV/electron
+    # kpt mesh parameters
+    kpts={"size": (4, 4, 4), "gamma": False},
+    # convergence energy in eV/electron
+    convergence={"energy": 1e-5},
     # Set augments_grids=True for CIDER functionals to parallelize
     # XC energy and potential evaluation more effectively
     parallel={"augment_grids": True},
+    # Customize the mixer object if desired.
     mixer=Mixer(0.7, 8, 50),
-    spinpol=True,
+    # Turn spin polarization on or off.
+    spinpol=False,
 )
-etot = atoms.get_potential_energy()  # run the calculation
+
+# If desired, make a low-symmetry cell for testing purposes.
+if MODIFY_CELL:
+    atoms.set_cell(
+        np.dot(atoms.cell, [[1.02, 0, 0.03], [0, 0.99, -0.02], [0.2, -0.01, 1.03]]),
+        scale_atoms=True,
+    )
+
+# run the calculation
+etot = atoms.get_potential_energy()

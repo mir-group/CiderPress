@@ -57,7 +57,7 @@ def make_cider_calc(
 
     Args:
         ks (pyscf.dft.KohnShamDFT): DFT object
-        mlfunc (MappedXC or str): CIDER exchange functional or file name
+        mlfunc (MappedXC, MappedXC2, str): CIDER exchange functional or file name
         xmix (float): Fraction of CIDER exchange used.
         xc (str or None): If specified, this semi-local XC code is evaluated
              and added to the total XC energy.
@@ -197,7 +197,34 @@ class _CiderKS:
     def method_not_implemented(self, *args, **kwargs):
         raise NotImplementedError
 
-    nuc_grad_method = Gradients = method_not_implemented
+    def density_fit(self, auxbasis=None, with_df=None, only_dfj=False):
+        new_self = super().density_fit(
+            auxbasis=auxbasis, with_df=with_df, only_dfj=only_dfj
+        )
+        lib.set_class(new_self, (_CiderDF, new_self.__class__))
+        return new_self
+
+    def nuc_grad_method(self):
+        from pyscf import dft
+
+        has_df = hasattr(self, "with_df") and self.with_df is not None
+        if isinstance(self, dft.rks.RKS):
+            from ciderpress.pyscf import rks_grad
+
+            if has_df:
+                return rks_grad.DFGradients(self)
+            else:
+                return rks_grad.Gradients(self)
+        elif isinstance(self, dft.uks.UKS):
+            from ciderpress.pyscf import uks_grad
+
+            if has_df:
+                return uks_grad.DFGradients(self)
+            else:
+                return uks_grad.Gradients(self)
+
+    Gradients = nuc_grad_method
+
     Hessian = method_not_implemented
     NMR = method_not_implemented
     NSR = method_not_implemented
@@ -208,3 +235,7 @@ class _CiderKS:
     CCSD = method_not_implemented
     CASCI = method_not_implemented
     CASSCF = method_not_implemented
+
+
+class _CiderDF:
+    nuc_grad_method = _CiderKS.nuc_grad_method
