@@ -44,6 +44,8 @@ from ciderpress.gpaw.interp_paw import DiffGGA
 from ciderpress.gpaw.interp_paw import DiffMGGA2 as DiffMGGA
 from ciderpress.gpaw.xc_tools import non_self_consistent_eigenvalues as nscfeig
 
+TEST_LAMBD = 1.8
+
 
 def setUpModule():
     # TODO it would be better not to need this, but until CIDER
@@ -63,7 +65,7 @@ def get_xc(fname, use_paw=True, force_nl=False):
     return get_cider_functional(
         fname,
         qmax=300,
-        lambd=1.8,
+        lambd=TEST_LAMBD,
         xmix=0.25,
         pasdw_ovlp_fit=True,
         pasdw_store_funcs=False,
@@ -422,7 +424,7 @@ def run_nl_feature_test(xc, use_pp=False, spinpol=False, baseline="PBE"):
         use_paw=not use_pp,
         screen_dens=False,
         qmax=xc.encut,
-        lambd=xc.lambd,
+        lambd=TEST_LAMBD,
     )
 
     si.get_potential_energy()
