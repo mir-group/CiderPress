@@ -29,6 +29,7 @@ from gpaw.xc.mgga import MGGA
 
 from ciderpress.dft.density_util import get_sigma
 from ciderpress.dft.plans import NLDFSplinePlan
+from ciderpress.gpaw.config import GPAW_DEFAULT_RHO_TOL
 from ciderpress.gpaw.nldf_interface import LibCiderPW
 
 CIDERPW_GRAD_MODE_NONE = 0
@@ -152,6 +153,8 @@ class _CiderBase:
                 self.Nalpha,
                 coef_order="gq",
                 alpha_formula="etb",
+                rhocut=GPAW_DEFAULT_RHO_TOL,
+                expcut=GPAW_DEFAULT_RHO_TOL,
             )
         self.fft_obj = LibCiderPW(
             self.aux_gd.N_c, self.aux_gd.cell_cv, self.aux_gd.comm, plan=self._plan

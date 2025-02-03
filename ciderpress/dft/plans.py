@@ -1548,7 +1548,8 @@ class NLDFAuxiliaryPlan(ABC):
             )
             res = a, (dadn, dadsigma)
         if self._raise_large_expnt_error and a.size > 0:
-            ap = a[rho > 1e2 * self.rhocut]  # leave some buffer at small rho
+            # TODO if rhocut is small, might need to leave some buffer at small rho
+            ap = a[rho > self.rhocut]
             if ap.size > 0 and np.max(ap) > np.max(self.alphas):
                 raise RuntimeError(
                     "NLDF exponent is too large! Please increase nalpha/alpha_max."
