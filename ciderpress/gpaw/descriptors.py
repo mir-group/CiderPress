@@ -458,6 +458,12 @@ def get_atom_feat_wt_deriv(functional, DD_aop, p_o):
             yield feat, dfeat, sgn * wt
 
 
+def _screen_density(calc, xc, *arrs):
+    rho = xc.gd.collect(calc.density.nt_sg.sum(0), broadcast=True)
+    cond = rho.ravel() > 1e-6
+    return tuple([a[..., cond] for a in arrs])
+
+
 def get_features_and_weights(calc, xc, screen_dens=True):
     vol = calc.atoms.get_volume()
     ae_feat = xc.get_features_on_grid()
@@ -468,9 +474,10 @@ def get_features_and_weights(calc, xc, screen_dens=True):
     ae_feat = ae_feat.reshape(nspin, nfeat, -1)
     # hopefully save disk space and avoid negative density
     if screen_dens:
-        cond = ae_feat[:, 0, :].sum(axis=0) > 1e-6
-        ae_feat = ae_feat[..., cond]
-        all_wt = all_wt[cond]
+        ae_feat, all_wt = _screen_density(calc, xc, ae_feat, all_wt)
+        # cond = ae_feat[:, 0, :].sum(axis=0) > 1e-6
+        # ae_feat = ae_feat[..., cond]
+        # all_wt = all_wt[cond]
     assert all_wt.size == ae_feat.shape[-1]
 
     if xc.has_paw:
@@ -494,10 +501,13 @@ def get_features_and_weights_deriv(
     dfeat_jig = dfeat_jig.reshape(len(p_j), nfeat, -1)
     # hopefully save disk space and avoid negative density
     if screen_dens:
-        cond = feat_sig[:, 0, :].sum(axis=0) > 1e-6
-        feat_sig = feat_sig[..., cond]
-        dfeat_jig = dfeat_jig[..., cond]
-        all_wt = all_wt[cond]
+        feat_sig, dfeat_jig, all_wt = _screen_density(
+            calc, xc, feat_sig, dfeat_jig, all_wt
+        )
+        # cond = feat_sig[:, 0, :].sum(axis=0) > 1e-6
+        # feat_sig = feat_sig[..., cond]
+        # dfeat_jig = dfeat_jig[..., cond]
+        # all_wt = all_wt[cond]
     assert all_wt.size == feat_sig.shape[-1]
 
     if xc.has_paw:
