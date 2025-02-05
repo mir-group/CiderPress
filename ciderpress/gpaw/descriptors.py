@@ -459,7 +459,7 @@ def get_atom_feat_wt_deriv(functional, DD_aop, p_o):
 
 
 def _screen_density(calc, xc, *arrs):
-    rho = xc.gd.collect(calc.density.nt_sg.sum(0), broadcast=True)
+    rho = calc.density.finegd.collect(calc.density.nt_sg.sum(0), broadcast=True)
     cond = rho.ravel() > 1e-6
     return tuple([a[..., cond] for a in arrs])
 
