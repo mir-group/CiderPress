@@ -8,7 +8,10 @@ set_target_properties(xc_utils PROPERTIES
   COMPILE_FLAGS ${OpenMP_C_FLAGS}
   LINK_FLAGS ${OpenMP_C_FLAGS})
 
-target_link_libraries(xc_utils ${LIBXC_LIBRARIES})
-# target_link_libraries(xc_utils ${BLAS_LIBRARIES})
-target_link_libraries(xc_utils ${MKL_IMPORTED_TARGETS})
-target_include_directories(xc_utils PRIVATE ${MKL_INCLUDE_DIR})
+if (BUILD_WITH_MKL)
+  target_link_libraries(xc_utils PRIVATE MKL::MKL)
+  target_include_directories(xc_utils PRIVATE ${MKL_INCLUDE_DIR})
+else()
+  target_link_libraries(xc_utils PRIVATE ${BLAS_LIBRARIES})
+endif()
+target_link_libraries(xc_utils PRIVATE ${LIBXC_LIBRARIES})
