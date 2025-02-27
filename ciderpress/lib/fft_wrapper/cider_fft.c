@@ -58,7 +58,8 @@ void cider_fft_initialize() {
  * of threads for FFTs is set.
  * If nthread == -1, the maximum number of available threads is used.
  * If nthread == 0, the number of threads is not changed.
- * If nthread > 0. the number of threads is set to nthread.
+ * If nthread > 0, the number of threads is set to nthread.
+ * Otherwise no action is taken.
  */
 void cider_fft_set_nthread(int nthread) {
     cider_fft_initialize();
@@ -250,6 +251,25 @@ void cider_fft_init_mkl_handle(fft_plan_t *plan) {
 }
 #endif
 
+/** Allocate an n-dimensional fft plan.
+ * This function first calls cider_fft_initialize().
+ * For any of fwd, r2c, inplace, and batch_first, the parameter is essentially
+ * a boolean, and any number !=0 is treated as 1/true.
+ * \param ndim is the number of dimensions in the transform (e.g. 3 for 3D FFT).
+ * \param dims is length-ndim integer array with the dimensions of the FFT.
+ * \param fwd is 1 for a forward transform and 0 for a backward transform.
+ * \param r2c is 1 for a real-to-complex transform and 0 for a
+ *     complex-to-complex transform.
+ * \param ntransform is the number of transforms to perform at once.
+ * \param inplace is 1 for an in-place transform and 0 for out-of-place.
+ * \param batch_first is 1 if the batch index (i.e. the index of the
+ *     individual transform if ntransform>1) is the first index
+ *     in row-major format, i.e. the outermost and slowest index.
+ *     batch_first is 0 if the batch index is the last index in
+ *     row-major format, i.e. the innermost and fastest index.
+ * \return a pointer to an fft_plan_t object, set up with the
+ *     requested parameters described above.
+ */
 fft_plan_t *allocate_fftnd_plan(int ndim, int *dims, int fwd, int r2c,
                                 int ntransform, int inplace, int batch_first) {
     cider_fft_initialize();

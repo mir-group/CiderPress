@@ -441,3 +441,17 @@ void map_between_fft_meshes(double complex *x1, const int *fftg1,
         }
     }
 }
+
+void test_fft3d(double *xr, double complex *xk, int nx, int ny, int nz,
+                int fwd) {
+    int dims[3] = {nx, ny, nz};
+    cider_fft_set_nthread(-1); // use all available threads.
+    fft_plan_t *plan = allocate_fftnd_plan(3, dims, fwd, 1, 1, 0, 1);
+    if (fwd) {
+        initialize_fft_plan(plan, xr, xk);
+    } else {
+        initialize_fft_plan(plan, xk, xr);
+    }
+    execute_fft_plan(plan);
+    free_fft_plan(plan);
+}
