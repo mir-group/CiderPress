@@ -508,11 +508,7 @@ void *malloc_fft_plan_in_array(fft_plan_t *plan) {
     }
     objsize *= plan->ntransform;
     objsize *= plan->fft_in_size;
-#if FFT_BACKEND == FFT_MKL_BACKEND
-    return mkl_malloc(objsize, 64);
-#else
-    return fftw_malloc(objsize);
-#endif
+    return alloc_fft_array(objsize);
 }
 
 void *malloc_fft_plan_out_array(fft_plan_t *plan) {
@@ -524,11 +520,7 @@ void *malloc_fft_plan_out_array(fft_plan_t *plan) {
     }
     objsize *= plan->ntransform;
     objsize *= plan->fft_out_size;
-#if FFT_BACKEND == FFT_MKL_BACKEND
-    return mkl_malloc(objsize, 64);
-#else
-    return fftw_malloc(objsize);
-#endif
+    return alloc_fft_array(objsize);
 }
 
 void write_fft_input(fft_plan_t *plan, void *input) {
@@ -595,6 +587,14 @@ void read_fft_output(fft_plan_t *plan, void *output) {
             dst[i] = src[i];
         }
     }
+}
+
+void *alloc_fft_array(size_t objsize) {
+#if FFT_BACKEND == FFT_MKL_BACKEND
+    return mkl_malloc(objsize, 64);
+#else
+    return fftw_malloc(objsize);
+#endif
 }
 
 void free_fft_array(void *arr) {

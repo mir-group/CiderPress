@@ -158,7 +158,7 @@ class LibCiderPW:
 
     def __del__(self):
         """
-        We need to free the C memory was the Python object is deleted.
+        We need to free the C memory when the Python object is deleted.
         """
         pwutil.ciderpw_finalize(ctypes.byref(self._ptr))
         self._ptr = None

@@ -80,6 +80,8 @@ void *malloc_fft_plan_in_array(fft_plan_t *plan);
 
 void *malloc_fft_plan_out_array(fft_plan_t *plan);
 
+void *alloc_fft_array(size_t objsize);
+
 void free_fft_array(void *arr);
 
 #endif
