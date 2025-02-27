@@ -1,8 +1,14 @@
 
-add_library(fft_wrapper SHARED
-  cider_fft.c
-  cider_mpi_fft.c
-)
+if (HAVE_MPI)
+  add_library(fft_wrapper SHARED
+    cider_fft.c
+    cider_mpi_fft.c
+  )
+else()
+  add_library(fft_wrapper SHARED
+    cider_fft.c
+  )
+endif()
 
 set_target_properties(fft_wrapper PROPERTIES
   LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}
