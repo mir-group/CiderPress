@@ -26,3 +26,66 @@ MPI_Comm unpack_gpaw_comm(PyObject *gpaw_mpi_obj) {
     MPIObject *gpaw_comm = (MPIObject *)gpaw_mpi_obj;
     return gpaw_comm->comm;
 }
+
+static void mpi_ensure_finalized(void) {
+    int already_finalized = 1;
+    int ierr = MPI_SUCCESS;
+
+    MPI_Finalized(&already_finalized);
+    if (!already_finalized) {
+        ierr = MPI_Finalize();
+    }
+    if (ierr != MPI_SUCCESS)
+        PyErr_SetString(PyExc_RuntimeError, "MPI_Finalize error occurred");
+}
+
+// MPI initialization
+void mpi_ensure_initialized(void) {
+    int already_initialized = 1;
+    int ierr = MPI_SUCCESS;
+
+    // Check whether MPI is already initialized
+    MPI_Initialized(&already_initialized);
+    if (!already_initialized) {
+        // if not, let's initialize it
+        int use_threads = 0;
+// GPAW turns on threading for GPUs, but we don't have GPU support yet.
+// #ifdef GPAW_GPU
+//         use_threads = 1;
+// #endif
+#ifdef _OPENMP
+        use_threads = 1;
+#endif
+        if (!use_threads) {
+            ierr = MPI_Init(NULL, NULL);
+            if (ierr == MPI_SUCCESS) {
+                // No problem: register finalization when at Python exit
+                Py_AtExit(*mpi_ensure_finalized);
+            } else {
+                // We have a problem: raise an exception
+                char err[MPI_MAX_ERROR_STRING];
+                int resultlen;
+                MPI_Error_string(ierr, err, &resultlen);
+                PyErr_SetString(PyExc_RuntimeError, err);
+            }
+        } else {
+            int granted;
+            ierr = MPI_Init_thread(NULL, NULL, MPI_THREAD_MULTIPLE, &granted);
+            if (ierr == MPI_SUCCESS && granted == MPI_THREAD_MULTIPLE) {
+                // No problem: register finalization when at Python exit
+                Py_AtExit(*mpi_ensure_finalized);
+            } else if (granted != MPI_THREAD_MULTIPLE) {
+                // We have a problem: raise an exception
+                char err[MPI_MAX_ERROR_STRING] =
+                    "MPI_THREAD_MULTIPLE is not supported";
+                PyErr_SetString(PyExc_RuntimeError, err);
+            } else {
+                // We have a problem: raise an exception
+                char err[MPI_MAX_ERROR_STRING];
+                int resultlen;
+                MPI_Error_string(ierr, err, &resultlen);
+                PyErr_SetString(PyExc_RuntimeError, err);
+            }
+        }
+    }
+}

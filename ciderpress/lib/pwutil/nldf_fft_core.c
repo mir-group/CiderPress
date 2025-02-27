@@ -56,15 +56,21 @@ void ciderpw_nullify(ciderpw_data data) {
 
 void ciderpw_finalize(ciderpw_data *cider) {
     ciderpw_data data = cider[0];
+#if HAVE_MPI
+    if (data->plan != NULL) {
+        free_mpi_fft3d_plan(data->plan);
+    }
+#else
     if (data->plan_g2k != NULL) {
-        fftw_destroy_plan(data->plan_g2k);
+        free_fft_plan(data->plan_g2k);
     }
     if (data->plan_k2g != NULL) {
-        fftw_destroy_plan(data->plan_k2g);
+        free_fft_plan(data->plan_k2g);
     }
     if (data->work_ska != NULL) {
-        fftw_free(data->work_ska);
+        free_fft_array(data->work_ska);
     }
+#endif
     free(data->kernel.expnts_ab);
     free(data->kernel.expnts_ba);
     free(data->kernel.norms_ab);

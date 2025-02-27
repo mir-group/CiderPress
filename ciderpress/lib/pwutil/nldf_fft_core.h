@@ -23,11 +23,10 @@
 #include <complex.h>
 #include <stdint.h>
 #if HAVE_MPI
-#include <fftw3-mpi.h>
+#include "cider_mpi_fft.h"
 #include <mpi.h>
-#else
-#include <fftw3.h>
 #endif
+#include "cider_fft.h"
 
 #define CIDERPW_PI 3.14159265358979323846
 #define CIDERPW_R2C 0
@@ -79,8 +78,12 @@ struct ciderpw_data_obj {
 
     // for NLDF, this will always be r2c and c2r, but might want
     // to reuse this struct for SDMX or R3.5, which will have c2c tranforms.
-    fftw_plan plan_g2k;
-    fftw_plan plan_k2g;
+#if HAVE_MPI
+    mpi_fft3d_plan_t *plan;
+#else
+    fft_plan_t *plan_g2k;
+    fft_plan_t *plan_k2g;
+#endif
 
     int nk;
     double *k2_G;
