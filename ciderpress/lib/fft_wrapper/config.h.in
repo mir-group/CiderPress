@@ -1,0 +1,10 @@
+#ifndef _CIDER_FFT_CONFIG_H
+#define _CIDER_FFT_CONFIG_H
+
+#define FFT_MKL_BACKEND 0
+#define FFT_FFTW_BACKEND 1
+
+#cmakedefine01 HAVE_MPI
+#cmakedefine FFT_BACKEND @FFT_BACKEND_NUMBER@
+
+#endif

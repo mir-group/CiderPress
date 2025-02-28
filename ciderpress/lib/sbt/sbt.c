@@ -17,13 +17,18 @@
 // Author: Kyle Bystrom <kylebystrom@gmail.com>
 //
 
+// The following routines are based on the Fortran program NumSBT written by
+// J. Talman. The algorithm performs a spherical Bessel transform in O(NlnN)
+// time. If you adapt this code for any purpose, please cite: Talman,
+// J. Computer Physics Communications 2009, 180, 332-338. The original NumSBT
+// code is distributed under the Standard CPC license.
+
 #include "sbt.h"
+#include "cider_fft.h"
 #include <assert.h>
 #include <complex.h>
 #include <float.h>
 #include <math.h>
-#include <mkl.h>
-#include <mkl_types.h>
 #include <omp.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -32,32 +37,15 @@
 #define c 0.262465831
 #define PI 3.14159265358979323846
 
-/*
-The following routines are based on the Fortran program NumSBT written by J.
-Talman. The algorithm performs a spherical Bessel transform in O(NlnN) time. If
-you adapt this code for any purpose, please cite: Talman, J. Computer Physics
-Communications 2009, 180, 332-338. The code is distributed under the Standard
-CPC license.
-*/
-
-void CHECK_ALLOCATION(void *ptr) {
+void sbt_check_allocation(void *ptr) {
     if (ptr == NULL) {
-        ALLOCATION_FAILED();
+        sbt_allocation_failed();
     }
 }
 
-void ALLOCATION_FAILED(void) {
+void sbt_allocation_failed(void) {
     printf("ALLOCATION FAILED\n");
     exit(-1);
-}
-
-void CHECK_STATUS(int status) {
-    if (status != 0) {
-        printf("ROUTINE FAILED WITH STATUS %d:\n", status);
-        char *message = DftiErrorMessage(status);
-        printf("%s\n", message);
-        exit(-1);
-    }
 }
 
 sbt_descriptor_t *spherical_bessel_transform_setup(double encut, int lmax,
@@ -75,9 +63,9 @@ sbt_descriptor_t *spherical_bessel_transform_setup(double encut, int lmax,
     double *rs = (double *)malloc(N * sizeof(double));
     double complex **mult_table =
         (double complex **)malloc((lmax + 1) * sizeof(double complex *));
-    CHECK_ALLOCATION(ks);
-    CHECK_ALLOCATION(rs);
-    CHECK_ALLOCATION(mult_table);
+    sbt_check_allocation(ks);
+    sbt_check_allocation(rs);
+    sbt_check_allocation(mult_table);
     double drho = log(r[1] / r[0]);
     double rhomin = log(r[0]);
     double dt = 2 * PI / N / drho;
@@ -97,7 +85,7 @@ sbt_descriptor_t *spherical_bessel_transform_setup(double encut, int lmax,
     for (int i = 2; i <= lmax; i++)
         mult_table[i] = (double complex *)calloc(N, sizeof(double complex));
     for (int i = 0; i <= lmax; i++)
-        CHECK_ALLOCATION(mult_table[i]);
+        sbt_check_allocation(mult_table[i]);
     double t = 0.0, rad = 0.0, phi = 0.0, phi1 = 0.0, phi2 = 0.0, phi3 = 0.0;
     for (int i = 0; i < N; i++) {
         t = i * dt;
@@ -131,14 +119,10 @@ sbt_descriptor_t *spherical_bessel_transform_setup(double encut, int lmax,
         r32[i] = pow(rs[i], 1.5);
     }
 
-    descriptor->handle = 0;
-    MKL_LONG dim = 1;
-    MKL_LONG length = N;
-    MKL_LONG status = 0;
-
-    status = DftiCreateDescriptor(&(descriptor->handle), DFTI_DOUBLE,
-                                  DFTI_COMPLEX, dim, length);
-    status = DftiCommitDescriptor(descriptor->handle);
+    int dims[1] = {N};
+    descriptor->plan = allocate_fftnd_plan(1, dims, 0, 0, 1, 1, 1);
+    descriptor->buffer = malloc_fft_plan_in_array(descriptor->plan);
+    initialize_fft_plan(descriptor->plan, descriptor->buffer, NULL);
 
     descriptor->kmin = kmin;
     descriptor->kappamin = kappamin;
@@ -160,14 +144,13 @@ void wave_spherical_bessel_transform(sbt_descriptor_t *d, double *f, int l,
                                      double *vals, int l_add) {
     // vals has shape d->N / 2
     // f is input, vals is output
-    MKL_LONG status = 0;
     int N = d->N;
     double complex **M = d->mult_table;
     double *r = d->rs;
     double *k32 = d->k32;
     double *r32 = d->r32;
     double *fs = (double *)malloc(N * sizeof(double));
-    CHECK_ALLOCATION(fs);
+    sbt_check_allocation(fs);
     double C = f[0];
     for (int i = 0; i < N / 2; i++) {
         fs[i] = C * pow(r[i] / r[N / 2], l + l_add);
@@ -175,28 +158,22 @@ void wave_spherical_bessel_transform(sbt_descriptor_t *d, double *f, int l,
     for (int i = N / 2; i < N; i++) {
         fs[i] = f[i - N / 2];
     }
-
-    double complex *x = mkl_calloc(N, sizeof(double complex), 64);
-
+    double complex *x = d->buffer;
     for (int m = 0; m < N; m++) {
         x[m] = r32[m] * fs[m];
     }
-    status = DftiComputeBackward(d->handle, x);
-    CHECK_STATUS(status);
+    execute_fft_plan(d->plan);
     for (int n = 0; n < N / 2; n++) {
         x[n] *= M[l][n];
     }
     for (int n = N / 2; n < N; n++) {
         x[n] = 0;
     }
-    status = DftiComputeBackward(d->handle, x);
-    CHECK_STATUS(status);
+    execute_fft_plan(d->plan);
     for (int p = 0; p < N / 2; p++) {
         vals[p] = creal(x[p]);
         vals[p] *= 2 / k32[p];
     }
-
-    mkl_free(x);
     free(fs);
 }
 
@@ -204,48 +181,41 @@ void inverse_wave_spherical_bessel_transform(sbt_descriptor_t *d, double *f,
                                              int l, double *vals) {
     // vals has shape d->N / 2
     // f is input, vals is output
-    MKL_LONG status = 0;
     int N = d->N;
     double complex **M = d->mult_table;
     double *k32 = d->r32;
     double *r32 = d->k32;
     double *fs = (double *)malloc(N * sizeof(double));
-    CHECK_ALLOCATION(fs);
+    sbt_check_allocation(fs);
     for (int i = 0; i < N / 2; i++) {
         fs[i] = f[i];
     }
     for (int i = N / 2; i < N; i++) {
         fs[i] = 0;
     }
-
-    double complex *x = mkl_malloc(N * sizeof(double complex), 64);
-
+    double complex *x = d->buffer;
     for (int m = 0; m < N; m++) {
         x[m] = r32[m] * fs[m];
     }
-
-    status = DftiComputeBackward(d->handle, x);
-    CHECK_STATUS(status);
+    execute_fft_plan(d->plan);
     for (int n = 0; n < N / 2; n++) {
         x[n] *= M[l][n];
     }
     for (int n = N / 2; n < N; n++) {
         x[n] = 0;
     }
-    status = DftiComputeBackward(d->handle, x);
-    CHECK_STATUS(status);
+    execute_fft_plan(d->plan);
     for (int p = 0; p < N / 2; p++) {
         vals[p] = creal(x[p + N / 2]) / PI * 2;
         // vals[p] *= 2 / pow(ks[p], 1.5);
         vals[p] *= 2 / k32[p + N / 2];
     }
-
-    mkl_free(x);
     free(fs);
 }
 
 void free_sbt_descriptor(sbt_descriptor_t *d) {
-    DftiFreeDescriptor(&(d->handle));
+    free_fft_plan(d->plan);
+    free_fft_array(d->buffer);
     for (int l = 0; l <= d->lmax; l++) {
         free(d->mult_table[l]);
     }

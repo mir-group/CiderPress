@@ -97,6 +97,7 @@ void ciderpw_setup_reciprocal_vectors(ciderpw_data data) {
     }
 }
 
+/*
 void ciderpw_init_mpi(ciderpw_data data, MPI_Comm mpi_comm, int nalpha,
                       int nbeta, double *norms_ab, double *expnts_ab) {
     fftw_mpi_init();
@@ -165,6 +166,48 @@ void ciderpw_init_mpi(ciderpw_data data, MPI_Comm mpi_comm, int nalpha,
     ciderpw_allocate_buffers(data);
     ciderpw_setup_reciprocal_vectors(data);
 }
+*/
+
+void ciderpw_init_mpi(ciderpw_data data, MPI_Comm mpi_comm, int nalpha,
+                      int nbeta, double *norms_ab, double *expnts_ab) {
+    // fftw_mpi_init();
+    ciderpw_set_communicator(data, mpi_comm);
+
+    const int dims[3] = {data->cell.Nglobal[0], data->cell.Nglobal[1],
+                         data->cell.Nglobal[2]};
+    data->kLDA = data->icell.Nglobal[2];
+    data->gLDA = 2 * data->kLDA;
+    data->fft_type = CIDERPW_R2C;
+
+    ciderpw_setup_kernel(data, nalpha, nbeta, norms_ab, expnts_ab);
+
+    if (data->fft_type == CIDERPW_R2C) {
+        data->plan = allocate_mpi_fft3d_plan(data->mpi_comm, dims, 1,
+                                             data->kernel.work_size);
+    } else {
+        data->plan = allocate_mpi_fft3d_plan(data->mpi_comm, dims, 0,
+                                             data->kernel.work_size);
+    }
+    data->cell.Nlocal[0] = data->plan->r_Nlocal[0];
+    data->cell.Nlocal[1] = data->plan->r_Nlocal[1];
+    data->cell.Nlocal[2] = data->plan->r_Nlocal[2];
+    data->cell.offset[0] = data->plan->r_offset[0];
+    data->cell.offset[1] = data->plan->r_offset[1];
+    data->cell.offset[2] = data->plan->r_offset[2];
+
+    data->icell.Nlocal[0] = data->plan->k_Nlocal[0];
+    data->icell.Nlocal[1] = data->plan->k_Nlocal[1];
+    data->icell.Nlocal[2] = data->plan->k_Nlocal[2];
+    data->icell.offset[0] = data->plan->k_offset[0];
+    data->icell.offset[1] = data->plan->k_offset[1];
+    data->icell.offset[2] = data->plan->k_offset[2];
+
+    data->work_ska = data->plan->work;
+    data->work_array_size = data->plan->work_array_size;
+
+    ciderpw_allocate_buffers(data);
+    ciderpw_setup_reciprocal_vectors(data);
+}
 
 void ciderpw_init_mpi_from_gpaw(ciderpw_data data, PyObject *gpaw_comm,
                                 int nalpha, int nbeta, double *norms_ab,
@@ -173,9 +216,9 @@ void ciderpw_init_mpi_from_gpaw(ciderpw_data data, PyObject *gpaw_comm,
     ciderpw_init_mpi(data, comm, nalpha, nbeta, norms_ab, expnts_ab);
 }
 
-void ciderpw_g2k_mpi(ciderpw_data data) { fftw_execute(data->plan_g2k); }
+void ciderpw_g2k_mpi(ciderpw_data data) { execute_mpi_fft3d_fwd(data->plan); }
 
-void ciderpw_k2g_mpi(ciderpw_data data) { fftw_execute(data->plan_k2g); }
+void ciderpw_k2g_mpi(ciderpw_data data) { execute_mpi_fft3d_bwd(data->plan); }
 
 void ciderpw_g2k_mpi_gpaw(ciderpw_data data, double *in_g,
                           double complex *out_g) {
