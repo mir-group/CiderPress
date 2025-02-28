@@ -7,7 +7,7 @@
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>dft &mdash; CiderPress 0.1.0 documentation</title>
-      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=e59714d7" />
 
   
@@ -51,10 +51,7 @@
 <li class="toctree-l1"><a class="reference internal" href="../dft/dft.html">DFT Module</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../models/models.html">The Models Module</a></li>
 <li class="toctree-l1 current"><a class="reference internal" href="pyscf.html">PySCF Interface</a><ul class="current">
-<li class="toctree-l2 current"><a class="current reference internal" href="#">dft</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#ciderpress.pyscf.dft.make_cider_calc"><code class="docutils literal notranslate"><span class="pre">make_cider_calc()</span></code></a></li>
-</ul>
-</li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">dft</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../gpaw/gpaw.html">GPAW Interface</a></li>
@@ -86,49 +83,8 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
              
-  <section id="module-ciderpress.pyscf.dft">
-<span id="dft"></span><h1>dft<a class="headerlink" href="#module-ciderpress.pyscf.dft" title="Link to this heading"></a></h1>
-<dl class="py function">
-<dt class="sig sig-object py" id="ciderpress.pyscf.dft.make_cider_calc">
-<span class="sig-prename descclassname"><span class="pre">ciderpress.pyscf.dft.</span></span><span class="sig-name descname"><span class="pre">make_cider_calc</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ks</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mlfunc</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">xmix</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">xc</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">xkernel</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ckernel</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mlfunc_format</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nlc_coeff</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nldf_init</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sdmx_init</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rhocut</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.pyscf.dft.make_cider_calc" title="Link to this definition"></a></dt>
-<dd><p>Decorate the PySCF DFT object ks with a CIDER functional mlfunc.
-If xc, xkernel, ckernel, and xmix are not specified,
-the equivalent of HF with CIDER in place of EXX is performed.
-The XC energy is</p>
-<dl class="simple">
-<dt>If CIDER is X only:</dt><dd><p>E_xc = xmix * E_x^CIDER + (1-xmix) * xkernel + ckernel + xc</p>
-</dd>
-<dt>If CIDER is X + C:</dt><dd><p>E_xc = xmix * E_xc^CIDER + (1-xmix) * (xkernel + ckernel) + xc</p>
-</dd>
-<dt>NOTE: Only GGA-level XC functionals can be used with GGA-level</dt><dd><p>(orbital-independent) CIDER functionals currently.</p>
-</dd>
-</dl>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>ks</strong> (<em>pyscf.dft.KohnShamDFT</em>) – DFT object</p></li>
-<li><p><strong>mlfunc</strong> (<em>MappedXC, MappedXC2, str</em>) – CIDER exchange functional or file name</p></li>
-<li><p><strong>xmix</strong> (<em>float</em>) – Fraction of CIDER exchange used.</p></li>
-<li><p><strong>xc</strong> (<em>str or None</em>) – If specified, this semi-local XC code is evaluated
-and added to the total XC energy.</p></li>
-<li><p><strong>xkernel</strong> (<em>str or None</em>) – Semi-local X code in libxc. Scaled by (1-xmix).</p></li>
-<li><p><strong>ckernel</strong> (<em>str or None</em>) – Semi-local C code in libxc.</p></li>
-<li><p><strong>mlfunc_format</strong> (<em>str or None</em>) – ‘joblib’ or ‘yaml’, specifies the format
-of mlfunc if it is a string corresponding to a file name.
-If unspecified, infer from file extension and raise error
-if file type cannot be determined.</p></li>
-<li><p><strong>nlc_coeff</strong> (<em>tuple or None</em>) – VV10 coefficients. If None, VV10 term is not evaluated.</p></li>
-<li><p><strong>nldf_init</strong> (<em>PySCFNLDFInitializer</em>)</p></li>
-<li><p><strong>sdmx_init</strong> (<em>PySCFSDMXInitializer</em>)</p></li>
-<li><p><strong>rhocut</strong> (<em>float</em>)</p></li>
-</ul>
-</dd>
-<dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>A decorated Kohn-Sham object for performing a CIDER calculation.</p>
-</dd>
-</dl>
-</dd></dl>
-
+  <section id="dft">
+<h1>dft<a class="headerlink" href="#dft" title="Link to this heading"></a></h1>
 </section>
 
 

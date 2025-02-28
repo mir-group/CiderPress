@@ -7,7 +7,7 @@
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>The Settings Module &mdash; CiderPress 0.1.0 documentation</title>
-      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=e59714d7" />
 
   
@@ -293,14 +293,14 @@ by the theta_params. (NOTE: Experimental, not thoroughly tested.)</p>
 
 <dl class="py class">
 <dt class="sig sig-object py" id="ciderpress.dft.settings.BaseSettings">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">ciderpress.dft.settings.</span></span><span class="sig-name descname"><span class="pre">BaseSettings</span></span><a class="headerlink" href="#ciderpress.dft.settings.BaseSettings" title="Link to this definition"></a></dt>
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">ciderpress.dft.settings.</span></span><span class="sig-name descname"><span class="pre">BaseSettings</span></span><a class="headerlink" href="#ciderpress.dft.settings.BaseSettings" title="Link to this definition"></a></dt>
 <dd><p>This is a base class for storing the settings for different
 types of density/density matrix feature in CiderPress.
 Settings objects indicate which features must be evaluated,
 and with which hyperparameters, to use as input to an ML functional.</p>
 <dl class="py method">
 <dt class="sig sig-object py" id="ciderpress.dft.settings.BaseSettings.get_feat_usps">
-<em class="property"><span class="pre">abstract</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">get_feat_usps</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.settings.BaseSettings.get_feat_usps" title="Link to this definition"></a></dt>
+<em class="property"><span class="k"><span class="pre">abstractmethod</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">get_feat_usps</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.settings.BaseSettings.get_feat_usps" title="Link to this definition"></a></dt>
 <dd><dl class="field-list simple">
 <dt class="field-odd">Returns<span class="colon">:</span></dt>
 <dd class="field-odd"><p>A list of floats with the uniform scaling power for each feature.</p>
@@ -323,20 +323,20 @@ and with which hyperparameters, to use as input to an ML functional.</p>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="ciderpress.dft.settings.BaseSettings.is_empty">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">is_empty</span></span><a class="headerlink" href="#ciderpress.dft.settings.BaseSettings.is_empty" title="Link to this definition"></a></dt>
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">is_empty</span></span><a class="headerlink" href="#ciderpress.dft.settings.BaseSettings.is_empty" title="Link to this definition"></a></dt>
 <dd><p>Return true of this settings object specifies zero features.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="ciderpress.dft.settings.BaseSettings.nfeat">
-<em class="property"><span class="pre">abstract</span><span class="w"> </span><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">nfeat</span></span><a class="headerlink" href="#ciderpress.dft.settings.BaseSettings.nfeat" title="Link to this definition"></a></dt>
+<em class="property"><span class="k"><span class="pre">abstract</span></span><span class="w"> </span><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">nfeat</span></span><a class="headerlink" href="#ciderpress.dft.settings.BaseSettings.nfeat" title="Link to this definition"></a></dt>
 <dd><p>Returns:
 Number of features in this feature set.</p>
 </dd></dl>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="ciderpress.dft.settings.BaseSettings.ueg_vector">
-<em class="property"><span class="pre">abstract</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">ueg_vector</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rho</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.settings.BaseSettings.ueg_vector" title="Link to this definition"></a></dt>
+<em class="property"><span class="k"><span class="pre">abstractmethod</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">ueg_vector</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rho</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.settings.BaseSettings.ueg_vector" title="Link to this definition"></a></dt>
 <dd><p>Return the feature vector for the uniform electron gas
 as a function of the density rho</p>
 <dl class="field-list simple">
@@ -356,7 +356,7 @@ as a function of the density rho</p>
 
 <dl class="py class">
 <dt class="sig sig-object py" id="ciderpress.dft.settings.EmptySettings">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">ciderpress.dft.settings.</span></span><span class="sig-name descname"><span class="pre">EmptySettings</span></span><a class="headerlink" href="#ciderpress.dft.settings.EmptySettings" title="Link to this definition"></a></dt>
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">ciderpress.dft.settings.</span></span><span class="sig-name descname"><span class="pre">EmptySettings</span></span><a class="headerlink" href="#ciderpress.dft.settings.EmptySettings" title="Link to this definition"></a></dt>
 <dd><p>The EmptySettings class is a representation of a feature set containing
 zero features. It is used when a certain type of feature is not
 present in a model. (For example, if a model does not use SDMX
@@ -387,7 +387,7 @@ an EmptySettings instance.)</p>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="ciderpress.dft.settings.EmptySettings.nfeat">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">nfeat</span></span><a class="headerlink" href="#ciderpress.dft.settings.EmptySettings.nfeat" title="Link to this definition"></a></dt>
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">nfeat</span></span><a class="headerlink" href="#ciderpress.dft.settings.EmptySettings.nfeat" title="Link to this definition"></a></dt>
 <dd><p>Returns:
 Number of features in this feature set.</p>
 </dd></dl>
@@ -414,7 +414,7 @@ as a function of the density rho</p>
 
 <dl class="py class">
 <dt class="sig sig-object py" id="ciderpress.dft.settings.FeatureSettings">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">ciderpress.dft.settings.</span></span><span class="sig-name descname"><span class="pre">FeatureSettings</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">sl_settings</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nldf_settings</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nlof_settings</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sdmx_settings</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">hyb_settings</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">normalizers</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.settings.FeatureSettings" title="Link to this definition"></a></dt>
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">ciderpress.dft.settings.</span></span><span class="sig-name descname"><span class="pre">FeatureSettings</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">sl_settings</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nldf_settings</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nlof_settings</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sdmx_settings</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">hyb_settings</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">normalizers</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.settings.FeatureSettings" title="Link to this definition"></a></dt>
 <dd><p>The FeatureSettings object is a container for the settings of each
 type of feature in the model.</p>
 <p>Initialize FeatureSettings.</p>
@@ -455,7 +455,7 @@ type of feature in the model.</p>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="ciderpress.dft.settings.FeatureSettings.nfeat">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">nfeat</span></span><a class="headerlink" href="#ciderpress.dft.settings.FeatureSettings.nfeat" title="Link to this definition"></a></dt>
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">nfeat</span></span><a class="headerlink" href="#ciderpress.dft.settings.FeatureSettings.nfeat" title="Link to this definition"></a></dt>
 <dd><p>Returns:
 Number of features in this feature set.</p>
 </dd></dl>
@@ -482,7 +482,7 @@ as a function of the density rho</p>
 
 <dl class="py class">
 <dt class="sig sig-object py" id="ciderpress.dft.settings.FracLaplSettings">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">ciderpress.dft.settings.</span></span><span class="sig-name descname"><span class="pre">FracLaplSettings</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">slist</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nk0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nk1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">l1_dots</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nd1</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ld_dots</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ndd</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.settings.FracLaplSettings" title="Link to this definition"></a></dt>
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">ciderpress.dft.settings.</span></span><span class="sig-name descname"><span class="pre">FracLaplSettings</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">slist</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nk0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nk1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">l1_dots</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nd1</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ld_dots</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ndd</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.settings.FracLaplSettings" title="Link to this definition"></a></dt>
 <dd><p>Settings for Fractional Laplacian feature set.</p>
 <p>Initialize FracLaplSettings object. Note, in the documentation below
 on the indexing of the features, fl_rho is the part of the density
@@ -558,7 +558,7 @@ features. -1 indicates to use the semilocal density gradient.</p></li>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="ciderpress.dft.settings.FracLaplSettings.nfeat">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">nfeat</span></span><a class="headerlink" href="#ciderpress.dft.settings.FracLaplSettings.nfeat" title="Link to this definition"></a></dt>
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">nfeat</span></span><a class="headerlink" href="#ciderpress.dft.settings.FracLaplSettings.nfeat" title="Link to this definition"></a></dt>
 <dd><p>Returns:
 Number of features in this feature set.</p>
 </dd></dl>
@@ -585,11 +585,11 @@ as a function of the density rho</p>
 
 <dl class="py class">
 <dt class="sig sig-object py" id="ciderpress.dft.settings.HybridSettings">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">ciderpress.dft.settings.</span></span><span class="sig-name descname"><span class="pre">HybridSettings</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">alpha</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">beta</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">local</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.settings.HybridSettings" title="Link to this definition"></a></dt>
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">ciderpress.dft.settings.</span></span><span class="sig-name descname"><span class="pre">HybridSettings</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">alpha</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">beta</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">local</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.settings.HybridSettings" title="Link to this definition"></a></dt>
 <dd><p>TODO very rough draft of hybrid settings, to be fully implemented later.</p>
 <dl class="py property">
 <dt class="sig sig-object py" id="ciderpress.dft.settings.HybridSettings.get_feat_usps">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">get_feat_usps</span></span><a class="headerlink" href="#ciderpress.dft.settings.HybridSettings.get_feat_usps" title="Link to this definition"></a></dt>
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">get_feat_usps</span></span><a class="headerlink" href="#ciderpress.dft.settings.HybridSettings.get_feat_usps" title="Link to this definition"></a></dt>
 <dd><p>Returns:
 A list of floats with the uniform scaling power for each feature.</p>
 </dd></dl>
@@ -609,14 +609,14 @@ A list of floats with the uniform scaling power for each feature.</p>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="ciderpress.dft.settings.HybridSettings.nfeat">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">nfeat</span></span><a class="headerlink" href="#ciderpress.dft.settings.HybridSettings.nfeat" title="Link to this definition"></a></dt>
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">nfeat</span></span><a class="headerlink" href="#ciderpress.dft.settings.HybridSettings.nfeat" title="Link to this definition"></a></dt>
 <dd><p>Returns:
 Number of features in this feature set.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="ciderpress.dft.settings.HybridSettings.ueg_vector">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">ueg_vector</span></span><a class="headerlink" href="#ciderpress.dft.settings.HybridSettings.ueg_vector" title="Link to this definition"></a></dt>
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">ueg_vector</span></span><a class="headerlink" href="#ciderpress.dft.settings.HybridSettings.ueg_vector" title="Link to this definition"></a></dt>
 <dd><p>Return the feature vector for the uniform electron gas
 as a function of the density rho</p>
 <dl class="field-list simple">
@@ -636,7 +636,7 @@ as a function of the density rho</p>
 
 <dl class="py class">
 <dt class="sig sig-object py" id="ciderpress.dft.settings.NLDFSettings">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">ciderpress.dft.settings.</span></span><span class="sig-name descname"><span class="pre">NLDFSettings</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">sl_level</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">theta_params</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rho_mult</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.settings.NLDFSettings" title="Link to this definition"></a></dt>
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">ciderpress.dft.settings.</span></span><span class="sig-name descname"><span class="pre">NLDFSettings</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">sl_level</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">theta_params</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rho_mult</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.settings.NLDFSettings" title="Link to this definition"></a></dt>
 <dd><p>NLDFSettings contains the settings for the nonlocal density features,
 which form the core of the CIDER framework. This is an abstract class
 since the feature settings depend on the version. Subclasses are available
@@ -660,19 +660,19 @@ by a prefactor. Options: See ALLOWED_RHO_MULTS.</p></li>
 </dl>
 <dl class="py property">
 <dt class="sig sig-object py" id="ciderpress.dft.settings.NLDFSettings.feat_spec_list">
-<em class="property"><span class="pre">abstract</span><span class="w"> </span><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">feat_spec_list</span></span><a class="headerlink" href="#ciderpress.dft.settings.NLDFSettings.feat_spec_list" title="Link to this definition"></a></dt>
+<em class="property"><span class="k"><span class="pre">abstract</span></span><span class="w"> </span><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">feat_spec_list</span></span><a class="headerlink" href="#ciderpress.dft.settings.NLDFSettings.feat_spec_list" title="Link to this definition"></a></dt>
 <dd><p>Return a list containing feature specs in appropriate order.</p>
 </dd></dl>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="ciderpress.dft.settings.NLDFSettings.get_feat_usps">
-<em class="property"><span class="pre">abstract</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">get_feat_usps</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.settings.NLDFSettings.get_feat_usps" title="Link to this definition"></a></dt>
+<em class="property"><span class="k"><span class="pre">abstractmethod</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">get_feat_usps</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.settings.NLDFSettings.get_feat_usps" title="Link to this definition"></a></dt>
 <dd><p>Returns a list containing the usp of each contracted feature.</p>
 </dd></dl>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="ciderpress.dft.settings.NLDFSettings.get_reasonable_normalizer">
-<em class="property"><span class="pre">abstract</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">get_reasonable_normalizer</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.settings.NLDFSettings.get_reasonable_normalizer" title="Link to this definition"></a></dt>
+<em class="property"><span class="k"><span class="pre">abstractmethod</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">get_reasonable_normalizer</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.settings.NLDFSettings.get_reasonable_normalizer" title="Link to this definition"></a></dt>
 <dd><dl class="field-list simple">
 <dt class="field-odd">Returns<span class="colon">:</span></dt>
 <dd class="field-odd"><p>list of normalizers for these features</p>
@@ -685,19 +685,19 @@ by a prefactor. Options: See ALLOWED_RHO_MULTS.</p></li>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="ciderpress.dft.settings.NLDFSettings.nfeat">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">nfeat</span></span><a class="headerlink" href="#ciderpress.dft.settings.NLDFSettings.nfeat" title="Link to this definition"></a></dt>
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">nfeat</span></span><a class="headerlink" href="#ciderpress.dft.settings.NLDFSettings.nfeat" title="Link to this definition"></a></dt>
 <dd><p>Number of contracted, scale-invariant features.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="ciderpress.dft.settings.NLDFSettings.nldf_type">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">nldf_type</span></span><a class="headerlink" href="#ciderpress.dft.settings.NLDFSettings.nldf_type" title="Link to this definition"></a></dt>
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">nldf_type</span></span><a class="headerlink" href="#ciderpress.dft.settings.NLDFSettings.nldf_type" title="Link to this definition"></a></dt>
 <dd><p>Same as version, represents type of NLDFs being computed.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="ciderpress.dft.settings.NLDFSettings.num_feat_param_sets">
-<em class="property"><span class="pre">abstract</span><span class="w"> </span><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">num_feat_param_sets</span></span><a class="headerlink" href="#ciderpress.dft.settings.NLDFSettings.num_feat_param_sets" title="Link to this definition"></a></dt>
+<em class="property"><span class="k"><span class="pre">abstract</span></span><span class="w"> </span><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">num_feat_param_sets</span></span><a class="headerlink" href="#ciderpress.dft.settings.NLDFSettings.num_feat_param_sets" title="Link to this definition"></a></dt>
 <dd><p>Number of unique feature parameter sets</p>
 <dl class="field-list simple">
 <dt class="field-odd">Type<span class="colon">:</span></dt>
@@ -708,7 +708,7 @@ by a prefactor. Options: See ALLOWED_RHO_MULTS.</p></li>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="ciderpress.dft.settings.NLDFSettings.num_vi_feats">
-<em class="property"><span class="pre">abstract</span><span class="w"> </span><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">num_vi_feats</span></span><a class="headerlink" href="#ciderpress.dft.settings.NLDFSettings.num_vi_feats" title="Link to this definition"></a></dt>
+<em class="property"><span class="k"><span class="pre">abstract</span></span><span class="w"> </span><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">num_vi_feats</span></span><a class="headerlink" href="#ciderpress.dft.settings.NLDFSettings.num_vi_feats" title="Link to this definition"></a></dt>
 <dd><p>Return the number of version i-type features.</p>
 </dd></dl>
 
@@ -716,7 +716,7 @@ by a prefactor. Options: See ALLOWED_RHO_MULTS.</p></li>
 
 <dl class="py class">
 <dt class="sig sig-object py" id="ciderpress.dft.settings.NLDFSettingsVI">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">ciderpress.dft.settings.</span></span><span class="sig-name descname"><span class="pre">NLDFSettingsVI</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">sl_level</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">theta_params</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rho_mult</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">l0_feat_specs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">l1_feat_specs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">l1_feat_dots</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.settings.NLDFSettingsVI" title="Link to this definition"></a></dt>
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">ciderpress.dft.settings.</span></span><span class="sig-name descname"><span class="pre">NLDFSettingsVI</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">sl_level</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">theta_params</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rho_mult</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">l0_feat_specs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">l1_feat_specs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">l1_feat_dots</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.settings.NLDFSettingsVI" title="Link to this definition"></a></dt>
 <dd><p>Initialize NLDFSettingsVI object</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -746,7 +746,7 @@ l1feat_ig = einsum(‘xg,xg-&gt;g’, l1ints_jg, l1ints_kg)</p></li>
 </dl>
 <dl class="py property">
 <dt class="sig sig-object py" id="ciderpress.dft.settings.NLDFSettingsVI.feat_spec_list">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">feat_spec_list</span></span><a class="headerlink" href="#ciderpress.dft.settings.NLDFSettingsVI.feat_spec_list" title="Link to this definition"></a></dt>
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">feat_spec_list</span></span><a class="headerlink" href="#ciderpress.dft.settings.NLDFSettingsVI.feat_spec_list" title="Link to this definition"></a></dt>
 <dd><p>Return a list containing feature specs in appropriate order.</p>
 </dd></dl>
 
@@ -771,7 +771,7 @@ l1feat_ig = einsum(‘xg,xg-&gt;g’, l1ints_jg, l1ints_kg)</p></li>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="ciderpress.dft.settings.NLDFSettingsVI.num_feat_param_sets">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">num_feat_param_sets</span></span><a class="headerlink" href="#ciderpress.dft.settings.NLDFSettingsVI.num_feat_param_sets" title="Link to this definition"></a></dt>
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">num_feat_param_sets</span></span><a class="headerlink" href="#ciderpress.dft.settings.NLDFSettingsVI.num_feat_param_sets" title="Link to this definition"></a></dt>
 <dd><p>Number of unique feature parameter sets</p>
 <dl class="field-list simple">
 <dt class="field-odd">Type<span class="colon">:</span></dt>
@@ -782,7 +782,7 @@ l1feat_ig = einsum(‘xg,xg-&gt;g’, l1ints_jg, l1ints_kg)</p></li>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="ciderpress.dft.settings.NLDFSettingsVI.num_vi_feats">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">num_vi_feats</span></span><a class="headerlink" href="#ciderpress.dft.settings.NLDFSettingsVI.num_vi_feats" title="Link to this definition"></a></dt>
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">num_vi_feats</span></span><a class="headerlink" href="#ciderpress.dft.settings.NLDFSettingsVI.num_vi_feats" title="Link to this definition"></a></dt>
 <dd><p>Return the number of version i-type features.</p>
 </dd></dl>
 
@@ -808,7 +808,7 @@ as a function of the density rho</p>
 
 <dl class="py class">
 <dt class="sig sig-object py" id="ciderpress.dft.settings.NLDFSettingsVIJ">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">ciderpress.dft.settings.</span></span><span class="sig-name descname"><span class="pre">NLDFSettingsVIJ</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">sl_level</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">theta_params</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rho_mult</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">l0_feat_specs_i</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">l1_feat_specs_i</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">l1_feat_dots_i</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">feat_specs_j</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">feat_params_j</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.settings.NLDFSettingsVIJ" title="Link to this definition"></a></dt>
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">ciderpress.dft.settings.</span></span><span class="sig-name descname"><span class="pre">NLDFSettingsVIJ</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">sl_level</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">theta_params</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rho_mult</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">l0_feat_specs_i</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">l1_feat_specs_i</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">l1_feat_dots_i</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">feat_specs_j</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">feat_params_j</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.settings.NLDFSettingsVIJ" title="Link to this definition"></a></dt>
 <dd><div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>When storing features in array, j should go first, followed by i.</p>
@@ -852,7 +852,7 @@ tau_mul is ignored if sl_level=”GGA” and may therefore be excluded.</p></li>
 </dl>
 <dl class="py property">
 <dt class="sig sig-object py" id="ciderpress.dft.settings.NLDFSettingsVIJ.feat_spec_list">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">feat_spec_list</span></span><a class="headerlink" href="#ciderpress.dft.settings.NLDFSettingsVIJ.feat_spec_list" title="Link to this definition"></a></dt>
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">feat_spec_list</span></span><a class="headerlink" href="#ciderpress.dft.settings.NLDFSettingsVIJ.feat_spec_list" title="Link to this definition"></a></dt>
 <dd><p>Return a list containing feature specs in appropriate order.</p>
 </dd></dl>
 
@@ -877,7 +877,7 @@ tau_mul is ignored if sl_level=”GGA” and may therefore be excluded.</p></li>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="ciderpress.dft.settings.NLDFSettingsVIJ.num_feat_param_sets">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">num_feat_param_sets</span></span><a class="headerlink" href="#ciderpress.dft.settings.NLDFSettingsVIJ.num_feat_param_sets" title="Link to this definition"></a></dt>
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">num_feat_param_sets</span></span><a class="headerlink" href="#ciderpress.dft.settings.NLDFSettingsVIJ.num_feat_param_sets" title="Link to this definition"></a></dt>
 <dd><p>Number of unique feature parameter sets</p>
 <dl class="field-list simple">
 <dt class="field-odd">Type<span class="colon">:</span></dt>
@@ -888,7 +888,7 @@ tau_mul is ignored if sl_level=”GGA” and may therefore be excluded.</p></li>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="ciderpress.dft.settings.NLDFSettingsVIJ.num_vi_feats">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">num_vi_feats</span></span><a class="headerlink" href="#ciderpress.dft.settings.NLDFSettingsVIJ.num_vi_feats" title="Link to this definition"></a></dt>
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">num_vi_feats</span></span><a class="headerlink" href="#ciderpress.dft.settings.NLDFSettingsVIJ.num_vi_feats" title="Link to this definition"></a></dt>
 <dd><p>Return the number of version i-type features.</p>
 </dd></dl>
 
@@ -914,7 +914,7 @@ as a function of the density rho</p>
 
 <dl class="py class">
 <dt class="sig sig-object py" id="ciderpress.dft.settings.NLDFSettingsVJ">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">ciderpress.dft.settings.</span></span><span class="sig-name descname"><span class="pre">NLDFSettingsVJ</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">sl_level</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">theta_params</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rho_mult</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">feat_specs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">feat_params</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.settings.NLDFSettingsVJ" title="Link to this definition"></a></dt>
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">ciderpress.dft.settings.</span></span><span class="sig-name descname"><span class="pre">NLDFSettingsVJ</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">sl_level</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">theta_params</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rho_mult</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">feat_specs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">feat_params</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.settings.NLDFSettingsVJ" title="Link to this definition"></a></dt>
 <dd><p>Initialize NLDFSettingsVJ</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -942,7 +942,7 @@ tau_mul is ignored if sl_level=”GGA” and may therefore be excluded.</p></li>
 </dl>
 <dl class="py property">
 <dt class="sig sig-object py" id="ciderpress.dft.settings.NLDFSettingsVJ.feat_spec_list">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">feat_spec_list</span></span><a class="headerlink" href="#ciderpress.dft.settings.NLDFSettingsVJ.feat_spec_list" title="Link to this definition"></a></dt>
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">feat_spec_list</span></span><a class="headerlink" href="#ciderpress.dft.settings.NLDFSettingsVJ.feat_spec_list" title="Link to this definition"></a></dt>
 <dd><p>Return a list containing feature specs in appropriate order.</p>
 </dd></dl>
 
@@ -967,7 +967,7 @@ tau_mul is ignored if sl_level=”GGA” and may therefore be excluded.</p></li>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="ciderpress.dft.settings.NLDFSettingsVJ.num_feat_param_sets">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">num_feat_param_sets</span></span><a class="headerlink" href="#ciderpress.dft.settings.NLDFSettingsVJ.num_feat_param_sets" title="Link to this definition"></a></dt>
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">num_feat_param_sets</span></span><a class="headerlink" href="#ciderpress.dft.settings.NLDFSettingsVJ.num_feat_param_sets" title="Link to this definition"></a></dt>
 <dd><p>Number of unique feature parameter sets</p>
 <dl class="field-list simple">
 <dt class="field-odd">Type<span class="colon">:</span></dt>
@@ -978,7 +978,7 @@ tau_mul is ignored if sl_level=”GGA” and may therefore be excluded.</p></li>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="ciderpress.dft.settings.NLDFSettingsVJ.num_vi_feats">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">num_vi_feats</span></span><a class="headerlink" href="#ciderpress.dft.settings.NLDFSettingsVJ.num_vi_feats" title="Link to this definition"></a></dt>
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">num_vi_feats</span></span><a class="headerlink" href="#ciderpress.dft.settings.NLDFSettingsVJ.num_vi_feats" title="Link to this definition"></a></dt>
 <dd><p>Return the number of version i-type features.</p>
 </dd></dl>
 
@@ -1004,7 +1004,7 @@ as a function of the density rho</p>
 
 <dl class="py class">
 <dt class="sig sig-object py" id="ciderpress.dft.settings.NLDFSettingsVK">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">ciderpress.dft.settings.</span></span><span class="sig-name descname"><span class="pre">NLDFSettingsVK</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">sl_level</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">theta_params</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rho_mult</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">feat_params</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rho_damp</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.settings.NLDFSettingsVK" title="Link to this definition"></a></dt>
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">ciderpress.dft.settings.</span></span><span class="sig-name descname"><span class="pre">NLDFSettingsVK</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">sl_level</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">theta_params</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rho_mult</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">feat_params</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rho_damp</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.settings.NLDFSettingsVK" title="Link to this definition"></a></dt>
 <dd><p>Initialize NLDFSettingsVK</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -1030,7 +1030,7 @@ density. Options: ‘none’, ‘exponential’, ‘asymptotic_const’</p></li>
 </dl>
 <dl class="py property">
 <dt class="sig sig-object py" id="ciderpress.dft.settings.NLDFSettingsVK.feat_spec_list">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">feat_spec_list</span></span><a class="headerlink" href="#ciderpress.dft.settings.NLDFSettingsVK.feat_spec_list" title="Link to this definition"></a></dt>
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">feat_spec_list</span></span><a class="headerlink" href="#ciderpress.dft.settings.NLDFSettingsVK.feat_spec_list" title="Link to this definition"></a></dt>
 <dd><p>Return a list containing feature specs in appropriate order.</p>
 </dd></dl>
 
@@ -1055,7 +1055,7 @@ density. Options: ‘none’, ‘exponential’, ‘asymptotic_const’</p></li>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="ciderpress.dft.settings.NLDFSettingsVK.num_feat_param_sets">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">num_feat_param_sets</span></span><a class="headerlink" href="#ciderpress.dft.settings.NLDFSettingsVK.num_feat_param_sets" title="Link to this definition"></a></dt>
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">num_feat_param_sets</span></span><a class="headerlink" href="#ciderpress.dft.settings.NLDFSettingsVK.num_feat_param_sets" title="Link to this definition"></a></dt>
 <dd><p>Number of unique feature parameter sets</p>
 <dl class="field-list simple">
 <dt class="field-odd">Type<span class="colon">:</span></dt>
@@ -1066,7 +1066,7 @@ density. Options: ‘none’, ‘exponential’, ‘asymptotic_const’</p></li>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="ciderpress.dft.settings.NLDFSettingsVK.num_vi_feats">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">num_vi_feats</span></span><a class="headerlink" href="#ciderpress.dft.settings.NLDFSettingsVK.num_vi_feats" title="Link to this definition"></a></dt>
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">num_vi_feats</span></span><a class="headerlink" href="#ciderpress.dft.settings.NLDFSettingsVK.num_vi_feats" title="Link to this definition"></a></dt>
 <dd><p>Return the number of version i-type features.</p>
 </dd></dl>
 
@@ -1092,7 +1092,7 @@ as a function of the density rho</p>
 
 <dl class="py class">
 <dt class="sig sig-object py" id="ciderpress.dft.settings.SADMSettings">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">ciderpress.dft.settings.</span></span><span class="sig-name descname"><span class="pre">SADMSettings</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">mode</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.settings.SADMSettings" title="Link to this definition"></a></dt>
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">ciderpress.dft.settings.</span></span><span class="sig-name descname"><span class="pre">SADMSettings</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">mode</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.settings.SADMSettings" title="Link to this definition"></a></dt>
 <dd><p>Settings for Spherically Averaged Density Matrix descriptor, i.e.
 the self-repulsion of the exchange hole constructed only from
 the spherically averaged density matrix at a point.</p>
@@ -1123,7 +1123,7 @@ accurate. Use SDMXSettings and its variants instead.</p>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="ciderpress.dft.settings.SADMSettings.nfeat">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">nfeat</span></span><a class="headerlink" href="#ciderpress.dft.settings.SADMSettings.nfeat" title="Link to this definition"></a></dt>
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">nfeat</span></span><a class="headerlink" href="#ciderpress.dft.settings.SADMSettings.nfeat" title="Link to this definition"></a></dt>
 <dd><p>Returns:
 Number of features in this feature set.</p>
 </dd></dl>
@@ -1150,7 +1150,7 @@ as a function of the density rho</p>
 
 <dl class="py class">
 <dt class="sig sig-object py" id="ciderpress.dft.settings.SDMX1Settings">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">ciderpress.dft.settings.</span></span><span class="sig-name descname"><span class="pre">SDMX1Settings</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">pows</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n1</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.settings.SDMX1Settings" title="Link to this definition"></a></dt>
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">ciderpress.dft.settings.</span></span><span class="sig-name descname"><span class="pre">SDMX1Settings</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">pows</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n1</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.settings.SDMX1Settings" title="Link to this definition"></a></dt>
 <dd><p>Initialize SDMX1Settings</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -1186,7 +1186,7 @@ for the first n1 values of n in pows.</p></li>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="ciderpress.dft.settings.SDMX1Settings.nfeat">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">nfeat</span></span><a class="headerlink" href="#ciderpress.dft.settings.SDMX1Settings.nfeat" title="Link to this definition"></a></dt>
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">nfeat</span></span><a class="headerlink" href="#ciderpress.dft.settings.SDMX1Settings.nfeat" title="Link to this definition"></a></dt>
 <dd><p>Returns:
 Number of features in this feature set.</p>
 </dd></dl>
@@ -1213,13 +1213,13 @@ as a function of the density rho</p>
 
 <dl class="py class">
 <dt class="sig sig-object py" id="ciderpress.dft.settings.SDMXBaseSettings">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">ciderpress.dft.settings.</span></span><span class="sig-name descname"><span class="pre">SDMXBaseSettings</span></span><a class="headerlink" href="#ciderpress.dft.settings.SDMXBaseSettings" title="Link to this definition"></a></dt>
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">ciderpress.dft.settings.</span></span><span class="sig-name descname"><span class="pre">SDMXBaseSettings</span></span><a class="headerlink" href="#ciderpress.dft.settings.SDMXBaseSettings" title="Link to this definition"></a></dt>
 <dd><p>Base object for the SDMX-like settings.</p>
 </dd></dl>
 
 <dl class="py class">
 <dt class="sig sig-object py" id="ciderpress.dft.settings.SDMXFullSettings">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">ciderpress.dft.settings.</span></span><span class="sig-name descname"><span class="pre">SDMXFullSettings</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">settings_dict</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.settings.SDMXFullSettings" title="Link to this definition"></a></dt>
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">ciderpress.dft.settings.</span></span><span class="sig-name descname"><span class="pre">SDMXFullSettings</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">settings_dict</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.settings.SDMXFullSettings" title="Link to this definition"></a></dt>
 <dd><dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><p><strong>settings_dict</strong> (<em>dict</em>) – Each key is float. Each value
@@ -1253,7 +1253,7 @@ of pows for 0, d, 1, and 1d features.</p>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="ciderpress.dft.settings.SDMXFullSettings.nfeat">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">nfeat</span></span><a class="headerlink" href="#ciderpress.dft.settings.SDMXFullSettings.nfeat" title="Link to this definition"></a></dt>
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">nfeat</span></span><a class="headerlink" href="#ciderpress.dft.settings.SDMXFullSettings.nfeat" title="Link to this definition"></a></dt>
 <dd><p>Returns:
 Number of features in this feature set.</p>
 </dd></dl>
@@ -1280,7 +1280,7 @@ as a function of the density rho</p>
 
 <dl class="py class">
 <dt class="sig sig-object py" id="ciderpress.dft.settings.SDMXG1Settings">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">ciderpress.dft.settings.</span></span><span class="sig-name descname"><span class="pre">SDMXG1Settings</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">pows</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nd</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n1</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.settings.SDMXG1Settings" title="Link to this definition"></a></dt>
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">ciderpress.dft.settings.</span></span><span class="sig-name descname"><span class="pre">SDMXG1Settings</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">pows</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nd</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n1</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.settings.SDMXG1Settings" title="Link to this definition"></a></dt>
 <dd><p>Initialize SDMXG1Settings</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -1318,7 +1318,7 @@ for the first n1 values of n in pows.</p></li>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="ciderpress.dft.settings.SDMXG1Settings.nfeat">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">nfeat</span></span><a class="headerlink" href="#ciderpress.dft.settings.SDMXG1Settings.nfeat" title="Link to this definition"></a></dt>
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">nfeat</span></span><a class="headerlink" href="#ciderpress.dft.settings.SDMXG1Settings.nfeat" title="Link to this definition"></a></dt>
 <dd><p>Returns:
 Number of features in this feature set.</p>
 </dd></dl>
@@ -1345,7 +1345,7 @@ as a function of the density rho</p>
 
 <dl class="py class">
 <dt class="sig sig-object py" id="ciderpress.dft.settings.SDMXGSettings">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">ciderpress.dft.settings.</span></span><span class="sig-name descname"><span class="pre">SDMXGSettings</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">pows</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ndt</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.settings.SDMXGSettings" title="Link to this definition"></a></dt>
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">ciderpress.dft.settings.</span></span><span class="sig-name descname"><span class="pre">SDMXGSettings</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">pows</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ndt</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.settings.SDMXGSettings" title="Link to this definition"></a></dt>
 <dd><p>Initialize SDMXGSettings</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -1381,7 +1381,7 @@ for the first ndt values of n in pows.</p></li>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="ciderpress.dft.settings.SDMXGSettings.nfeat">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">nfeat</span></span><a class="headerlink" href="#ciderpress.dft.settings.SDMXGSettings.nfeat" title="Link to this definition"></a></dt>
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">nfeat</span></span><a class="headerlink" href="#ciderpress.dft.settings.SDMXGSettings.nfeat" title="Link to this definition"></a></dt>
 <dd><p>Returns:
 Number of features in this feature set.</p>
 </dd></dl>
@@ -1408,7 +1408,7 @@ as a function of the density rho</p>
 
 <dl class="py class">
 <dt class="sig sig-object py" id="ciderpress.dft.settings.SDMXSettings">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">ciderpress.dft.settings.</span></span><span class="sig-name descname"><span class="pre">SDMXSettings</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">pows</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.settings.SDMXSettings" title="Link to this definition"></a></dt>
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">ciderpress.dft.settings.</span></span><span class="sig-name descname"><span class="pre">SDMXSettings</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">pows</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.settings.SDMXSettings" title="Link to this definition"></a></dt>
 <dd><p>Initialize SDMX settings.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -1445,7 +1445,7 @@ and features might be poorly defined/numerically inaccurate.</p>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="ciderpress.dft.settings.SDMXSettings.nfeat">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">nfeat</span></span><a class="headerlink" href="#ciderpress.dft.settings.SDMXSettings.nfeat" title="Link to this definition"></a></dt>
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">nfeat</span></span><a class="headerlink" href="#ciderpress.dft.settings.SDMXSettings.nfeat" title="Link to this definition"></a></dt>
 <dd><p>Returns:
 Number of features in this feature set.</p>
 </dd></dl>
@@ -1481,7 +1481,7 @@ F[n_lambda](r) = lambda^u F[n](lambda r)</p>
 
 <dl class="py class">
 <dt class="sig sig-object py" id="ciderpress.dft.settings.SemilocalSettings">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">ciderpress.dft.settings.</span></span><span class="sig-name descname"><span class="pre">SemilocalSettings</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">mode</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'nst'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.settings.SemilocalSettings" title="Link to this definition"></a></dt>
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">ciderpress.dft.settings.</span></span><span class="sig-name descname"><span class="pre">SemilocalSettings</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">mode</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'nst'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.settings.SemilocalSettings" title="Link to this definition"></a></dt>
 <dd><p>Semilocal feature set. Currently only supports meta-GGA.
 Should not be edited from default in general.</p>
 <dl class="py method">
@@ -1509,7 +1509,7 @@ Should not be edited from default in general.</p>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="ciderpress.dft.settings.SemilocalSettings.nfeat">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">nfeat</span></span><a class="headerlink" href="#ciderpress.dft.settings.SemilocalSettings.nfeat" title="Link to this definition"></a></dt>
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">nfeat</span></span><a class="headerlink" href="#ciderpress.dft.settings.SemilocalSettings.nfeat" title="Link to this definition"></a></dt>
 <dd><p>Returns:
 Number of features in this feature set.</p>
 </dd></dl>

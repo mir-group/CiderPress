@@ -7,7 +7,7 @@
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>C Extension Libraries &mdash; CiderPress 0.1.0 documentation</title>
-      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=e59714d7" />
 
   
@@ -86,7 +86,94 @@
 <h1>C Extension Libraries<a class="headerlink" href="#c-extension-libraries" title="Link to this heading"></a></h1>
 <div class="toctree-wrapper compound">
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="pwutil.html">Plane-wave Utilities (pwutil)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="pwutil.html">Plane-wave Utilities (pwutil)</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="pwutil.html#c.CIDERPW_PI"><code class="docutils literal notranslate"><span class="pre">CIDERPW_PI</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="pwutil.html#c.CIDERPW_R2C"><code class="docutils literal notranslate"><span class="pre">CIDERPW_R2C</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="pwutil.html#c.CIDERPW_C2C"><code class="docutils literal notranslate"><span class="pre">CIDERPW_C2C</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="pwutil.html#c.ciderpw_data"><code class="docutils literal notranslate"><span class="pre">ciderpw_data</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="pwutil.html#c.ciderpw_has_mpi"><code class="docutils literal notranslate"><span class="pre">ciderpw_has_mpi()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="pwutil.html#c.ciderpw_allocate_buffers"><code class="docutils literal notranslate"><span class="pre">ciderpw_allocate_buffers()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="pwutil.html#c.ciderpw_get_struct_size"><code class="docutils literal notranslate"><span class="pre">ciderpw_get_struct_size()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="pwutil.html#c.ciderpw_nullify"><code class="docutils literal notranslate"><span class="pre">ciderpw_nullify()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="pwutil.html#c.ciderpw_finalize"><code class="docutils literal notranslate"><span class="pre">ciderpw_finalize()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="pwutil.html#c.ciderpw_set_unit_cell"><code class="docutils literal notranslate"><span class="pre">ciderpw_set_unit_cell()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="pwutil.html#c.ciderpw_new_anyspin"><code class="docutils literal notranslate"><span class="pre">ciderpw_new_anyspin()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="pwutil.html#c.ciderpw_create"><code class="docutils literal notranslate"><span class="pre">ciderpw_create()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="pwutil.html#c.ciderpw_setup_kernel"><code class="docutils literal notranslate"><span class="pre">ciderpw_setup_kernel()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="pwutil.html#c.ciderpw_get_bound_inds"><code class="docutils literal notranslate"><span class="pre">ciderpw_get_bound_inds()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="pwutil.html#c.ciderpw_get_recip_size"><code class="docutils literal notranslate"><span class="pre">ciderpw_get_recip_size()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="pwutil.html#c.ciderpw_get_real_size"><code class="docutils literal notranslate"><span class="pre">ciderpw_get_real_size()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="pwutil.html#c.ciderpw_get_work_size"><code class="docutils literal notranslate"><span class="pre">ciderpw_get_work_size()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="pwutil.html#c.ciderpw_get_work_pointer"><code class="docutils literal notranslate"><span class="pre">ciderpw_get_work_pointer()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="pwutil.html#c.ciderpw_get_local_size_and_lda"><code class="docutils literal notranslate"><span class="pre">ciderpw_get_local_size_and_lda()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="pwutil.html#c.ciderpw_compute_kernels_helper"><code class="docutils literal notranslate"><span class="pre">ciderpw_compute_kernels_helper()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="pwutil.html#c.ciderpw_compute_kernels_sym_helper"><code class="docutils literal notranslate"><span class="pre">ciderpw_compute_kernels_sym_helper()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="pwutil.html#c.ciderpw_compute_kernels"><code class="docutils literal notranslate"><span class="pre">ciderpw_compute_kernels()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="pwutil.html#c.ciderpw_compute_kernels_sym"><code class="docutils literal notranslate"><span class="pre">ciderpw_compute_kernels_sym()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="pwutil.html#c.ciderpw_compute_kernels_t"><code class="docutils literal notranslate"><span class="pre">ciderpw_compute_kernels_t()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="pwutil.html#c.ciderpw_multiply_l1"><code class="docutils literal notranslate"><span class="pre">ciderpw_multiply_l1()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="pwutil.html#c.ciderpw_convolution_fwd"><code class="docutils literal notranslate"><span class="pre">ciderpw_convolution_fwd()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="pwutil.html#c.ciderpw_convolution_bwd"><code class="docutils literal notranslate"><span class="pre">ciderpw_convolution_bwd()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="pwutil.html#c.ciderpw_compute_features"><code class="docutils literal notranslate"><span class="pre">ciderpw_compute_features()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="pwutil.html#c.ciderpw_compute_potential"><code class="docutils literal notranslate"><span class="pre">ciderpw_compute_potential()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="pwutil.html#c.ciderpw_eval_feature_vj"><code class="docutils literal notranslate"><span class="pre">ciderpw_eval_feature_vj()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="pwutil.html#c.ciderpw_add_potential_vj"><code class="docutils literal notranslate"><span class="pre">ciderpw_add_potential_vj()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="pwutil.html#c.ciderpw_set_work"><code class="docutils literal notranslate"><span class="pre">ciderpw_set_work()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="pwutil.html#c.ciderpw_zero_work"><code class="docutils literal notranslate"><span class="pre">ciderpw_zero_work()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="pwutil.html#c.ciderpw_fill_atom_info"><code class="docutils literal notranslate"><span class="pre">ciderpw_fill_atom_info()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="pwutil.html#c.ciderpw_add_atom_info"><code class="docutils literal notranslate"><span class="pre">ciderpw_add_atom_info()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="pwutil.html#c.ciderpw_set_atom_info"><code class="docutils literal notranslate"><span class="pre">ciderpw_set_atom_info()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="pwutil.html#c.ciderpw_copy_work_array_recip"><code class="docutils literal notranslate"><span class="pre">ciderpw_copy_work_array_recip()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="pwutil.html#c.ciderpw_copy_work_array_real"><code class="docutils literal notranslate"><span class="pre">ciderpw_copy_work_array_real()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="pwutil.html#c.ciderpw_copy_work_array"><code class="docutils literal notranslate"><span class="pre">ciderpw_copy_work_array()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="pwutil.html#c.ciderpw_unit_cell"><code class="docutils literal notranslate"><span class="pre">ciderpw_unit_cell</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="pwutil.html#c.ciderpw_unit_cell.vec"><code class="docutils literal notranslate"><span class="pre">vec</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="pwutil.html#c.ciderpw_unit_cell.Nglobal"><code class="docutils literal notranslate"><span class="pre">Nglobal</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="pwutil.html#c.ciderpw_unit_cell.Nlocal"><code class="docutils literal notranslate"><span class="pre">Nlocal</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="pwutil.html#c.ciderpw_unit_cell.offset"><code class="docutils literal notranslate"><span class="pre">offset</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="pwutil.html#c.ciderpw_unit_cell.dV"><code class="docutils literal notranslate"><span class="pre">dV</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="pwutil.html#c.ciderpw_kernel"><code class="docutils literal notranslate"><span class="pre">ciderpw_kernel</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="pwutil.html#c.ciderpw_kernel.kernel_type"><code class="docutils literal notranslate"><span class="pre">kernel_type</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="pwutil.html#c.ciderpw_kernel.nalpha"><code class="docutils literal notranslate"><span class="pre">nalpha</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="pwutil.html#c.ciderpw_kernel.nbeta"><code class="docutils literal notranslate"><span class="pre">nbeta</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="pwutil.html#c.ciderpw_kernel.work_size"><code class="docutils literal notranslate"><span class="pre">work_size</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="pwutil.html#c.ciderpw_kernel.expnts_ba"><code class="docutils literal notranslate"><span class="pre">expnts_ba</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="pwutil.html#c.ciderpw_kernel.norms_ba"><code class="docutils literal notranslate"><span class="pre">norms_ba</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="pwutil.html#c.ciderpw_kernel.expnts_ab"><code class="docutils literal notranslate"><span class="pre">expnts_ab</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="pwutil.html#c.ciderpw_kernel.norms_ab"><code class="docutils literal notranslate"><span class="pre">norms_ab</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="pwutil.html#c.ciderpw_kernel.num_l1_feats"><code class="docutils literal notranslate"><span class="pre">num_l1_feats</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="pwutil.html#c.ciderpw_data_obj"><code class="docutils literal notranslate"><span class="pre">ciderpw_data_obj</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="pwutil.html#c.ciderpw_data_obj.initialized"><code class="docutils literal notranslate"><span class="pre">initialized</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="pwutil.html#c.ciderpw_data_obj.nspin"><code class="docutils literal notranslate"><span class="pre">nspin</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="pwutil.html#c.ciderpw_data_obj.cell"><code class="docutils literal notranslate"><span class="pre">cell</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="pwutil.html#c.ciderpw_data_obj.icell"><code class="docutils literal notranslate"><span class="pre">icell</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="pwutil.html#c.ciderpw_data_obj.kernel"><code class="docutils literal notranslate"><span class="pre">kernel</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="pwutil.html#c.ciderpw_data_obj.fft_type"><code class="docutils literal notranslate"><span class="pre">fft_type</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="pwutil.html#c.ciderpw_data_obj.mpi_rank"><code class="docutils literal notranslate"><span class="pre">mpi_rank</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="pwutil.html#c.ciderpw_data_obj.mpi_size"><code class="docutils literal notranslate"><span class="pre">mpi_size</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="pwutil.html#c.ciderpw_data_obj.Ng"><code class="docutils literal notranslate"><span class="pre">Ng</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="pwutil.html#c.ciderpw_data_obj.Nglobal"><code class="docutils literal notranslate"><span class="pre">Nglobal</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="pwutil.html#c.ciderpw_data_obj.kLDA"><code class="docutils literal notranslate"><span class="pre">kLDA</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="pwutil.html#c.ciderpw_data_obj.gLDA"><code class="docutils literal notranslate"><span class="pre">gLDA</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="pwutil.html#c.ciderpw_data_obj.work_ska"><code class="docutils literal notranslate"><span class="pre">work_ska</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="pwutil.html#c.ciderpw_data_obj.plan_g2k"><code class="docutils literal notranslate"><span class="pre">plan_g2k</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="pwutil.html#c.ciderpw_data_obj.plan_k2g"><code class="docutils literal notranslate"><span class="pre">plan_k2g</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="pwutil.html#c.ciderpw_data_obj.nk"><code class="docutils literal notranslate"><span class="pre">nk</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="pwutil.html#c.ciderpw_data_obj.k2_G"><code class="docutils literal notranslate"><span class="pre">k2_G</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="pwutil.html#c.ciderpw_data_obj.kx_G"><code class="docutils literal notranslate"><span class="pre">kx_G</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="pwutil.html#c.ciderpw_data_obj.ky_G"><code class="docutils literal notranslate"><span class="pre">ky_G</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="pwutil.html#c.ciderpw_data_obj.kz_G"><code class="docutils literal notranslate"><span class="pre">kz_G</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="pwutil.html#c.ciderpw_data_obj.wt_G"><code class="docutils literal notranslate"><span class="pre">wt_G</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="pwutil.html#c.ciderpw_data_obj.work_array_size"><code class="docutils literal notranslate"><span class="pre">work_array_size</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="pwutil.html#c.ciderpw_data_obj.errorcode"><code class="docutils literal notranslate"><span class="pre">errorcode</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
 </ul>
 </div>
 </section>
