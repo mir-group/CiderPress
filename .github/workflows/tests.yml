@@ -43,6 +43,7 @@ jobs:
       run: |
         source .github/workflows/load_conda.sh
         source .github/workflows/mm_install_torch.sh
+        export CMAKE_CONFIGURE_ARGS="-DBUILD_WITH_MKL=ON"
         sh .github/workflows/run_local_pip.sh
         python scripts/download_functionals.py
     - name: Test with unittest
