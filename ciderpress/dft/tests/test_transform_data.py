@@ -26,6 +26,7 @@ from numpy.testing import assert_almost_equal
 from ciderpress.dft.transform_data import (
     FeatureList,
     LMap,
+    OmegaMap,
     SignedUMap,
     TMap,
     UMap,
@@ -34,7 +35,6 @@ from ciderpress.dft.transform_data import (
     XMap,
     YMap,
     ZMap,
-    OmegaMap
 )
 
 TMP_TEST = "test_files/tmp"
@@ -119,14 +119,12 @@ class TestFeatureNormalizer(unittest.TestCase):
         gradfd = get_grad_fd(TEST_VEC, flist)
         grada = get_grad_a(TEST_VEC, flist)
         assert_almost_equal(gradfd, grada)
-    
+
     def test_omegamap(self):
-        flist = FeatureList([
-            OmegaMap(i_n=0, i_s=1, i_alpha=2, c=0.1, B=0.5, C=0.5)
-        ])
+        flist = FeatureList([OmegaMap(i_n=0, i_s=1, i_alpha=2, c=0.1, B=0.5, C=0.5)])
         delta = 5e-3
-        gradfd = get_grad_fd(TEST_VEC+delta, flist)
-        grada = get_grad_a(TEST_VEC+delta, flist)
+        gradfd = get_grad_fd(TEST_VEC + delta, flist)
+        grada = get_grad_a(TEST_VEC + delta, flist)
         assert_almost_equal(gradfd, grada, 6)
 
     def test_zmap(self):
