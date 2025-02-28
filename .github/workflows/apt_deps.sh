@@ -2,6 +2,7 @@
 sudo apt-get -qq install \
     gcc \
     libblas-dev \
+    liblapack-dev \
     cmake \
     curl \
     libxc-dev

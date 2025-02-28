@@ -104,6 +104,7 @@ if (BUILD_WITH_MKL)
 else()
   if (NOT BLAS_LIBRARIES)
     find_package(BLAS)
+    find_package(LAPACK)
     check_function_exists(ffsll HAVE_FFS)
   endif()
 
