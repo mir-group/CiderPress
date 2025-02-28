@@ -1,4 +1,4 @@
-name: Run PySCF Tests
+name: Run Tests with BLAS
 
 on:
   push:

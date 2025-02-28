@@ -4,4 +4,4 @@ pip install gpaw
 gpaw install-data --sg15 --register $PWD
 gpaw install-data --register $PWD
 pip install .
-sh run_tests.sh
+sh .github/workflows/run_gpaw_tests.sh
