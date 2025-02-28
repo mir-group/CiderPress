@@ -44,7 +44,6 @@ class CMakeBuildPy(build_py):
             f"-S{src_dir}",
             f"-B{self.build_temp}",
             "-DCMAKE_PREFIX_PATH={}".format(sys.base_prefix),
-            "-DBLA_VENDOR=Intel10_64lp_seq",
             "-DCMAKE_BUILD_TYPE=Release",
         ]
         configure_args = os.getenv("CMAKE_CONFIGURE_ARGS")
