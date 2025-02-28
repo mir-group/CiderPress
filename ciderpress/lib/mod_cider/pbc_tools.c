@@ -72,15 +72,6 @@ void apply_orb_phases(double complex *ao, int *atom_list, int *ang_list,
     }
 }
 
-void pbc_check_status(int status) {
-    if (status != 0) {
-        printf("FFT ROUTINE FAILED WITH STATUS %d:\n", status);
-        char *message = DftiErrorMessage(status);
-        printf("%s\n", message);
-        exit(-1);
-    }
-}
-
 void parallel_mul_add_d(double *a, double *b, double *c, int dim1, int dim2) {
 #pragma omp parallel for collapse(2)
     for (int i = 0; i < dim1; i++) {
