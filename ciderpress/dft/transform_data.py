@@ -988,6 +988,100 @@ class SLDMap(FeatureNormalizer):
         return cls(d["i"], d["j"], d["k"])
 
 
+class OmegaMap(FeatureNormalizer):
+    def __init__(self, i_n, i_s, i_alpha, c, B, C, bounds=None):
+        self.i_n = i_n
+        self.i_s = i_s
+        self.i_alpha = i_alpha
+        self.c = c
+        self.B = B
+        self.C = C
+        self._bounds = bounds or (0, 1)
+
+    def set_current_molecule_id(self, mol_id):
+        self.current_molecule_id = mol_id
+
+    @property
+    def bounds(self):
+        return self._bounds
+
+    @property
+    def num_arg(self):
+        return 3
+
+    def fill_feat_(self, y, x, mol_id=None):
+        if x.size == 0:
+            raise ValueError("x is a zero-size array")
+        n = x[self.i_n]
+        s2 = x[self.i_s]
+        alpha = x[self.i_alpha]
+        if n.size == 0 or s2.size == 0 or alpha.size == 0:
+            raise ValueError("n, s2, or alpha is a zero-size array")
+        n_nan_mask = np.isnan(n)
+        n_zero_mask = n == 0
+        s2_nan_mask = np.isnan(s2)
+        alpha_nan_mask = np.isnan(alpha)
+
+        n = np.abs(n)
+        n[n_nan_mask | n_zero_mask] = 1e-10
+
+        s2[s2_nan_mask] = 0
+        alpha[alpha_nan_mask] = 0
+
+        s2 = np.clip(s2, -1e10, 1e10)
+        alpha = np.clip(alpha, -1e10, 1e10)
+
+        inner_term = np.maximum(self.B + self.C * (alpha + 5 / 3 * s2), 1e-10)
+        omega = np.sqrt(n ** (2 / 3) * inner_term)
+        denominator = np.maximum(1 + self.c * omega, 1e-10)
+        y[:] = self.c * omega / denominator
+
+    def fill_deriv_(self, dfdx, dfdy, x):
+        n = np.maximum(np.abs(x[self.i_n]), 1e-10)
+        s2 = np.clip(x[self.i_s], -1e10, 1e10)
+        alpha = np.clip(x[self.i_alpha], -1e10, 1e10)
+
+        inner_term = np.maximum(self.B + self.C * (alpha + 5 / 3 * s2), 1e-10)
+        omega = np.sqrt(n ** (2 / 3) * inner_term)
+        denom = np.maximum((1 + self.c * omega) ** 2, 1e-10)
+
+        term1 = np.divide(dfdy * self.c, 3 * denom, where=denom != 0)
+        term2 = np.power(n, -2 / 3, where=n != 0)
+        term3 = np.sqrt(np.abs(inner_term))
+        dfdx[self.i_n] += term1 * term2 * term3
+
+        term4 = np.divide(
+            dfdy * self.c, 2 * denom * omega, where=(denom != 0) & (omega != 0)
+        )
+        term5 = np.power(n, 2 / 3, where=n != 0)
+        dfdx[self.i_s] += term4 * term5 * self.C * 5 / 3
+        dfdx[self.i_alpha] += term4 * term5 * self.C
+
+    def as_dict(self):
+        return {
+            "code": "Omega",
+            "i_n": self.i_n,
+            "i_s": self.i_s,
+            "i_alpha": self.i_alpha,
+            "c": self.c,
+            "B": self.B,
+            "C": self.C,
+            "bounds": self.bounds,
+        }
+
+    @classmethod
+    def from_dict(cls, d):
+        return cls(
+            d["i_n"],
+            d["i_s"],
+            d["i_alpha"],
+            d["c"],
+            d["B"],
+            d["C"],
+            bounds=d.get("bounds"),
+        )
+
+
 ALL_CLASS_DICT = {}
 ALL_CLASSES = [
     LMap,
@@ -1010,6 +1104,7 @@ ALL_CLASSES = [
     SLTMap,
     SLTWMap,
     SLDMap,
+    OmegaMap,
 ]
 for cls in ALL_CLASSES:
     assert cls.code not in ALL_CLASS_DICT
