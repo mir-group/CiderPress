@@ -242,7 +242,7 @@ def get_normalizer_from_exponent_params(rho_pow, exp_pow, a0, tau_mul, gga=False
 
 
 class FeatNormalizerList:
-    def __init__(self, normalizers, slmode="npa", cutoff=1e-10):  # , i0=3, i1=None):
+    def __init__(self, normalizers, slmode, cutoff=1e-10):  # , i0=3, i1=None):
         """
         Args:
             normalizers (list[FeatNormalizer or None]):
