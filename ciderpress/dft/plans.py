@@ -1279,6 +1279,7 @@ class NLDFAuxiliaryPlan(ABC):
         rhocut=1e-10,
         expcut=1e-10,
         raise_large_expnt_error=True,
+        use_smooth_expnt_cutoff=False,
     ):
         """
         Initialize NLDFAuxiliaryPlan
@@ -1306,6 +1307,11 @@ class NLDFAuxiliaryPlan(ABC):
                 value. It is generally best to set this to true to make
                 sure a calculation doesn't accidentally lose significant precision
                 to going outside the interpolation range.
+            use_smooth_expnt_cutoff (bool, False): If True, use a damping function
+                for large exponent to smoothly ensure that as the exponent goes
+                to infinity, the damped exponent goes to alpha_max. The
+                smoothing function is design to contribute insignificantly
+                except for near and beyond alpha_max.
         """
         if not isinstance(nldf_settings, NLDFSettings):
             raise ValueError("Require NLDFSettings object")
@@ -1396,7 +1402,12 @@ class NLDFAuxiliaryPlan(ABC):
         else:
             self.alpha_norms = (np.pi / (2 * self.alphas)) ** -0.75
 
-        self._raise_large_expnt_error = raise_large_expnt_error
+        if use_smooth_expnt_cutoff:
+            # exponent will not overflow when this flag is true
+            self._raise_large_expnt_error = False
+        else:
+            self._raise_large_expnt_error = raise_large_expnt_error
+        self._use_smooth_expnt_cutoff = use_smooth_expnt_cutoff
         self._run_setup()
 
     def new(self, **kwargs):
@@ -1547,9 +1558,19 @@ class NLDFAuxiliaryPlan(ABC):
                 nspin=self.nspin,
             )
             res = a, (dadn, dadsigma)
+        if self._use_smooth_expnt_cutoff:
+            derivs = [arr.ctypes.data_as(ctypes.c_void_p) for arr in res[1]]
+            nd = len(derivs)
+            libcider.smooth_cider_exponents(
+                res[0].ctypes.data_as(ctypes.c_void_p),
+                (ctypes.c_void_p * nd)(*derivs),
+                ctypes.c_double(np.max(self.alphas)),
+                ctypes.c_int(a.size),
+                ctypes.c_int(nd),
+            )
         if self._raise_large_expnt_error and a.size > 0:
             # TODO if rhocut is small, might need to leave some buffer at small rho
-            ap = a[rho > self.rhocut]
+            ap = a[rho > self.rhocut * 0.1]
             if ap.size > 0 and np.max(ap) > np.max(self.alphas):
                 # print(np.max(ap), rho[rho > self.rhocut][np.argmax(ap)],
                 #      tau[rho > self.rhocut][np.argmax(ap)],
