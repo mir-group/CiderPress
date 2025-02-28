@@ -24,7 +24,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install and Test
-        run: ./.github/workflows/run_core_ci.sh
+        run: sh .github/workflows/run_core_ci.sh
 
   gpaw-build:
     runs-on: ${{ matrix.os }}
@@ -40,4 +40,4 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install and Test
-        run: ./.github/workflows/run_gpaw_ci.sh
+        run: sh .github/workflows/run_gpaw_ci.sh
