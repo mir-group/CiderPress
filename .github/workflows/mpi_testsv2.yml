@@ -1,4 +1,4 @@
-name: Run MPI Tests
+name: Run MPI Tests BLAS
 
 on:
   push:
@@ -11,8 +11,6 @@ on:
 
 jobs:
   build:
-
-    gpaw-build:
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
