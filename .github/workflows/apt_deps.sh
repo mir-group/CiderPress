@@ -4,5 +4,4 @@ sudo apt-get -qq install \
     libblas-dev \
     liblapack-dev \
     cmake \
-    curl \
-    libxc-dev
+    curl
