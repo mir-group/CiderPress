@@ -18,6 +18,7 @@ set(CMAKE_C_FLAGS_RELEASE "-g -O3")
 list( APPEND CMAKE_BUILD_RPATH ${CMAKE_PREFIX_PATH}/lib )
 set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 
+option(BUILD_LIBXC "Build libxc library. If off, libxc must be findable by cmake" off)
 option(BUILD_WITH_MKL "use MKL for BLAS and FFT" off)
 option(BUILD_FFTW "Build fftw3" on)
 option(BUILD_MARCH_NATIVE "gcc flag -march=native" off)
@@ -150,8 +151,11 @@ set(CMAKE_BUILD_WITH_INSTALL_RPATH True)
 set(CMAKE_INSTALL_RPATH "\$ORIGIN:\$ORIGIN/deps/lib:\$ORIGIN/deps/lib64")
 message(RPATH=${CMAKE_INSTALL_RPATH})
 
-string(REPLACE ":" ";" _lib_path "$ENV{LD_LIBRARY_PATH}")
-find_library(LIBXC_LIBRARIES NAMES xc PATHS ${_lib_path})
+if(BUILD_LIBXC)
+else()
+  find_package(Libxc REQUIRED COMPONENTS shared C)
+endif()
+
 add_subdirectory(mod_cider)
 add_subdirectory(numint_cider)
 add_subdirectory(pwutil)
@@ -162,6 +166,24 @@ add_dependencies(mcider fft_wrapper)
 add_dependencies(sbt fft_wrapper)
 if (BUILD_FFTW AND NOT BUILD_WITH_MKL)
   add_dependencies(fft_wrapper libfftw3)
+endif()
+
+if(BUILD_LIBXC)
+    ExternalProject_Add(libxc
+    #GIT_REPOSITORY https://gitlab.com/libxc/libxc.git
+    #GIT_TAG master
+    URL https://gitlab.com/libxc/libxc/-/archive/6.1.0/libxc-6.1.0.tar.gz
+    PREFIX ${PROJECT_BINARY_DIR}/deps
+    INSTALL_DIR ${PROJECT_SOURCE_DIR}/deps
+    CMAKE_ARGS -DCMAKE_BUILD_TYPE=RELEASE -DBUILD_SHARED_LIBS=1
+            -DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
+            -DCMAKE_INSTALL_LIBDIR:PATH=lib
+            -DENABLE_FORTRAN=0 -DDISABLE_FXC=1 -DDISABLE_KXC=1 -DDISABLE_LXC=1
+            -DCMAKE_C_CREATE_SHARED_LIBRARY=${C_LINK_TEMPLATE}
+            -DENABLE_XHOST:STRING=${BUILD_MARCH_NATIVE}
+            -DCMAKE_C_COMPILER:STRING=${CMAKE_C_COMPILER}
+  )
+  add_dependencies(xc_utils libxc)
 endif()
 
 # NOTE some other stuff from pyscf CMake file was here

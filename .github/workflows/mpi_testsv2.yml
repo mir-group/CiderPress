@@ -1,0 +1,33 @@
+name: Run MPI Tests
+
+on:
+  push:
+    branches:
+    - main
+
+  pull_request:
+    branches:
+    - main
+
+jobs:
+  build:
+
+    gpaw-build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-20.04]
+        python-version: ["3.12"]
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install and Test
+        run: sh .github/workflows/run_gpaw_mpi_ci.sh
+      - name: Run MPI tests
+        run: |
+          source .github/workflows/load_conda.sh
+          sh .github/workflows/run_mpi_tests.sh
