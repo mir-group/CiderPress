@@ -31,7 +31,7 @@ libraries = [
     "mpi",
     "blas",
     "lapack",
-    "scalapack",
+    "scalapack-openmpi",
     "gomp",
     "pthread",
 ]
