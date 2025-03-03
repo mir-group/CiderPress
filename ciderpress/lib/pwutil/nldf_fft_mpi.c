@@ -23,7 +23,6 @@
 #include "nldf_fft_core.h"
 #include <assert.h>
 #include <complex.h>
-#include <fftw3-mpi.h>
 #include <mpi.h>
 #include <stdint.h>
 #include <stdlib.h>

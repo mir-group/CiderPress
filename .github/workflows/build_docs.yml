@@ -39,7 +39,7 @@ jobs:
       run: |
         source .github/workflows/load_conda.sh
         source .github/workflows/mm_install_torch.sh
-        LIBRARY_PATH=$CONDA_PREFIX/lib:$LIBRARY_PATH pip install .
+        sh .github/workflows/run_local_pip.sh
     - name: Build documentation
       run: |
         sudo apt-get -qq install doxygen

@@ -25,13 +25,13 @@ if (HAVE_MPI)
   target_link_libraries(fft_wrapper PUBLIC MPI::MPI_C)
 endif()
 
-if (FFT_BACKEND_NUMBER EQUAL 0)
+if (FFT_BACKEND EQUAL 1) # MKL
   target_include_directories(fft_wrapper PUBLIC ${MKL_INCLUDE_DIR})
   target_link_libraries(fft_wrapper PUBLIC MKL::MKL)
   if (HAVE_MPI)
     target_link_libraries(fft_wrapper PUBLIC MKL::mkl_cdft_core)
   endif()
-else()
+else() # FFTW
   target_link_libraries(fft_wrapper PRIVATE fftw3)
   target_link_libraries(fft_wrapper PRIVATE fftw3_omp)
   if (HAVE_MPI)
