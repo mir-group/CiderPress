@@ -284,7 +284,7 @@ class FeatNormalizerList:
             raise ValueError("Array must have size nfeat")
 
     def _get_rho_and_inh(self, X0T):
-        rho_term = X0T[:, 0]
+        rho_term = np.maximum(X0T[:, 0], self.cutoff)
         grad_term = X0T[:, 1]
         if self.slmode == "npa":
             tau_term = X0T[:, 2]
@@ -296,11 +296,10 @@ class FeatNormalizerList:
             inh_term = 5.0 / 3 * grad_term
         else:
             inh_term = grad_term / (8 * CFC * rho_term ** (8.0 / 3))
-        rho_term = np.maximum(rho_term, self.cutoff)
         return rho_term, inh_term
 
     def _get_drho_and_dinh(self, X0T, DX0T):
-        rho = X0T[0]
+        rho = np.maximum(X0T[0], self.cutoff)
         drho = DX0T[0]
         grad = X0T[1]
         dgrad = DX0T[1]
