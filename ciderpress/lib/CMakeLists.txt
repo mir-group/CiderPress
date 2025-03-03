@@ -19,7 +19,7 @@ set(CMAKE_C_FLAGS_RELEASE "-g -O3")
 list( APPEND CMAKE_BUILD_RPATH ${CMAKE_PREFIX_PATH}/lib )
 set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 
-option(BUILD_LIBXC "Build libxc library. If off, libxc must be findable by cmake" off)
+option(BUILD_LIBXC "Build libxc library. If off, libxc must be findable by cmake" on)
 option(BUILD_WITH_MKL "use MKL for BLAS and FFT" off)
 option(BUILD_FFTW "Build fftw3" on)
 option(BUILD_MARCH_NATIVE "gcc flag -march=native" off)
