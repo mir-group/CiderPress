@@ -1306,7 +1306,7 @@ class FastPASDWCiderKernel:
         if setups is None:
             setups = self.dens.setups
         for setup in setups:
-            if not hasattr(setup, "cider_contribs"):
+            if not hasattr(setup, "cider_contribs") or setup.cider_contribs is None:
                 setup.xc_correction = DiffPAWXCCorrection.from_setup(
                     setup, build_kinetic=True, ke_order_ng=False
                 )
@@ -1348,7 +1348,7 @@ class FastPASDWCiderKernel:
                     ), "Math went wrong {} {} {} {}".format(
                         encut0, encut, self.lambd, encut0 / self.lambd
                     )
-                atom_plan = self.plan.new(nalpha=Nalpha, raise_large_expnt_error=False)
+                atom_plan = self.plan.new(nalpha=Nalpha, use_smooth_expnt_cutoff=True)
                 setup.cider_contribs = self.PAWCiderContribs.from_plan(
                     atom_plan,
                     self.plan,

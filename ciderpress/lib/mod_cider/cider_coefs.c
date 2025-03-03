@@ -309,9 +309,9 @@ void smooth_cider_exponents(double *a, double **da, double amax, int ng,
 #pragma omp parallel
     {
         double c, dc;
-        int g, d
+        int g, d;
 #pragma omp for
-            for (g = 0; g < ng; g++) {
+        for (g = 0; g < ng; g++) {
             c = _expnt_sat_func(a[g], amax);
             dc = _expnt_sat_deriv(a[g], amax);
             a[g] = c;

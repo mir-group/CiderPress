@@ -2,6 +2,7 @@
 
 cmake_minimum_required (VERSION 3.20)
 project (ciderpress)
+include(ExternalProject)
 
 if (NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE RELWITHDEBINFO)
