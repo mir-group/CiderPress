@@ -27,5 +27,4 @@ jobs:
         run: sh .github/workflows/run_gpaw_mpi_ci.sh
       - name: Run MPI tests
         run: |
-          source .github/workflows/load_conda.sh
           sh .github/workflows/run_mpi_tests.sh

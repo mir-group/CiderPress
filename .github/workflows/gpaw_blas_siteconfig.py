@@ -19,7 +19,7 @@
 #
 
 
-scalapack = False
+scalapack = True
 mpi = True
 fftw = True
 compiler = "mpicc"
@@ -31,6 +31,7 @@ libraries = [
     "mpi",
     "blas",
     "lapack",
+    "scalapack-openmpi",
     "gomp",
     "pthread",
 ]
