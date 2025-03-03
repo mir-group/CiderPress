@@ -1570,7 +1570,7 @@ class NLDFAuxiliaryPlan(ABC):
             )
         if self._raise_large_expnt_error and a.size > 0:
             # TODO if rhocut is small, might need to leave some buffer at small rho
-            ap = a[rho > self.rhocut * 0.1]
+            ap = a[rho > self.rhocut]
             if ap.size > 0 and np.max(ap) > np.max(self.alphas):
                 # print(np.max(ap), rho[rho > self.rhocut][np.argmax(ap)],
                 #      tau[rho > self.rhocut][np.argmax(ap)],
