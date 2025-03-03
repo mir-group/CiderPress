@@ -27,4 +27,9 @@ jobs:
         run: sh .github/workflows/run_gpaw_mpi_ci.sh
       - name: Run MPI tests
         run: |
+          # Slightly hacky, link gpaw to our internal libxc
+          export CIDER_DEPS=$(python -c "import ciderpress, os; print(os.path.dirname(ciderpress.__file__))")/lib/deps
+          export LIBRARY_PATH=$LIBRARY_PATH:$CIDER_DEPS/lib
+          export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$CIDER_DEPS/lib
+          export C_INCLUDE_PATH=$C_INCLUDE_PATH:$CIDER_DEPS/include
           sh .github/workflows/run_mpi_tests.sh
