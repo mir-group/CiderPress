@@ -23,6 +23,8 @@ from gpaw.xc.kernel import XCKernel
 from gpaw.xc.libxc import LibXC
 
 from ciderpress.dft.plans import SemilocalPlan2
+from ciderpress.dft.xc_evaluator import MappedXC
+from ciderpress.dft.xc_evaluator2 import MappedXC2
 from ciderpress.gpaw.config import GPAW_DEFAULT_RHO_TOL
 
 
@@ -91,7 +93,19 @@ class CiderKernel(XCKernel):
             X0T[:, start : start + nfeat_tmp] = feat_sg
             start += nfeat_tmp
         X0TN = self.mlfunc.settings.normalizers.get_normalized_feature_vector(X0T)
-        exc_ml, dexcdX0TN_ml = self.mlfunc(X0TN, rhocut=self.rhocut)
+        if isinstance(self.mlfunc, MappedXC):
+            exc_ml, dexcdX0TN_ml = self.mlfunc(X0TN, rhocut=self.rhocut)
+        elif isinstance(self.mlfunc, MappedXC2):
+            if tau_sg is None:
+                rho_tuple = (n_sg, sigma_xg)
+            else:
+                rho_tuple = (n_sg, sigma_xg, tau_sg)
+            exc_ml, dexcdX0TN_ml, vrho_tuple = self.mlfunc(
+                X0TN, rho_tuple, rhocut=self.rhocut
+            )
+            vxc[:] += vxc_tuple_to_array(rho, vrho_tuple)
+        else:
+            raise TypeError("mlfunc must be MappedXC or MappedXC2")
         xmix = self.xmix  # / rho.shape[0]
         exc_ml *= xmix
         dexcdX0TN_ml *= xmix
