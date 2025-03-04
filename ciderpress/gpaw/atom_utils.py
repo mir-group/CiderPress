@@ -1348,7 +1348,6 @@ class FastPASDWCiderKernel:
                     ), "Math went wrong {} {} {} {}".format(
                         encut0, encut, self.lambd, encut0 / self.lambd
                     )
-                print("ATOM PLAN", setup.Z, Nalpha, self.plan.lambd, self._amin)
                 atom_plan = self.plan.new(nalpha=Nalpha, use_smooth_expnt_cutoff=True)
                 setup.cider_contribs = self.PAWCiderContribs.from_plan(
                     atom_plan,
