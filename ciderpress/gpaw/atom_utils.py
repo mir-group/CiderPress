@@ -1330,7 +1330,7 @@ class FastPASDWCiderKernel:
                 # somehow. In the meantime, we set the energy cutoff to a large
                 # value and pass raise_large_expnt_error=False
                 # to the initializer below just in case to avoid crashes.
-                encut = setup.Z**2 * 2000
+                encut = setup.Z**2 * 200
                 if encut - 1e-7 <= np.max(self.alphas):
                     encut0 = np.max(self.alphas)
                     Nalpha = self.alphas.size
@@ -1348,6 +1348,7 @@ class FastPASDWCiderKernel:
                     ), "Math went wrong {} {} {} {}".format(
                         encut0, encut, self.lambd, encut0 / self.lambd
                     )
+                print("ATOM PLAN", setup.Z, Nalpha, self.plan.lambd, self._amin)
                 atom_plan = self.plan.new(nalpha=Nalpha, use_smooth_expnt_cutoff=True)
                 setup.cider_contribs = self.PAWCiderContribs.from_plan(
                     atom_plan,

@@ -145,6 +145,12 @@ class _CiderBase:
         need_plan = self._plan is None or self._plan.nspin != self.nspin
         need_plan = need_plan and not nldf_settings.is_empty
         if need_plan:
+            print(
+                "FFT PLAN",
+                self.Nalpha,
+                self.lambd,
+                self.encut / self.lambd ** (self.Nalpha - 1),
+            )
             self._plan = NLDFSplinePlan(
                 nldf_settings,
                 self.nspin,

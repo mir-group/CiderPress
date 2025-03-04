@@ -766,6 +766,7 @@ class TestDescriptors(unittest.TestCase):
 
         run_fd_deriv_test("MGGA_X_R2SCAN+MGGA_C_R2SCAN")
 
+        print("EIGVAL FD TEST")
         xc = get_xc("functionals/CIDER23X_NL_GGA.yaml")
         run_fd_deriv_test(xc)
 
