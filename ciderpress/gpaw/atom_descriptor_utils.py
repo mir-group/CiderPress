@@ -25,13 +25,8 @@ from numpy import pi, sqrt
 
 from ciderpress.gpaw.atom_utils import (
     CiderRadialExpansion,
-    DiffPAWXCCorrection,
     FastPASDWCiderKernel,
-    PAugSetup,
     PAWCiderContribs,
-    PSmoothSetupV1,
-    PSmoothSetupV2,
-    SBTGridContainer,
     calculate_cider_paw_correction,
 )
 from ciderpress.gpaw.fit_paw_gauss_pot import get_dv
@@ -312,65 +307,7 @@ class PASDWCiderFeatureKernel(FastPASDWCiderKernel):
             setups = self.dens.setups
         for setup in setups:
             setup.cider_contribs = None
-        for setup in setups:
-            if not hasattr(setup, "cider_contribs") or setup.cider_contribs is None:
-                setup.xc_correction = DiffPAWXCCorrection.from_setup(
-                    setup, build_kinetic=self.is_mgga, ke_order_ng=False
-                )
-                # TODO it would be good to remove this
-                setup.nlxc_correction = SBTGridContainer.from_setup(
-                    # setup, rmin=setup.xc_correction.rgd.r_g[0]+1e-5, N=1024, encut=1e6, d=0.018
-                    setup,
-                    rmin=1e-4,
-                    N=512,
-                    encut=5e4,
-                    d=0.02,
-                )
-                encut = setup.Z**2 * 2000
-                if encut - 1e-7 <= np.max(self.alphas):
-                    encut0 = np.max(self.alphas)
-                    Nalpha = self.alphas.size
-                else:
-                    Nalpha = (
-                        int(np.ceil(np.log(encut / self._amin) / np.log(self.lambd)))
-                        + 1
-                    )
-                    encut0 = self._amin * self.lambd ** (Nalpha - 1)
-                    assert encut0 >= encut - 1e-6, "Math went wrong {} {}".format(
-                        encut0, encut
-                    )
-                    assert (
-                        encut0 / self.lambd < encut
-                    ), "Math went wrong {} {} {} {}".format(
-                        encut0, encut, self.lambd, encut0 / self.lambd
-                    )
-                atom_plan = self.plan.new(nalpha=Nalpha)
-                setup.cider_contribs = self.PAWCiderContribs.from_plan(
-                    atom_plan,
-                    self.plan,
-                    self.cider_kernel,
-                    setup.Z,
-                    setup.xc_correction,
-                    beta=1.6,
-                    paw_algo=self._paw_algo,
-                )
-                if setup.cider_contribs.plan is not None:
-                    assert (
-                        abs(np.max(setup.cider_contribs.plan.alphas) - encut0) < 1e-10
-                    )
-                if self._paw_algo == "v1":
-                    pss_cls = PSmoothSetupV1
-                else:
-                    pss_cls = PSmoothSetupV2
-                setup.ps_setup = pss_cls.from_setup_and_atco(
-                    setup,
-                    setup.cider_contribs.atco_inp,
-                    self.alphas,
-                    self.plan.alpha_norms,
-                    encut0,
-                    grid_nlm=setup.cider_contribs.nlm,
-                )
-                setup.pa_setup = PAugSetup.from_setup(setup)
+        super().initialize_more_things(setups=setups)
 
     def calculate_paw_cider_features_p1(self, setups, D_asp, DD_aop, p_o):
         if len(D_asp.keys()) == 0:

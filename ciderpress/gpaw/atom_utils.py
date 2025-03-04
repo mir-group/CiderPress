@@ -1306,9 +1306,9 @@ class FastPASDWCiderKernel:
         if setups is None:
             setups = self.dens.setups
         for setup in setups:
-            if not hasattr(setup, "cider_contribs"):
+            if not hasattr(setup, "cider_contribs") or setup.cider_contribs is None:
                 setup.xc_correction = DiffPAWXCCorrection.from_setup(
-                    setup, build_kinetic=self.is_mgga, ke_order_ng=False
+                    setup, build_kinetic=True, ke_order_ng=False
                 )
                 # TODO it would be good to be able to remove this.
                 # Old version of the code used these settings:
@@ -1330,7 +1330,7 @@ class FastPASDWCiderKernel:
                 # somehow. In the meantime, we set the energy cutoff to a large
                 # value and pass raise_large_expnt_error=False
                 # to the initializer below just in case to avoid crashes.
-                encut = setup.Z**2 * 2000
+                encut = setup.Z**2 * 200
                 if encut - 1e-7 <= np.max(self.alphas):
                     encut0 = np.max(self.alphas)
                     Nalpha = self.alphas.size
@@ -1348,7 +1348,7 @@ class FastPASDWCiderKernel:
                     ), "Math went wrong {} {} {} {}".format(
                         encut0, encut, self.lambd, encut0 / self.lambd
                     )
-                atom_plan = self.plan.new(nalpha=Nalpha, raise_large_expnt_error=False)
+                atom_plan = self.plan.new(nalpha=Nalpha, use_smooth_expnt_cutoff=True)
                 setup.cider_contribs = self.PAWCiderContribs.from_plan(
                     atom_plan,
                     self.plan,

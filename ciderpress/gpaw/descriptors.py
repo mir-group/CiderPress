@@ -40,6 +40,7 @@ from ciderpress.gpaw.atom_descriptor_utils import (
 )
 from ciderpress.gpaw.calculator import CiderGGAHybridKernel, CiderMGGAHybridKernel
 from ciderpress.gpaw.cider_paw import CiderGGA, CiderGGAPASDW, CiderMGGA, CiderMGGAPASDW
+from ciderpress.gpaw.interp_paw import DiffPAWXCCorrection
 
 
 class RhoVectorSettings(SemilocalSettings):
@@ -457,6 +458,12 @@ def get_atom_feat_wt_deriv(functional, DD_aop, p_o):
             yield feat, dfeat, sgn * wt
 
 
+def _screen_density(calc, xc, *arrs):
+    rho = calc.density.finegd.collect(calc.density.nt_sg.sum(0), broadcast=True)
+    cond = rho.ravel() > 1e-6
+    return tuple([a[..., cond] for a in arrs])
+
+
 def get_features_and_weights(calc, xc, screen_dens=True):
     vol = calc.atoms.get_volume()
     ae_feat = xc.get_features_on_grid()
@@ -467,9 +474,10 @@ def get_features_and_weights(calc, xc, screen_dens=True):
     ae_feat = ae_feat.reshape(nspin, nfeat, -1)
     # hopefully save disk space and avoid negative density
     if screen_dens:
-        cond = ae_feat[:, 0, :].sum(axis=0) > 1e-6
-        ae_feat = ae_feat[..., cond]
-        all_wt = all_wt[cond]
+        ae_feat, all_wt = _screen_density(calc, xc, ae_feat, all_wt)
+        # cond = ae_feat[:, 0, :].sum(axis=0) > 1e-6
+        # ae_feat = ae_feat[..., cond]
+        # all_wt = all_wt[cond]
     assert all_wt.size == ae_feat.shape[-1]
 
     if xc.has_paw:
@@ -493,10 +501,13 @@ def get_features_and_weights_deriv(
     dfeat_jig = dfeat_jig.reshape(len(p_j), nfeat, -1)
     # hopefully save disk space and avoid negative density
     if screen_dens:
-        cond = feat_sig[:, 0, :].sum(axis=0) > 1e-6
-        feat_sig = feat_sig[..., cond]
-        dfeat_jig = dfeat_jig[..., cond]
-        all_wt = all_wt[cond]
+        feat_sig, dfeat_jig, all_wt = _screen_density(
+            calc, xc, feat_sig, dfeat_jig, all_wt
+        )
+        # cond = feat_sig[:, 0, :].sum(axis=0) > 1e-6
+        # feat_sig = feat_sig[..., cond]
+        # dfeat_jig = dfeat_jig[..., cond]
+        # all_wt = all_wt[cond]
     assert all_wt.size == feat_sig.shape[-1]
 
     if xc.has_paw:
@@ -825,6 +836,10 @@ class _SLFeatMixin(_FeatureMixin):
             for a in list(ae_feat.keys()):
                 ae_feat[a] = plan.get_feat(ae_feat[a])
                 ps_feat[a] = plan.get_feat(ps_feat[a])
+        else:
+            for a in list(ae_feat.keys()):
+                ae_feat[a] *= self.nspin
+                ps_feat[a] *= self.nspin
         return self.communicate_paw_features(
             ae_feat, ps_feat, self.nspin, settings.nfeat
         )
@@ -863,6 +878,11 @@ class _SLFeatMixin(_FeatureMixin):
             ae_dfeat = _ae_drho
             ps_feat = _ps_rho
             ps_dfeat = _ps_drho
+            for a in list(_ae_rho.keys()):
+                ae_feat[a] *= self.nspin
+                ae_dfeat[a] *= self.nspin
+                ps_feat[a] *= self.nspin
+                ps_dfeat[a] *= self.nspin
 
         ae_feat, ps_feat = self.communicate_paw_features(
             ae_feat, ps_feat, self.nspin, settings.nfeat
@@ -885,6 +905,17 @@ class _SLFeatMixin(_FeatureMixin):
         feat_xg.shape = xshape + (-1,)
         return feat_xg
 
+    def _check_setups(self):
+        if hasattr(self, "setups") and self.setups is not None:
+            for setup in self.setups:
+                if (
+                    not isinstance(setup.xc_correction, DiffPAWXCCorrection)
+                    and setup.xc_correction is not None
+                ):
+                    setup.xc_correction = DiffPAWXCCorrection.from_setup(
+                        setup, build_kinetic=True, ke_order_ng=False
+                    )
+
     def get_features_on_grid(self):
         nt_sg = self._get_pseudo_density()
         taut_sg = self._get_taut(nt_sg)[0]
@@ -896,7 +927,8 @@ class _SLFeatMixin(_FeatureMixin):
             plan = SemilocalPlan(settings, self.nspin)
             feat_sig = plan.get_feat(rho_sxg)
         else:
-            feat_sig = rho_sxg
+            feat_sig = self.nspin * rho_sxg
+        self._check_setups()
         return self._collect_feat(feat_sig)
 
     def get_features_on_grid_deriv(self, p_j, drhodf_jxg, DD_aop=None):
@@ -920,8 +952,9 @@ class _SLFeatMixin(_FeatureMixin):
                 )[1]
             feat_sig = plan.get_feat(rho_sxg)
         else:
-            feat_sig = rho_sxg
-            dfeat_jig = drhodf_jxg
+            feat_sig = self.nspin * rho_sxg
+            dfeat_jig = self.nspin * drhodf_jxg
+        self._check_setups()
         return self._collect_feat(feat_sig), self._collect_feat(dfeat_jig)
 
 

@@ -66,6 +66,7 @@
         FILL_CIDER_##FEATNAME(g);                                              \
     }                                                                          \
     break;
+#define MC_EXPNT 12
 
 /**
  * Fills the coefficients p_ga for auxiliary basis dcomposition.
@@ -272,6 +273,50 @@ void cider_coefs_spline_qg(double *p_ag, double *dp_ag, double *di_g,
                 w_p = w_iap + (i * nalpha + a) * 4;
                 p_g[g] = w_p[0] + di * (w_p[1] + di * (w_p[2] + di * w_p[3]));
                 dp_g[g] = w_p[1] + di * (2 * w_p[2] + di * 3 * w_p[3]);
+            }
+        }
+    }
+}
+
+inline double _expnt_sat_func(double x, double cut) {
+    int m;
+    double tot = 0;
+    x = x / cut;
+    double xm = 1;
+    for (m = 1; m <= MC_EXPNT; m++) {
+        xm *= x;
+        tot += xm / m;
+    }
+    return cut * (1 - exp(-tot));
+}
+
+inline double _expnt_sat_deriv(double x, double cut) {
+    int m;
+    double tot = 0;
+    double dtot = 0;
+    x = x / cut;
+    double xm = 1;
+    for (m = 1; m <= MC_EXPNT; m++) {
+        dtot += xm;
+        xm *= x;
+        tot += xm / m;
+    }
+    return exp(-tot) * dtot;
+}
+
+void smooth_cider_exponents(double *a, double **da, double amax, int ng,
+                            int nd) {
+#pragma omp parallel
+    {
+        double c, dc;
+        int g, d;
+#pragma omp for
+        for (g = 0; g < ng; g++) {
+            c = _expnt_sat_func(a[g], amax);
+            dc = _expnt_sat_deriv(a[g], amax);
+            a[g] = c;
+            for (d = 0; d < nd; d++) {
+                da[d][g] *= dc;
             }
         }
     }

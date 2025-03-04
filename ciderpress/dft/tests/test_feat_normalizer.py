@@ -80,7 +80,8 @@ class TestFeatNormalizer(unittest.TestCase):
                 get_normalizer_from_exponent_params(
                     0.75, 1.5, 1.0 * 1.2, 0.03125 * 1.2
                 ),
-            ]
+            ],
+            slmode="npa",
         )
         np.random.seed(72)
         feat = np.random.normal(size=(cls.norm_list.nfeat - 3, N))
@@ -123,7 +124,7 @@ class TestFeatNormalizer(unittest.TestCase):
                 rho_normalizers.GeneralNormalizer(
                     1.0 * 1.2, 0.0, 0.03125 * 1.2, 1.5, 0.75
                 ),
-            ]
+            ],
         )
         cls.x_np = np.stack([rho, s2] + feat_list)[None, :, :]
         cls.x_1e = np.stack([rho, s2, np.zeros_like(rho)] + feat_list)[None, :, :]

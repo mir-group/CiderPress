@@ -4,7 +4,7 @@
 
 CiderPress: Machine Learned Exchange-Correlation Functionals
 ------------------------------------------------------------
-[![Build Status](https://github.com/mir-group/CiderPress/workflows/CI/badge.svg)](https://github.com/mir-group/CiderPress/actions?query=workflow%3ACI)
+![Build Status](https://github.com/mir-group/CiderPress/actions/workflows/basic_tests.yml/badge.svg)
 
 CiderPress provides tools for training and evaluating CIDER functionals for use in Density Functional Theory calculations. Interfaces to the GPAW and PySCF codes are included.
 

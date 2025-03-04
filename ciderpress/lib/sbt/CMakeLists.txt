@@ -12,6 +12,9 @@ set_target_properties(sbt PROPERTIES
 target_include_directories(sbt PRIVATE ../fft_wrapper)
 target_link_libraries(sbt PRIVATE fft_wrapper)
 
+if (HAVE_MPI)
+  target_link_libraries(sbt PRIVATE MPI::MPI_C)
+endif()
 if (BUILD_WITH_MKL)
   target_link_libraries(sbt PRIVATE MKL::MKL)
   target_include_directories(sbt PRIVATE ${MKL_INCLUDE_DIR})
