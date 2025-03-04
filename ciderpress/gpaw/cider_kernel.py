@@ -103,7 +103,10 @@ class CiderKernel(XCKernel):
             exc_ml, dexcdX0TN_ml, vrho_tuple = self.mlfunc(
                 X0TN, rho_tuple, rhocut=self.rhocut
             )
-            vxc[:] += vxc_tuple_to_array(rho, vrho_tuple)
+            v_sg[:] += vrho_tuple[0]
+            dedsigma_xg[:] += vrho_tuple[1]
+            if tau_sg is not None:
+                dedtau_sg[:] += vrho_tuple[2]
         else:
             raise TypeError("mlfunc must be MappedXC or MappedXC2")
         xmix = self.xmix  # / rho.shape[0]
