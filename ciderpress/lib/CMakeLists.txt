@@ -2,6 +2,7 @@
 
 cmake_minimum_required (VERSION 3.20)
 project (ciderpress)
+include(ExternalProject)
 
 if (NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE RELWITHDEBINFO)
@@ -18,7 +19,7 @@ set(CMAKE_C_FLAGS_RELEASE "-g -O3")
 list( APPEND CMAKE_BUILD_RPATH ${CMAKE_PREFIX_PATH}/lib )
 set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 
-option(BUILD_LIBXC "Build libxc library. If off, libxc must be findable by cmake" off)
+option(BUILD_LIBXC "Build libxc library. If off, libxc must be findable by cmake" on)
 option(BUILD_WITH_MKL "use MKL for BLAS and FFT" off)
 option(BUILD_FFTW "Build fftw3" on)
 option(BUILD_MARCH_NATIVE "gcc flag -march=native" off)
@@ -144,6 +145,7 @@ include_directories(${PROJECT_SOURCE_DIR}/deps/include)
 include_directories(${CMAKE_INSTALL_PREFIX}/include)
 link_directories(${PROJECT_SOURCE_DIR}/deps/lib ${PROJECT_SOURCE_DIR}/deps/lib64)
 link_directories(${CMAKE_INSTALL_PREFIX}/lib ${CMAKE_INSTALL_PREFIX}/lib64)
+list(APPEND CMAKE_PREFIX_PATH "${PROJECT_SOURCE_DIR}/deps")
 
 # See also https://gitlab.kitware.com/cmake/community/wikis/doc/cmake/RPATH-handling
 set(CMAKE_SKIP_BUILD_RPATH  True)
@@ -172,7 +174,7 @@ if(BUILD_LIBXC)
     ExternalProject_Add(libxc
     #GIT_REPOSITORY https://gitlab.com/libxc/libxc.git
     #GIT_TAG master
-    URL https://gitlab.com/libxc/libxc/-/archive/6.1.0/libxc-6.1.0.tar.gz
+    URL https://gitlab.com/libxc/libxc/-/archive/7.0.0/libxc-7.0.0.tar.gz
     PREFIX ${PROJECT_BINARY_DIR}/deps
     INSTALL_DIR ${PROJECT_SOURCE_DIR}/deps
     CMAKE_ARGS -DCMAKE_BUILD_TYPE=RELEASE -DBUILD_SHARED_LIBS=1

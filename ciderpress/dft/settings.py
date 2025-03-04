@@ -1712,7 +1712,7 @@ class FeatureSettings(BaseSettings):
         self.sdmx_settings = EmptySettings() if sdmx_settings is None else sdmx_settings
         self.hyb_settings = EmptySettings() if hyb_settings is None else hyb_settings
         self.normalizers = (
-            FeatNormalizerList([None] * self.nfeat)
+            FeatNormalizerList([None] * self.nfeat, slmode=self.sl_settings.mode)
             if normalizers is None
             else normalizers
         )
@@ -1806,7 +1806,9 @@ class FeatureSettings(BaseSettings):
         )
 
     def assign_reasonable_normalizer(self):
-        self.normalizers = FeatNormalizerList(self.get_reasonable_normalizer())
+        self.normalizers = FeatNormalizerList(
+            self.get_reasonable_normalizer(), slmode=self.sl_settings.mode
+        )
 
 
 def dtauw(rho, sigma):

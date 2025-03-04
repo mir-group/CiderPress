@@ -10,6 +10,9 @@ set_target_properties(mcider PROPERTIES
   COMPILE_FLAGS ${OpenMP_C_FLAGS}
   LINK_FLAGS ${OpenMP_C_FLAGS})
 
+if (HAVE_MPI)
+  target_link_libraries(mcider PRIVATE MPI::MPI_C)
+endif()
 if (BUILD_WITH_MKL)
   target_link_libraries(mcider PRIVATE MKL::MKL)
   target_include_directories(mcider PRIVATE ${MKL_INCLUDE_DIR})

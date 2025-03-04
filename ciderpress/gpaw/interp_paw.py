@@ -218,157 +218,6 @@ class DiffPAWXCCorrection:
         )
 
 
-"""
-def create_grad_and_kinetic_diffpaw(xcc, jl, ny, phi_jg, d_qg, tau_ypg, r_g_new):
-    nj = len(phi_jg)
-    dphidr_jg = np.zeros(np.shape(phi_jg))
-    for j in range(nj):
-        phi_g = phi_jg[j]
-        xcc.rgd.derivative(phi_g, dphidr_jg[j])
-
-    # grad term
-    q = 0
-    for j1, l1 in jl:
-        for j2, l2 in jl[j1:]:
-            d_qg[q] = phi_jg[j1] * dphidr_jg[j2]
-            d_qg[q] += dphidr_jg[j1] * phi_jg[j2]
-            q += 1
-    # second term
-    for y in range(ny):
-        i1 = 0
-        p = 0
-        Y_L = xcc.Y_nL[y]
-        for j1, l1, L1 in xcc.jlL:
-            for j2, l2, L2 in xcc.jlL[i1:]:
-                c = Y_L[L1] * Y_L[L2]
-                temp = c * dphidr_jg[j1] * dphidr_jg[j2]
-                tau_ypg[y, p, :] += temp
-                p += 1
-            i1 += 1
-    # first term
-    for y in range(ny):
-        i1 = 0
-        p = 0
-        rnablaY_Lv = xcc.rnablaY_nLv[y, :xcc.Lmax]
-        Ax_L = rnablaY_Lv[:, 0]
-        Ay_L = rnablaY_Lv[:, 1]
-        Az_L = rnablaY_Lv[:, 2]
-        for j1, l1, L1 in xcc.jlL:
-            for j2, l2, L2 in xcc.jlL[i1:]:
-                temp = (Ax_L[L1] * Ax_L[L2] + Ay_L[L1] * Ay_L[L2] +
-                        Az_L[L1] * Az_L[L2])
-                temp *= phi_jg[j1] * phi_jg[j2]
-                #temp[1:] /= r_g_new[1:]**2
-                #temp[0] = temp[1]
-                temp /= r_g_new**2
-                if r_g_new[0] == 0:
-                    temp[0] = temp[1]
-                tau_ypg[y, p, :] += temp
-                p += 1
-            i1 += 1
-    tau_ypg *= 0.5
-
-
-class DiffPAWXCCorrection:
-
-    def __init__(
-                self, rgd, nc_g, nct_g, nc_corehole_g,
-                dc_g, dct_g, dc_corehole_g,
-                B_pqL, n_qg, nt_qg,
-                d_qg, dt_qg, e_xc0,
-                tau_npg=None, taut_npg=None,
-                tauc_g=None, tauct_g=None,
-            ):
-        self.rgd = rgd
-        self.nc_g = nc_g
-        self.nct_g = nct_g
-        self.dc_g = dc_g
-        self.dct_g = dct_g
-        self.nc_corehole_g = nc_corehole_g
-        self.dc_corehole_g = dc_corehole_g
-        self.B_pqL = B_pqL
-        self.n_qg = n_qg
-        self.nt_qg = nt_qg
-        self.d_qg = d_qg
-        self.dt_qg = dt_qg
-        self.e_xc0 = e_xc0
-        self.tau_npg = tau_npg
-        self.taut_npg = taut_npg
-        self.tauc_g = tauc_g
-        self.tauct_g = tauct_g
-        if self.tau_npg is not None:
-            NP = self.tau_npg.shape[1]
-            self.tau_pg = np.ascontiguousarray(
-                self.tau_npg.transpose(1,0,2).reshape(NP, -1)
-            )
-            self.taut_pg = np.ascontiguousarray(
-                self.taut_npg.transpose(1,0,2).reshape(NP, -1)
-            )
-
-    @classmethod
-    def from_setup(cls, setup, build_kinetic=False):
-
-        if hasattr(setup, 'old_xc_correction'):
-            xcc = setup.old_xc_correction
-        else:
-            setup.old_xc_correction = setup.xc_correction
-            xcc = setup.xc_correction
-
-        rgd = xcc.rgd
-
-        core_dens = {}
-        names = ['nc_g', 'nct_g', 'nc_corehole_g']
-        n_g_list = [xcc.nc_g, xcc.nct_g, xcc.nc_corehole_g]
-        if True:
-            names += ['tauc_g', 'tauct_g']
-            n_g_list += [xcc.tauc_g, xcc.tauct_g]
-        for name, n_g in zip(names, n_g_list):
-            if n_g is None:
-                continue
-            core_dens[name] = n_g
-            core_dens['d' + name] = xcc.rgd.derivative(n_g)
-
-        #d_qg = [xcc.rgd.derivative(n_g) for n_g in xcc.n_qg]
-        #dt_qg = [xcc.rgd.derivative(n_g) for n_g in xcc.nt_qg]
-
-        nii = xcc.nii
-        nn = len(xcc.rnablaY_nLv)
-        ng = rgd.r_g.shape[0]
-        nq = len(xcc.n_qg)
-        d_qg = np.zeros((nq, ng))
-        dt_qg = np.zeros((nq, ng))
-        tau_npg = np.zeros((nn, nii, ng))
-        taut_npg = np.zeros((nn, nii, ng))
-        jl = list(enumerate(setup.l_j))
-        create_grad_and_kinetic_diffpaw(
-            xcc, jl, nn, xcc.phi_jg, d_qg, tau_npg, rgd.r_g
-        )
-        create_grad_and_kinetic_diffpaw(
-            xcc, jl, nn, xcc.phit_jg, dt_qg, taut_npg, rgd.r_g
-        )
-
-        return cls(
-            rgd,
-            core_dens['nc_g'],
-            core_dens['nct_g'],
-            core_dens['nc_corehole_g'] if xcc.nc_corehole_g is not None else None,
-            core_dens['dnc_g'],
-            core_dens['dnct_g'],
-            core_dens['dnc_corehole_g'] if xcc.nc_corehole_g is not None else None,
-            xcc.B_pqL,
-            np.asarray([n_g for n_g in xcc.n_qg], order='C'),
-            np.asarray([nt_g for nt_g in xcc.nt_qg], order='C'),
-            np.asarray([n_g for n_g in d_qg], order='C'),
-            np.asarray([nt_g for nt_g in dt_qg], order='C'),
-            xcc.e_xc0,
-            tau_npg,
-            taut_npg,
-            core_dens['tauc_g'],
-            core_dens['tauct_g'],
-        )
-"""
-
-
 def calculate_cider_paw_correction(
     expansion,
     setup,
@@ -807,6 +656,9 @@ class DiffGGA(GGA):
     def __init__(self, kernel, stencil=2):
         super(DiffGGA, self).__init__(kernel, stencil)
 
+    def get_setup_name(self):
+        return "PBE"
+
     def todict(self):
         return {
             "_cider_type": "DiffGGA",
@@ -820,7 +672,9 @@ class DiffGGA(GGA):
             if setup.xc_correction is None:
                 continue
             if not isinstance(setup.xc_correction, DiffPAWXCCorrection):
-                setup.xc_correction = DiffPAWXCCorrection.from_setup(setup)
+                setup.xc_correction = DiffPAWXCCorrection.from_setup(
+                    setup, build_kinetic=True, ke_order_ng=False
+                )
 
     def calculate_paw_correction(
         self, setup, D_sp, dEdD_sp=None, addcoredensity=True, a=None

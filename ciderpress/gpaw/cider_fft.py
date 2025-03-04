@@ -29,6 +29,7 @@ from gpaw.xc.mgga import MGGA
 
 from ciderpress.dft.density_util import get_sigma
 from ciderpress.dft.plans import NLDFSplinePlan
+from ciderpress.gpaw.config import GPAW_DEFAULT_RHO_TOL
 from ciderpress.gpaw.nldf_interface import LibCiderPW
 
 CIDERPW_GRAD_MODE_NONE = 0
@@ -64,7 +65,8 @@ class _CiderBase:
                 # TODO better choice here? depend on feat_params too?
                 amin = nldf_settings.theta_params[0]
                 if hasattr(nldf_settings, "feat_params"):
-                    amin = min(amin, np.min(np.array(nldf_settings.feat_params)[:, 0]))
+                    amin = min(amin, np.min([p[0] for p in nldf_settings.feat_params]))
+                    # amin = min(amin, np.min(np.array(nldf_settings.feat_params)[:, 0]))
                 amin /= 64
                 Nalpha = int(np.ceil(np.log(amax / amin) / np.log(lambd))) + 1
                 lambd = np.exp(np.log(amax / amin) / (Nalpha - 1))
@@ -143,6 +145,12 @@ class _CiderBase:
         need_plan = self._plan is None or self._plan.nspin != self.nspin
         need_plan = need_plan and not nldf_settings.is_empty
         if need_plan:
+            print(
+                "FFT PLAN",
+                self.Nalpha,
+                self.lambd,
+                self.encut / self.lambd ** (self.Nalpha - 1),
+            )
             self._plan = NLDFSplinePlan(
                 nldf_settings,
                 self.nspin,
@@ -151,6 +159,8 @@ class _CiderBase:
                 self.Nalpha,
                 coef_order="gq",
                 alpha_formula="etb",
+                rhocut=GPAW_DEFAULT_RHO_TOL,
+                expcut=GPAW_DEFAULT_RHO_TOL,
             )
         self.fft_obj = LibCiderPW(
             self.aux_gd.N_c, self.aux_gd.cell_cv, self.aux_gd.comm, plan=self._plan
