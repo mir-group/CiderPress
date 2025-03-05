@@ -46,15 +46,12 @@ def load_cider_model(mlfunc, mlfunc_format):
     return mlfunc
 
 
-def get_slxc_settings(xc, xkernel, ckernel, xmix, cider_x_only=True):
+def get_slxc_settings(xc, xkernel, ckernel, xmix):
     if xc is None:
         # xc is another way to specify non-mixed part of kernel
         xc = ""
     if ckernel is not None:
-        if cider_x_only:
-            xc = ckernel + " + " + xc
-        else:
-            xc = "{} * {} + {}".format(1 - xmix, ckernel, xc)
+        xc = ckernel + " + " + xc
     if xkernel is not None:
         xc = "{} * {} + {}".format(1 - xmix, xkernel, xc)
     if xc.endswith(" + "):

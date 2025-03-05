@@ -5,16 +5,24 @@
 
 import sys
 from pathlib import Path
+from datetime import datetime
+from ciderpress import __version__
 
-sys.path.insert(0, str(Path('..').resolve()))
+# sys.path.insert(0, str(Path('..').resolve()))
+sys.path.append("./tools/extensions")
 
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 project = 'CiderPress'
-copyright = '2024, Kyle Bystrom'
 author = 'Kyle Bystrom'
-release = '0.1.0'
+year = datetime.now().year
+copyright = f"{year}, Kyle Bystrom"
+# The short X.Y version.
+v,sv = __version__.split('.')[:2]
+version = "%s.%s"%(v,sv)
+# The full version, including alpha/beta/rc tags.
+release = __version__
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
@@ -25,6 +33,7 @@ extensions = [
     'sphinx.ext.mathjax',
     'sphinx.ext.napoleon',
     'sphinxcontrib.bibtex',
+    'ciderdocext',
     'breathe',
 ]
 bibtex_bibfiles = ['refs/refs.bib', 'refs/cider_refs.bib']

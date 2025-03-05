@@ -47,8 +47,10 @@ jobs:
         cd docs
         doxygen Doxyfile.in
         make html
-    - name: Publish the docs
-      uses: peaceiris/actions-gh-pages@v4
+    - name: Deploy to GitHub Pages
+      uses: crazy-max/ghaction-github-pages@v4
       with:
-        github_token: ${{ secrets.GITHUB_TOKEN }}
-        publish_dir: ./docs/_build/html
+        target_branch: gh-pages
+        build_dir: ./docs/_build/html
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

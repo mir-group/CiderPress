@@ -40,6 +40,12 @@ def make_cider_calc(
     dense_mesh=None,
     rhocut=None,
 ):
+    """
+    Same as :func:`ciderpress.pyscf.dft.make_cider_calc`, but
+    for periodic systems. Note that only semilocal and SDMX
+    features are supported. The ks object must use a uniform XC
+    integration grid and pseudopotentials.
+    """
     mlfunc = load_cider_model(mlfunc, mlfunc_format)
     ks._xc = get_slxc_settings(xc, xkernel, ckernel, xmix)
     # Assign the PySCF-facing functional to be a simple SL
