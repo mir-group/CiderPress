@@ -18,19 +18,22 @@
 # Author: Kyle Bystrom <kylebystrom@gmail.com>
 #
 
-import sys
 
 from pyscf import dft, gto
 
 from ciderpress.pyscf.dft import make_cider_calc
 
-# This is a simple example for running a PySCF calculation with a CIDER functional
+# This is a simple example for running a PySCF calculation with
+# a CIDER functional.
+# This is the same as the other example but runs the CIDER24Xe
+# exchange functional, which is fit to HOMO-LUMO gaps as well as energetic
+# data.
 
 mlfunc = "functionals/CIDER24Xe.yaml"
 
 mol = gto.M(
     atom="Cl 0.0 0.0 0.0; Cl 0.0 0.0 1.6",
-    basis=sys.argv[1],
+    basis="def2-tzvp",
 )
 
 ks = dft.RKS(mol)

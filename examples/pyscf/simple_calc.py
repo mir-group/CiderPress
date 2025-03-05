@@ -24,7 +24,12 @@ from pyscf import dft, gto
 
 from ciderpress.pyscf.dft import make_cider_calc
 
-# This is a simple example for running a PySCF calculation with a CIDER functional
+# This is a simple example for running a PySCF calculation with
+# a CIDER functional.
+# This example runs a "surrogate" PBE0 calculation, where a CIDER exchange
+# functional is used in place of exact exchange.
+# It takes one command line argument, which is the functional to use.
+# For example, you could use "CIDER23X_NL_MGGA_DTR" or "CIDER23X_SL_GGA".
 
 mlfunc = "functionals/{}.yaml".format(sys.argv[1])
 
