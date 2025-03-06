@@ -155,6 +155,7 @@ class _CiderBase:
                 alpha_formula="etb",
                 rhocut=GPAW_DEFAULT_RHO_TOL,
                 expcut=GPAW_DEFAULT_RHO_TOL,
+                use_smooth_expnt_cutoff=True,
             )
         self.fft_obj = LibCiderPW(
             self.aux_gd.N_c, self.aux_gd.cell_cv, self.aux_gd.comm, plan=self._plan

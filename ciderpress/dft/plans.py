@@ -1318,10 +1318,10 @@ class NLDFAuxiliaryPlan(ABC):
         self.nldf_settings = nldf_settings
         if alpha0 <= 0:
             raise ValueError("alpha0 must be positive")
-        self.alpha0 = alpha0
+        self.alpha0 = np.float64(alpha0)
         if lambd <= 1:
             raise ValueError("lambd must be > 1")
-        self.lambd = lambd
+        self.lambd = np.float64(lambd)
         if not isinstance(nalpha, int) or nalpha <= 0:
             raise ValueError("nalpha must be positive integer")
         self.nalpha = nalpha
@@ -1388,7 +1388,7 @@ class NLDFAuxiliaryPlan(ABC):
 
         # set up the list of interpolating exponents
         # and their normalization coefficients
-        self.alphas = self.get_q2a(np.arange(self.nalpha))
+        self.alphas = self.get_q2a(np.arange(self.nalpha, dtype=np.float64))
         if self.alpha_order == "decreasing":
             self.alphas = np.ascontiguousarray(np.flip(self.alphas))
         if self.proc_inds is not None:
