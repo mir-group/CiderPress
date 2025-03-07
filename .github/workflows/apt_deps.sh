@@ -1,12 +1,17 @@
-if [ "$RUNNER_OS" == "Linux" ]; then
+#!/usr/bin/env bash
+
+if [ "$RUNNER_OS" == "Linux" ]
+then
+    echo "HI"
     sudo apt-get -qq install \
 	gcc \
 	libblas-dev \
 	liblapack-dev \
 	cmake \
 	curl
-elif [ "$RUNNER_OS" == "macOS" ]; then
-    brew install gcc
+elif [ "$RUNNER_OS" == "macOS" ]
+then
+    brew install gcc \
         libomp \
         openblas \
         lapack \

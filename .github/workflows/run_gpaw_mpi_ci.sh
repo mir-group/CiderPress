@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-sh .github/workflows/apt_deps.sh
-sh .github/workflows/mpi_apt_deps.sh
+./.github/workflows/apt_deps.sh
+./.github/workflows/mpi_apt_deps.sh
 
 CMAKE_CONFIGURE_ARGS="-DBUILD_LIBXC=on" pip install .
 python scripts/download_functionals.py
