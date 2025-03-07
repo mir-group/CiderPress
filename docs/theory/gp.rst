@@ -92,10 +92,10 @@ Fitting Eigenvalues
 -------------------
 
 The Gaussian process scheme discussed above can be extended to fit the eigenvalues
-of the Kohn-Sham Hamiltonian.:footcite:p:`CIDER24X`
+of the Kohn-Sham Hamiltonian. :footcite:p:`CIDER24X`
 The :math:`i`-th eigenvalue :math:`\epsilon_i^m` of chemical system :math:`m` is
 the partial derivate of the total energy with respect to the occupation
-number :math:`f_i^m` of the orbital:
+number :math:`f_i^m` of the orbital: :footcite:p:`Janak1978`
 
 .. math:: \epsilon_i^m = \frac{\partial E}{\partial f_i^m}
 
@@ -104,7 +104,45 @@ explicit physical meaning, but the LUMO and HOMO eigenvalues of the exact
 functional correspond to the electron affinity and negative of the ionization
 potential, respectively. Therefore, we are interested in explicitly
 fitting the derivative of our target quantity :math:`\frac{\partial F}{\partial f_i^m}`.
-Details of how these 
+In the case of fitting exact exchange :math:`E_\text{x}^\text{exact}`, one can
+explicitly compute :math:`\frac{\partial E_\text{x}^\text{exact}}{\partial f_i^m}`
+for a given set of orbitals. For the full exchange-correlation energy, no
+explicit formula exists, but :math:`\frac{\partial E_\text{xc}^\text{exact}}{\partial f_i^m}`
+can be extracted from an experimental/quantum chemistry measurement
+of the electron affinity (EA) or ionization potential (IP). The total energy
+in DFT is
+
+.. math::
+   E[n] &= T[n] + V[n] + U[n] + E_\text{xc}[n] \\
+   E[n] &= E_0[n] + E_\text{xc}[n]
+
+where :math:`E_0[n]` is the sum of the kinetic (:math:`T`), external (:math:`V`),
+and Hartree (:math:`U`) energies, all of which can be written explicitly in terms
+of the Kohn-Sham orbitals. Therefore, if we know an eigenvalue :math:`\epsilon_i^m`
+from experimental/quantum chemistry measurements of the IP or EA, we can
+write
+
+.. math:: \frac{\partial E_\text{xc}[n]}{\partial f_i^m} = \epsilon_i^m - \frac{\partial E_0[n]}{\partial f_i^m}
+
+This gives us an explicit expression for :math:`\frac{\partial E_\text{xc}[n]}{\partial f_i^m}` that
+can be used as training data for the XC functional.
+
+Given such training data, we can relate the occupation derivative of :math:`F` to our model energy
+density :math:`f(\mathbf{x})` as
+
+.. math:: \frac{\partial F^m}{\partial f_i^m} = \sum_{g \in m} w_g^m \frac{\partial f(\mathbf{x}_g^m)}{\partial\mathbf{x}_g^m} \cdot \frac{\partial \mathbf{x}_g^m}{\partial f_i^m}
+
+To fit our model to the above equation, we only need to know the covariance between
+:math:`\frac{\partial F^m}{\partial f_i^m}` and :math:`\frac{\partial F^n}{\partial f_j^n}`
+or :math:`F^n`. This relationship is given by
+
+.. math::
+   \text{Cov}\left(\frac{\partial F^m}{\partial f_i^m}, F^n\right) &= \tilde{\mathbf{d}}_{mi} \tilde{\mathbf{K}}^{-1} \tilde{\mathbf{k}}_n \\
+   \text{Cov}\left(\frac{\partial F^m}{\partial f_i^m}, \frac{\partial F^n}{\partial f_j^n}\right) &= \tilde{\mathbf{d}}_{mi} \tilde{\mathbf{K}}^{-1} \tilde{\mathbf{d}}_{nj} \\
+   \left(\tilde{\mathbf{d}}_{mi}\right)_a &= \sum_{g\in m} w_g^m \frac{\partial \mathbf{x}_g^m}{\partial f_i^m} \cdot \frac{\partial}{\partial \mathbf{x}_g^m} k(\mathbf{x}_g^m, \tilde{\mathbf{x}}_a)
+
+which allows occupation derivative training data to be included in the Gaussian process.
+For further details, see :footcite:t:`CIDER24X`
 
 .. footbibliography::
 
