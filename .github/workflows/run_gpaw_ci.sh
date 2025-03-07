@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-sh .github/workflows/ci_${RUNNER_OS}/apt_deps.sh
+source .github/workflows/source_os.sh
+sh .github/workflows/ci_${os}/apt_deps.sh
 pip install pytest
 CMAKE_CONFIGURE_ARGS="-DBUILD_LIBXC=on" pip install .
 python scripts/download_functionals.py
