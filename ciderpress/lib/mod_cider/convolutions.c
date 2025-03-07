@@ -809,8 +809,10 @@ void convert_atomic_radial_basis(double *p_uq, double *p_vq, double *ovlps_l,
         nj = jloc_l[l + 1] - jloc_l[l];
         ldb = kloc_l[l + 1] - kloc_l[l];
         m = nalpha * (2 * l + 1);
-        dgemm_(&transa, &transb, &m, &nj, &ni, &one, p_uq, &m, ovlps_l, &ldb,
-               &zero, p_vq, &m);
+        if (ni > 0 && nj > 0) {
+            dgemm_(&transa, &transb, &m, &nj, &ni, &one, p_uq, &m, ovlps_l,
+                   &ldb, &zero, p_vq, &m);
+        }
         p_uq += m * ni;
         p_vq += m * nj;
         ovlps_l += ni * nj;

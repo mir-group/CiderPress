@@ -1278,11 +1278,14 @@ class FastPASDWCiderKernel:
         self.Nalpha_small = plan.nalpha
         self.cut_xcgrid = cut_xcgrid
         self.plan = plan
-        self._amin = np.min(self.alphas)
         self.is_mgga = plan.nldf_settings.sl_level == "MGGA"
         self._paw_algo = paw_algo
         if self._paw_algo not in ["v1", "v2"]:
             raise ValueError("Supported paw_algo are v1, v2, got {}".format(paw_algo))
+
+    @property
+    def amin(self):
+        return self.plan.alpha0
 
     @property
     def lambd(self):
@@ -1330,16 +1333,15 @@ class FastPASDWCiderKernel:
                 # somehow. In the meantime, we set the energy cutoff to a large
                 # value and pass raise_large_expnt_error=False
                 # to the initializer below just in case to avoid crashes.
-                encut = setup.Z**2 * 200
+                encut = np.float64(setup.Z**2 * 200)
                 if encut - 1e-7 <= np.max(self.alphas):
                     encut0 = np.max(self.alphas)
                     Nalpha = self.alphas.size
                 else:
-                    Nalpha = (
-                        int(np.ceil(np.log(encut / self._amin) / np.log(self.lambd)))
-                        + 1
-                    )
-                    encut0 = self._amin * self.lambd ** (Nalpha - 1)
+                    amin = np.float64(self.amin)
+                    Nalpha = int(np.ceil(np.log(encut / amin) / np.log(self.lambd))) + 1
+                    nam1 = np.float64(Nalpha - 1)
+                    encut0 = amin * self.lambd**nam1
                     assert encut0 >= encut - 1e-6, "Math went wrong {} {}".format(
                         encut0, encut
                     )
@@ -1360,8 +1362,9 @@ class FastPASDWCiderKernel:
                 )
                 if setup.cider_contribs.plan is not None:
                     assert (
-                        abs(np.max(setup.cider_contribs.plan.alphas) - encut0) < 1e-10
-                    )
+                        abs(np.max(setup.cider_contribs.plan.alphas) / encut0 - 1)
+                        < 1e-8
+                    ), "{}".format(np.max(setup.cider_contribs.plan.alphas) - encut0)
                 if self._paw_algo == "v1":
                     pss_cls = PSmoothSetupV1
                 else:
@@ -1962,16 +1965,18 @@ class RadialFunctionCollection:
             jloc_l = np.asarray(self.iloc_l, dtype=np.int32, order="C")
             p_vq = np.empty((self.nu, nalpha), order="C")
             assert p_uq.shape[0] == self.nv
-        libcider.convert_atomic_radial_basis(
-            p_uq.ctypes.data_as(ctypes.c_void_p),  # input
-            p_vq.ctypes.data_as(ctypes.c_void_p),  # output
-            self._ovlps_l.ctypes.data_as(ctypes.c_void_p),  # matrices
-            iloc_l.ctypes.data_as(ctypes.c_void_p),  # locs for p_uq
-            jloc_l.ctypes.data_as(ctypes.c_void_p),  # locs for p_vq
-            ctypes.c_int(nalpha),  # last axis of p_uq
-            ctypes.c_int(self.lmax),  # maximum l value of basis
-            ctypes.c_int(1 if fwd else 0),  # fwd
-        )
+        p_vq[:] = 0
+        if nalpha > 0:
+            libcider.convert_atomic_radial_basis(
+                p_uq.ctypes.data_as(ctypes.c_void_p),  # input
+                p_vq.ctypes.data_as(ctypes.c_void_p),  # output
+                self._ovlps_l.ctypes.data_as(ctypes.c_void_p),  # matrices
+                iloc_l.ctypes.data_as(ctypes.c_void_p),  # locs for p_uq
+                jloc_l.ctypes.data_as(ctypes.c_void_p),  # locs for p_vq
+                ctypes.c_int(nalpha),  # last axis of p_uq
+                ctypes.c_int(self.lmax),  # maximum l value of basis
+                ctypes.c_int(1 if fwd else 0),  # fwd
+            )
         return p_vq
 
     def basis2grid(self, p_uq, p_rlmq, fwd=True):
