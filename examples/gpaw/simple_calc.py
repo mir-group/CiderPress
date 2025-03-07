@@ -37,8 +37,8 @@ xc = get_cider_functional(
 )
 
 # Using CiderGPAW instead of the default GPAW calculator allows calculations
-# to be restarted. GPAW calculations will run with CIDER functionals but
-# cannot be saved and loaded properly.
+# to be restarted. Calculations using GPAW (rather than CiderGPAW)
+# will run with CIDER functionals but cannot be saved and loaded properly.
 atoms.calc = CiderGPAW(
     # use a reasonably small grid spacing
     h=0.18,

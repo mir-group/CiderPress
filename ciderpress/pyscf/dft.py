@@ -45,15 +45,17 @@ def make_cider_calc(
     Decorate the PySCF DFT object ks with a CIDER functional mlfunc.
     If xc, xkernel, ckernel, and xmix are not specified,
     the equivalent of HF with CIDER in place of EXX is performed.
-    The XC energy is
+    The XC energy is::
 
-    If CIDER is X only:
         E_xc = xmix * E_x^CIDER + (1-xmix) * xkernel + ckernel + xc
-    If CIDER is X + C:
-        E_xc = xmix * E_xc^CIDER + (1-xmix) * (xkernel + ckernel) + xc
+
+    Note the above formula applies even if ``E_x^CIDER`` is a
+    full XC functional. If ``E_x^CIDER`` is a full XC functional that
+    does not need a baseline, the user should pass ``xmix=1.0``, ``xc=None``,
+    ``xkernel=None``, ``ckernel=None`` (the defaults).
 
     NOTE: Only GGA-level XC functionals can be used with GGA-level
-        (orbital-independent) CIDER functionals currently.
+    (orbital-independent) CIDER functionals currently.
 
     Args:
         ks (pyscf.dft.KohnShamDFT): DFT object

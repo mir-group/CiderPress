@@ -1513,7 +1513,7 @@ class NLDFAuxiliaryPlan(ABC):
         from -1 (theta exponent) to the number of version j/k
         features minus 1.
 
-        Args:F
+        Args:
             rho (np.ndarray): density
             sigma (np.ndarray): squared gradient
             tau (np.ndarray): kinetic energy density
@@ -1665,18 +1665,33 @@ class NLDFAuxiliaryPlan(ABC):
         coeff_multipliers=None,
     ):
         """
+        Evaluate the raw features. IMPORTANT: For spin-polarized calculations,
+        spin must be passed explicitly and must be different for each
+        spin channel, otherwise cached data will get overwritten, leading
+        to incorrect gradients later on. If apply_transformation is True, f is overwritten.
 
         Args:
-            f:
-            rho: [n, dn/dx, dn/dy, dn/dz, (tau)]
-            drho:
-            tau:
-            feat:
-            dfeat:
-            cache_p:
+            f (np.ndarray): Feature interpolation coefficients, of shape
+                (ngrids, nalpha) for coef_order=="qg" else (nalpha, ngrids)
+            rho_data (np.ndarray): Density vector [n, dn/dx, dn/dy, dn/dz, (tau)]
+            spin (int, 0): Spin index of this density, for caching data.
+            feat (np.ndarray, None): Shape (nfeat, ngrids) optional buffer
+                for features
+            dfeat (np.ndarray, None): Shape (nfeat, ngrids) optional buffer
+                for feature derivatives
+            cache_p (bool, True): Cache nalpha x ngrids-size arrays for
+                interpolation coefficients. Slightly faster, but more memory
+                intensive.
+            apply_transformation (bool, False): For Gaussian interpolation,
+                apply the linear transformation from the projection values
+                to the interpolation coefficients.
+            coeff_multipliers (np.ndarray, None): If not None, multiply the
+                interpolation coefficients by this (nalpha,)-shapred array
 
         Returns:
-            If apply_transformation is True, f is overwritten
+            (np.ndarray, np.ndarray): Features (nfeat, ngrids)
+            and derivative of features (nfeat, ngrids) with respect to
+            the feat_params exponent.
         """
         if self.coef_order == "qg":
             f_qg = f
@@ -1791,25 +1806,25 @@ class NLDFAuxiliaryPlan(ABC):
         """
 
         Args:
-            vfeat:
-            vrho:
-            vdrho:
-            vtau:
-            dfeat:
-            rho:
-            drho:
-            tau:
-            drho:
-            p_i_qg:
-            vf:
+            vfeat (np.ndarray): (nfeat, ngrids) derivative of energy density
+                with respect to features
+            vrho_data (np.ndarray): (nrho, ngrids) derivative of energy density
+                with respect to density vector [n, dn/dx, dn/dy, dn/dz, (tau)]
+            dfeat (np.ndarray): (nfeat, ngrids) derivative of features
+                with respect to NLDF exponents.
+            rho_data (np.ndarray): density vector
+            p_i_qg (np.ndarray, None): Interpolation coefficients for features. If None,
+                the features must be cached using cache_p=True during
+                eval_rho_full
+            vf (np.ndarray, None): Optional buffer for vf
 
         Returns:
-            vf (nalpha + num_vi_ints + vf_buffer_nslot, ngrids)
-                    or transpose if coef_order == 'gq':
-                The last vf_buffer_nslot rows (qg) or columns (gq)
-                are zeros. The remaining rows are filled with the
-                functional derivatives with respect to the nonlocal
-                density integrals.
+            (np.ndarray): Shape (nalpha + num_vi_ints + vf_buffer_nslot, ngrids)
+            or transpose if coef_order == 'gq'.
+            The last vf_buffer_nslot rows (qg) or columns (gq)
+            are zeros. The remaining rows are filled with the
+            functional derivatives with respect to the nonlocal
+            density integrals.
         """
         vfeat[:] *= self.nspin
         if vf is None:

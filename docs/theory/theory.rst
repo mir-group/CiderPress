@@ -10,4 +10,6 @@ particularly machine learning-based functionals.
    :caption: Contents:
 
    uniform_scaling
+   gp
+   nldf_numerical
 

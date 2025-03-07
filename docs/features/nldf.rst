@@ -35,7 +35,7 @@ Version J
 
 Version J is the NLDF implemented in :footcite:t:`CIDER23X`. It takes the form
 
-.. math:: G_i[n](\mathbf{r}) = \int \text{d}^3\mathbf{r} \exp(-(a_i[n](\mathbf{r})+a_0[n](\mathbf{r}))|\mathbf{r}-\mathbf{r}'|^2) n(\mathbf{r}')
+.. math:: G_i[n](\mathbf{r}) = \int \text{d}^3\mathbf{r}' \exp(-(a_i[n](\mathbf{r})+a_0[n](\mathbf{r}'))|\mathbf{r}-\mathbf{r}'|^2) n(\mathbf{r}')
 
 For a functional with GGA semilocal features, :math:`a_i[n](\mathbf{r})` (and :math:`a_0[n](\mathbf{r})`) take the form
 
@@ -68,7 +68,7 @@ Version I modifies Version J in two ways. First, :math:`a_i[n](\mathbf{r})`, the
 at point :math:`mathbf{r}` is not used; only :math:`a_0[n](\mathbf{r}')`. Second, several different options
 are introduced for the integration kernel, resulting in a general form
 
-.. math:: G_*[n](\mathbf{r}) = \int \text{d}^3\mathbf{r} k_*(a_0[n](\mathbf{r}), |\mathbf{r}-\mathbf{r}'|) n(\mathbf{r}')
+.. math:: G_*[n](\mathbf{r}) = \int \text{d}^3\mathbf{r}' k_*(a_0[n](\mathbf{r}'), |\mathbf{r}-\mathbf{r}'|) n(\mathbf{r}')
 
 The :math:`*` symbol is a stand-in for the form of integration kernel used. The options are listed below:
 
@@ -110,7 +110,7 @@ the NLDFs can have large contributions from the core electrons in the valence re
 is physically unrealistic. To fix this, we multiply the density by a function that
 decays when :math:`a_i(\mathbf{r})<<a_0(\mathbf{r}')`:
 
-.. math:: G_i[n](\mathbf{r}) = \int \text{d}^3\mathbf{r} \exp(-a_i[n](\mathbf{r})|\mathbf{r}-\mathbf{r}'|^2) \exp(-3a_0[n](\mathbf{r}')/2a_i[n](\mathbf{r})) n(\mathbf{r}')
+.. math:: G_i[n](\mathbf{r}) = \int \text{d}^3\mathbf{r}' \exp(-a_i[n](\mathbf{r})|\mathbf{r}-\mathbf{r}'|^2) \exp(-3a_0[n](\mathbf{r}')/2a_i[n](\mathbf{r})) n(\mathbf{r}')
 
 We have alternative options for the damping function, but the above exponential is the only supported
 one currently.

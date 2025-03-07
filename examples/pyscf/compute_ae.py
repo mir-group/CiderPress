@@ -24,15 +24,14 @@ in the list of molecules supported by ase.build.molecule()
 
 <spin> is the integer spin of the system 2S.
 
-<functional> is the functional name. It can be semilocal, or it can be
-CIDER_SL_GGA, CIDER_SL_MGGA, CIDER_NL_GGA, or CIDER_NL_MGGA, in which case
+<functional> is the functional name. It can be the name of a libxc functional,
+or it can be the name of a functional in the functionals/ directory, in which case
 the corresponding example CIDER functional is run with the PBE0/CIDER
-surrogate hybrid functional form.
+surrogate hybrid functional form. If a path to a joblib file is given, that
+file will be read assuming it is a CIDER functional.
 
 At the end, prints out the total energy of the molecule and its atomization energy
 in Ha and eV, then saves the atomization energy in eV to aeresult.txt.
-
-NOTE that the ri_cider module is used to initialize the fast CIDER calculation.
 """
 
 name, charge, spin, functional = sys.argv[1:5]

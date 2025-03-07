@@ -50,10 +50,15 @@ def get_cider_functional(
     _force_nonlocal=False,
 ):
     """
-    Initialize a CIDER surrogate hybrid XC functional of the form
-    E_xc = E_x^sl * (1 - xmix) + E_c^sl + xmix * E_x^CIDER
-    where E_x^sl is given by the xkernel parameter, E_c^sl is given by the ckernel
-    parameter, and E_x^CIDER is the ML exchange energy contains in mlfunc.
+    Initialize a CIDER surrogate hybrid XC functional of the form::
+
+        E_xc = xkernel * (1 - xmix) + ckernel + xmix * E_x^CIDER
+
+    where and ``E_x^CIDER`` is the ML exchange energy contained in mlfunc.
+    xkernel and ckernel should be strings corresponding to an exchange
+    and correlation functional in libxc. The above formula applies even
+    if ``E_x^CIDER`` is a full XC functional. In this case, one should
+    set ``xkernel=None``, ``ckernel=None``, ``xmix=1.0``.
 
     NOTE: Do not use CIDER with ultrasoft pseudopotentials (PAW only).
     At your own risk, you can use CIDER with norm-conserving pseudopotentials,
@@ -63,6 +68,21 @@ def get_cider_functional(
     NOTE: If the mlfunc is determined to be semilocal, all the
     internal settings are ignored, and a simpler, more efficient
     class is returned to evaluate the semilocal functional.
+
+    NOTE: The parameters ``pasdw_ovlp_fit`` and ``pasdw_store_funcs``
+    are only used if ``use_paw==True``. They control internal behavior
+    of the PASDW algorithm used to evaluate the nonlocal density features
+    in CIDER, but users might want to set them to address numerical
+    stability or memory/performance trade-off issues.
+
+    NOTE: The arguments ``Nalpha``, ``qmax``, and ``lambd`` can be set but
+    are considered internal parameters and should usually be kept as their
+    defaults, which should be reasonable for most cases. These parameters
+    determine the spline used to interpolate over different values of
+    the nonlocal density feature length-scale. A fourth parameter, ``qmin``,
+    also influences the spline. ``qmin`` is the mininum value of q to use
+    for kernel interpolation. Currently, ``qmin`` is set automatically based
+    on the minimum regularized value of the kernel exponent.
 
     Args:
         mlfunc (MappedXC, MappedXC2, str): An ML functional object or a str
@@ -80,14 +100,6 @@ def get_cider_functional(
             pseudopotentials (NCPPs). Note, the use of NCPPs is allowed
             but not advised, as large errors might arise due to the use
             of incorrect nonlocal features.
-
-    The following parameters are only used if use_paw is True. They
-    control internal behavior of the PASDW algorithm used to
-    evaluate the nonlocal density features in CIDER, but users might
-    want to set them to address numerical stability or memory/performance
-    tradeoff issues.
-
-    PASDW args:
         pasdw_ovlp_fit (bool, True): Whether to use overlap fitting to
             attempt to improve numerical precision of PASDW projections.
             Default to True. Impact of this parameter should be minor.
@@ -96,33 +108,18 @@ def get_cider_functional(
             because this can be memory intensive, but if you have the
             space, the computational cost of the atomic corrections
             can be greatly reduced by setting to True.
-
-    The following additional arguments can be set but are considered
-    internal parameters and should usually be kept as their defaults,
-    which should be reasonable for most cases.
-
-    Internal args:
         Nalpha (int, None):
             Number of interpolation points for the nonlocal feature kernel.
             If None, set automatically based on lambd, qmax, and qmin.
         qmax (float, 300):
             Maximum value of q to use for kernel interpolation on FFT grid.
             Default should be fine for most cases.
-        qmin (not currently a parameter, set automatically):
-            Mininum value of q to use for kernel interpolation.
-            Currently, qmin is set automatically based
-            on the minimum regularized value of the kernel exponent.
         lambd (float, 1.8):
             Density of interpolation points. q_alpha=q_0 * lambd**alpha.
             Smaller lambd is more expensive and more precise.
-
-    The following options are for debugging only. Do not set them unless
-    you want to test numerical stability issues, as the energies will
-    not be variational. Only supported for GGA-type functionals.
-
-    Debug args:
         _force_nonlocal (bool, False): Use nonlocal kernel even if nonlocal
-            features are not required. For debugging use.
+            features are not required. For debugging use only. Do not
+            adjust except for testing.
 
     Returns:
         A _CiderBase object (specific class depends on the parameters
@@ -188,7 +185,7 @@ def get_cider_functional(
 class CiderGPAW(GPAW):
     """
     This class is equivalent to the GPAW calculator object
-    provded in the gpaw pacakage, except that it is able to load
+    provded in the gpaw package, except that it is able to load
     and save CIDER calculations. The GPAW object can run CIDER but
     not save/load CIDER calculations.
 
