@@ -42,6 +42,7 @@ jobs:
         sh .github/workflows/run_local_pip.sh
     - name: Build documentation
       run: |
+        source .github/workflows/load_conda.sh
         sudo apt-get -qq install doxygen
         pip install sphinx breathe sphinx_rtd_theme sphinxcontrib-bibtex
         cd docs
