@@ -50,17 +50,16 @@ def get_descriptors(analyzer, settings, orbs=None, **kwargs):
     Can get feature derivatives with respect to orbital occupation using orbs.
     Spin polarization is determined automatically from the analyzer class type.
 
-    orbs format:
-        orbs is a dictionary of lists or (for a spin-polarized system) a
-        2-tuple of dictionary of lists. Each key is either 'B', 'O', or 'U',
-        with the value being a list of orbital indexes with respect to which to
-        compute occupation derivatives of the features. 'B' indexes up from the
-        bottom, i.e. the lowest-energy core states. 'O' indexes down from the
-        highest occupied molecular orbital. 'U' indexes up from the lowest
-        unoccupied molecular orbital. 0-indexing is used in all cases.
-        For the spin-polarized case, if orbs is a single dictionary rather than
-        a 2-tuple, orbital indexing is performed over the combined set of
-        orbitals.
+    orbs format: orbs is a dictionary of lists or (for a spin-polarized system) a
+    2-tuple of dictionary of lists. Each key is either 'B', 'O', or 'U',
+    with the value being a list of orbital indexes with respect to which to
+    compute occupation derivatives of the features. 'B' indexes up from the
+    bottom, i.e. the lowest-energy core states. 'O' indexes down from the
+    highest occupied molecular orbital. 'U' indexes up from the lowest
+    unoccupied molecular orbital. 0-indexing is used in all cases.
+    For the spin-polarized case, if orbs is a single dictionary rather than
+    a 2-tuple, orbital indexing is performed over the combined set of
+    orbitals.
 
     Args:
         analyzer (RHFAnalyzer or UHFAnalyzer): analyzer object containing the
@@ -73,19 +72,23 @@ def get_descriptors(analyzer, settings, orbs=None, **kwargs):
                   PyscfNLDFGenerator object.
 
     Returns:
-        desc (np.ndarray (nspin, nfeat, ngrid)): Descriptors for the system
-        ddesc (dict(str : dict(int : array(nfeat, ngrid)))) or (dict, dict):
-            Derivatives of the features with respect to the orbitals given by
-            orbs, stored in a nested dictionary first by indexing style
-            (B, O, or U) and then by an orbital index. If orbs was a 2-tuple,
-            ddesc is a 2-tuple. Index format is the same as orbs, so a
-            U-indexed orbital in orbs is U-indexed in ddesc. If calculation
-            was spin-polarized but orbs was not spin-separated, each value in
-            the ddesc dictionary is a 2-tuple (spin, deriv_array)
-        eigvals (dict(str : dict(int : float)) or (dict, dict):
-            Eigenvalues of the relevant orbitals. These are important as
-            baseline energy derivatives, assuming the baseline functional
-            is the same as the reference functional for the eigenvalues.
+        tuple: The routine returns a tuple of length 3. The first item in
+        the tuple is desc, an np.ndarray of shape (nspin, nfeat, ngrid),
+        which contains the descriptors for the system. The second item
+        is ddesc, a dict(str : dict(int : np.ndarray(nfeat, ngrds))),
+        which contains derivatives of the features with respect to the orbitals given by
+        orbs, stored in a nested dictionary first by indexing style
+        (B, O, or U) and then by an orbital index. If orbs was a 2-tuple,
+        ddesc is a 2-tuple. Index format is the same as orbs, so a
+        U-indexed orbital in orbs is U-indexed in ddesc. If calculation
+        was spin-polarized but orbs was not spin-separated, each value in
+        the ddesc dictionary is a 2-tuple (spin, deriv_array).
+        The final element in the array is eigvals, which is
+        a (dict(str : dict(int : float)) or (dict, dict),
+        containing the eigenvalues of the relevant orbitals.
+        These are important as baseline energy derivatives, assuming
+        the baseline functional is the same as the reference functional
+        for the eigenvalues.
     """
     spinpol = isinstance(analyzer, UHFAnalyzer)
     mo_occ = analyzer.mo_occ

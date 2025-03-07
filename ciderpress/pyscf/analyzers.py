@@ -60,11 +60,6 @@ class ElectronAnalyzer(ABC):
     electronic structure calculation, in particular distributions
     on a real-space grid such as the density, exchange (correlation)
     energy density, Coulomb energy density, etc.
-
-    Attributes:
-
-        TODO
-
     """
 
     _atype = None
@@ -151,9 +146,9 @@ class ElectronAnalyzer(ABC):
     def load(fname):
         """
         Load instance of cls from hdf5
+
         Args:
             fname (str): Name of file from which to load
-            max_mem: See __init__
         """
         analyzer_dict = lib.chkfile.load(fname, "analyzer")
         analyzer_dict = recursive_bytes_to_str(analyzer_dict)
@@ -272,7 +267,7 @@ class ElectronAnalyzer(ABC):
             store_energy_orig: Whether to store original xc energy.
 
         Returns:
-
+            ElectronAnalyzer: analyzer constructed from calc
         """
         if isinstance(calc, scf.uhf.UHF):
             cls = UHFAnalyzer

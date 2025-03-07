@@ -27,4 +27,6 @@ condition feature for SDMX functionals, please see the
 
    dft
    pbc/dft
+   analyzers
+   descriptors
 
