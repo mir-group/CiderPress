@@ -91,6 +91,7 @@ class CiderKernel(XCKernel):
             X0T[:, start : start + nfeat_tmp] = feat_sg
             start += nfeat_tmp
         X0TN = self.mlfunc.settings.normalizers.get_normalized_feature_vector(X0T)
+        xmix = self.xmix
         if isinstance(self.mlfunc, MappedXC):
             exc_ml, dexcdX0TN_ml = self.mlfunc(X0TN, rhocut=self.rhocut)
         elif isinstance(self.mlfunc, MappedXC2):
@@ -107,13 +108,12 @@ class CiderKernel(XCKernel):
             )
             for iarr, arr in enumerate(vrho_tuple):
                 arr.shape = shapes_orig[iarr]
-            v_sg[:] += vrho_tuple[0]
-            dedsigma_xg[:] += vrho_tuple[1]
+            v_sg[:] += xmix * vrho_tuple[0]
+            dedsigma_xg[:] += xmix * vrho_tuple[1]
             if tau_sg is not None:
-                dedtau_sg[:] += vrho_tuple[2]
+                dedtau_sg[:] += xmix * vrho_tuple[2]
         else:
             raise TypeError("mlfunc must be MappedXC or MappedXC2")
-        xmix = self.xmix  # / rho.shape[0]
         exc_ml *= xmix
         dexcdX0TN_ml *= xmix
         vxc_ml = self.mlfunc.settings.normalizers.get_derivative_wrt_unnormed_features(

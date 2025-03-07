@@ -782,6 +782,7 @@ class CiderNumIntMixin:
             raise RuntimeError("nfeat mismatch, this should not happen!")
 
         X0TN = self.settings.normalizers.get_normalized_feature_vector(X0T)
+        xmix = self.xmix
         if isinstance(self.mlxc, MappedXC):
             exc_ml, dexcdX0TN_ml = self.mlxc(X0TN, rhocut=self.rhocut)
         elif isinstance(self.mlxc, MappedXC2):
@@ -789,10 +790,9 @@ class CiderNumIntMixin:
             exc_ml, dexcdX0TN_ml, vrho_tuple = self.mlxc(
                 X0TN, rho_tuple, rhocut=self.rhocut
             )
-            vxc[:] += vxc_tuple_to_array(rho, vrho_tuple)
+            vxc[:] += xmix * vxc_tuple_to_array(rho, vrho_tuple)
         else:
             raise TypeError("mlxc must be MappedXC or MappedXC2")
-        xmix = self.xmix  # / rho.shape[0]
         exc_ml *= xmix
         dexcdX0TN_ml *= xmix
         vxc_ml = self.settings.normalizers.get_derivative_wrt_unnormed_features(
