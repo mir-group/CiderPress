@@ -39,6 +39,7 @@ jobs:
       run: |
         source .github/workflows/load_conda.sh
         source .github/workflows/mm_install_torch.sh
+        pip install gpaw
         sh .github/workflows/run_local_pip.sh
     - name: Build documentation
       run: |
