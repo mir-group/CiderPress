@@ -2,7 +2,6 @@
 
 if [ "$RUNNER_OS" == "Linux" ]
 then
-    echo "HI"
     sudo apt-get -qq install \
 	gcc \
 	libblas-dev \
