@@ -11,6 +11,9 @@ recursive-include ciderpress/lib/deps *.so.*
 
 # macos dynamic libraries
 include ciderpress/lib/*.dylib
+include ciderpress/lib/*.dylib*
+recursive-include ciderpress/lib/deps *.dylib
+recursive-include ciderpress/lib/deps *.dylib.*
 
 # source code
 recursive-include ciderpress/lib *.c *.h *.h.in CMakeLists.txt
