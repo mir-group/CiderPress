@@ -381,6 +381,8 @@ def _sl_desc_getter(mol, pgrids, dms, settings, coeffs=None, **kwargs):
     if coeffs is None:
         return plan.get_feat(prho[None, :])[0]
     else:
+        if len(coeffs) == 0:
+            return plan.get_feat(prho[None, :])[0], 0
         coeffs = np.array(coeffs)
         feat = plan.get_feat(prho[None, :])[0]
         dprho_dphi = get_mo_densities(ni, mol, coeffs, pgrids, xctype)

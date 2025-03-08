@@ -120,6 +120,44 @@ class _TestNLDFBase:
             gto.M(atom="Ar", basis="def2-tzvp", spin=0),
             gto.M(atom=nh3str, spin=0, basis="def2-svp"),
         ]
+        cls.o2pa = gto.M(atom="O 0 0 0; O 0 1.2 0", basis="def2-svp", spin=1, charge=1)
+        cls.o2pb = gto.M(atom="O 0 0 0; O 0 1.2 0", basis="def2-svp", spin=-1, charge=1)
+
+    def test_same_spin_issue(self):
+        ksa = dft.UKS(self.o2pa)
+        ksb = dft.UKS(self.o2pb)
+        ksa.xc = "HF"
+        ksb.xc = "HF"
+        ksa.grids.level = 1
+        ksb.grids.level = 1
+        ksa.conv_tol = 1e-13
+        ksb.conv_tol = 1e-13
+        ksa.kernel()
+        ksb.kernel()
+        ana_a = UHFAnalyzer.from_calc(ksa)
+        ana_b = UHFAnalyzer.from_calc(ksb)
+        orbs = {"U": [0], "O": [0]}
+        desca, ddesca, eigvalsa = get_descriptors(ana_a, self.vj_settings, orbs=orbs)
+        descb, ddescb, eigvalsb = get_descriptors(ana_b, self.vj_settings, orbs=orbs)
+        wt = ksa.grids.weights
+        desca *= wt
+        descb *= wt
+        # We have to take the sum because of symmetry breaking
+        assert_allclose(
+            desca.sum(axis=2), descb[::-1].sum(axis=2), rtol=1e-4, atol=1e-7
+        )
+        assert_allclose(
+            (ddesca["U"][0][1] * wt).sum(axis=1),
+            (ddescb["U"][0][1] * wt).sum(axis=1),
+            rtol=1e-3,
+            atol=1e-7,
+        )
+        assert_allclose(
+            (ddesca["O"][0][1] * wt).sum(axis=1),
+            (ddescb["O"][0][1] * wt).sum(axis=1),
+            rtol=1e-3,
+            atol=1e-7,
+        )
 
     def _check_nldf_equivalence(
         self, mol, dm, coords, rtol=2e-3, atol=2e-3, plan_type="gaussian"

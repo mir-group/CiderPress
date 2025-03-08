@@ -140,6 +140,45 @@ class TestFracLapl(unittest.TestCase):
         cls.mol = mol
         cls.numint2 = numint2
 
+    def test_same_spin_issue(self):
+        settings = self.numint2.plan.settings
+        o2pa = gto.M(atom="O 0 0 0; O 0 1.2 0", basis="def2-svp", spin=1, charge=1)
+        o2pb = gto.M(atom="O 0 0 0; O 0 1.2 0", basis="def2-svp", spin=-1, charge=1)
+        ksa = dft.UKS(o2pa)
+        ksb = dft.UKS(o2pb)
+        ksa.xc = "HF"
+        ksb.xc = "HF"
+        ksa.grids.level = 1
+        ksb.grids.level = 1
+        ksa.conv_tol = 1e-13
+        ksb.conv_tol = 1e-13
+        ksa.kernel()
+        ksb.kernel()
+        ana_a = UHFAnalyzer.from_calc(ksa)
+        ana_b = UHFAnalyzer.from_calc(ksb)
+        orbs = {"U": [0], "O": [0]}
+        desca, ddesca, eigvalsa = get_descriptors(ana_a, settings, orbs=orbs)
+        descb, ddescb, eigvalsb = get_descriptors(ana_b, settings, orbs=orbs)
+        wt = ksa.grids.weights
+        desca *= wt
+        descb *= wt
+        # We have to take the sum because of symmetry breaking
+        assert_allclose(
+            desca.sum(axis=2), descb[::-1].sum(axis=2), rtol=1e-4, atol=1e-7
+        )
+        assert_allclose(
+            (ddesca["U"][0][1] * wt).sum(axis=1),
+            (ddescb["U"][0][1] * wt).sum(axis=1),
+            rtol=1e-4,
+            atol=1e-7,
+        )
+        assert_allclose(
+            (ddesca["O"][0][1] * wt).sum(axis=1),
+            (ddescb["O"][0][1] * wt).sum(axis=1),
+            rtol=1e-4,
+            atol=1e-7,
+        )
+
     @classmethod
     def tearDownClass(cls):
         cls.mol.stdout.close()

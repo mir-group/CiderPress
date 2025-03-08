@@ -24,13 +24,14 @@ import unittest
 
 import numpy as np
 from numpy.testing import assert_allclose
-from pyscf import gto, lib
+from pyscf import dft, gto, lib
 from pyscf.dft.gen_grid import Grids
 from pyscf.gto.mole import ANG_OF, ATOM_OF, NCTR_OF, NPRIM_OF, PTR_COEFF, PTR_EXP
 
 from ciderpress.dft.settings import SDMXG1Settings, SDMXGSettings
 from ciderpress.dft.sph_harm_coeff import get_deriv_ylm_coeff
 from ciderpress.lib import load_library as load_cider_library
+from ciderpress.pyscf.descriptors import UHFAnalyzer, get_descriptors
 from ciderpress.pyscf.sdmx import eval_conv_sh
 from ciderpress.pyscf.sdmx_slow import (
     PySCFSDMXInitializer,
@@ -136,6 +137,45 @@ def get_test_ylm(mol, lmax_list, coords, grad=False, xyz=False):
 
 
 class TestSDMX(unittest.TestCase):
+    def test_same_spin_issue(self):
+        settings = SDMXGSettings([0, 1, 2], 2)
+        o2pa = gto.M(atom="O 0 0 0; O 0 1.2 0", basis="def2-svp", spin=1, charge=1)
+        o2pb = gto.M(atom="O 0 0 0; O 0 1.2 0", basis="def2-svp", spin=-1, charge=1)
+        ksa = dft.UKS(o2pa)
+        ksb = dft.UKS(o2pb)
+        ksa.xc = "HF"
+        ksb.xc = "HF"
+        ksa.grids.level = 1
+        ksb.grids.level = 1
+        ksa.conv_tol = 1e-13
+        ksb.conv_tol = 1e-13
+        ksa.kernel()
+        ksb.kernel()
+        ana_a = UHFAnalyzer.from_calc(ksa)
+        ana_b = UHFAnalyzer.from_calc(ksb)
+        orbs = {"U": [0], "O": [0]}
+        desca, ddesca, eigvalsa = get_descriptors(ana_a, settings, orbs=orbs)
+        descb, ddescb, eigvalsb = get_descriptors(ana_b, settings, orbs=orbs)
+        wt = ksa.grids.weights
+        desca *= wt
+        descb *= wt
+        # We have to take the sum because of symmetry breaking
+        assert_allclose(
+            desca.sum(axis=2), descb[::-1].sum(axis=2), rtol=1e-4, atol=1e-7
+        )
+        assert_allclose(
+            (ddesca["U"][0][1] * wt).sum(axis=1),
+            (ddescb["U"][0][1] * wt).sum(axis=1),
+            rtol=1e-4,
+            atol=1e-7,
+        )
+        assert_allclose(
+            (ddesca["O"][0][1] * wt).sum(axis=1),
+            (ddescb["O"][0][1] * wt).sum(axis=1),
+            rtol=1e-4,
+            atol=1e-7,
+        )
+
     def test_ylm(self):
         for lmax_list in [[3, 4], [3, 0], [2, 1], [4, 4], [5, 6]]:
             mol = gto.M(
