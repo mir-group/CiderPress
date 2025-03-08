@@ -2,6 +2,11 @@
 ./.github/workflows/apt_deps.sh
 ./.github/workflows/mpi_apt_deps.sh
 
+if [ "$RUNNER_OS" == "macOS" ]; then
+    export CC=gcc-14
+    export CXX=g++-14
+fi
+
 CMAKE_CONFIGURE_ARGS="-DBUILD_LIBXC=on" pip install .
 python scripts/download_functionals.py
 
@@ -21,4 +26,4 @@ gpaw install-data --sg15 --register $PWD
 gpaw install-data --register $PWD
 cd $CIDERDIR
 
-sh .github/workflows/run_gpaw_tests.sh
+./.github/workflows/run_gpaw_tests.sh
