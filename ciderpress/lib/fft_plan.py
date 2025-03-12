@@ -4,7 +4,7 @@ import numpy as np
 
 from ciderpress.lib import load_library
 
-libfft = load_library("libfft_wrapper.so")
+libfft = load_library("libfft_wrapper")
 
 libfft.allocate_fftnd_plan.restype = ctypes.c_void_p
 libfft.malloc_fft_plan_in_array.restype = ctypes.c_void_p
