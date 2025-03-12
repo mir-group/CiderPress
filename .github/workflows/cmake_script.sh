@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 export MY_PYTHON_LIBDIR=$(python -c 'import sysconfig; print(sysconfig.get_config_var("LIBDIR"))')
 export MY_PYTHON_INCDIR=$(python -c 'import sysconfig; print(sysconfig.get_config_var("INCLUDEPY"))')
 

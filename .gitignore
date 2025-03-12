@@ -18,6 +18,7 @@ functionals/
 *.hdf5
 *.html
 *.pth
+*.dylib
 *.so
 *.o
 *.pyc

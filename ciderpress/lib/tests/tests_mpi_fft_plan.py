@@ -7,7 +7,7 @@ from numpy.testing import assert_allclose
 from ciderpress.lib import load_library
 from ciderpress.lib.mpi_fft_plan import MPIFFTWrapper, libfft
 
-libpwutil = load_library("libpwutil.so")
+libpwutil = load_library("libpwutil")
 libpwutil.mpi_ensure_initialized()
 libfft.cider_fft_set_nthread(ctypes.c_int(-1))
 

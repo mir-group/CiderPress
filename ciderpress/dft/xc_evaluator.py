@@ -37,7 +37,7 @@ from ciderpress.models.kernels import (
     SubsetRBF,
 )
 
-libcider = load_library("libmcider.so")
+libcider = load_library("libmcider")
 
 
 def get_vec_eval(grid, coeffs, X, N):

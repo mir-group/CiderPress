@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 export CIDERDIR=$PWD
 cd ..
 git clone https://gitlab.com/gpaw/gpaw.git
