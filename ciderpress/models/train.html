@@ -1,0 +1,302 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ciderpress.models.train &mdash; CiderPress 0.4.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=6c02275b"></script>
+      <script src="../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="ciderpress.models.dft_kernel" href="dft_kernel.html" />
+    <link rel="prev" title="The Models Module" href="models.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html">
+            
+              <img src="../../_static/cider_logo_and_name.png" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../../installation/installation.html">Overview and Installation Instructions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../theory/theory.html">Theory Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../features/features.html">Density and Orbital Features in CiderPress</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../dft/dft.html">DFT Module</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="models.html">The Models Module</a><ul class="current">
+<li class="toctree-l2 current"><a class="current reference internal" href="#">ciderpress.models.train</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#ciderpress.models.train.MOLGP"><code class="docutils literal notranslate"><span class="pre">MOLGP</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#ciderpress.models.train.MOLGP.add_reactions"><code class="docutils literal notranslate"><span class="pre">MOLGP.add_reactions()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#ciderpress.models.train.MOLGP.map"><code class="docutils literal notranslate"><span class="pre">MOLGP.map()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#ciderpress.models.train.MOLGP.set_control_points"><code class="docutils literal notranslate"><span class="pre">MOLGP.set_control_points()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#ciderpress.models.train.MOLGP.store_mol_covs"><code class="docutils literal notranslate"><span class="pre">MOLGP.store_mol_covs()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#ciderpress.models.train.MOLGP2"><code class="docutils literal notranslate"><span class="pre">MOLGP2</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#ciderpress.models.train.MOLGP2.map"><code class="docutils literal notranslate"><span class="pre">MOLGP2.map()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="dft_kernel.html">ciderpress.models.dft_kernel</a></li>
+<li class="toctree-l2"><a class="reference internal" href="kernels.html">ciderpress.models.kernels</a></li>
+<li class="toctree-l2"><a class="reference internal" href="kernel_tools.html">Kernel Tools</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../pyscf/pyscf.html">PySCF Interface</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../gpaw/gpaw.html">GPAW Interface</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../c_extensions/c_extensions.html">C Extension Libraries</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">CiderPress</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="models.html">The Models Module</a></li>
+      <li class="breadcrumb-item active">ciderpress.models.train</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../../_sources/ciderpress/models/train.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="module-ciderpress.models.train">
+<span id="ciderpress-models-train"></span><h1>ciderpress.models.train<a class="headerlink" href="#module-ciderpress.models.train" title="Link to this heading"></a></h1>
+<dl class="py class">
+<dt class="sig sig-object py" id="ciderpress.models.train.MOLGP">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">ciderpress.models.train.</span></span><span class="sig-name descname"><span class="pre">MOLGP</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">kernels</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">settings</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">libxc_baseline</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">default_noise</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.03</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.models.train.MOLGP" title="Link to this definition"></a></dt>
+<dd><p>Gaussian process model for the exchange-correlation functional
+or its components.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>kernels</strong> (<em>list[DFTKernel]</em>) – List of kernels that sum to the XC energy.</p></li>
+<li><p><strong>settings</strong> (<em>DescParams or FeatureSettings</em>) – Settings for the
+features. Specifies what the feature vector is.</p></li>
+<li><p><strong>libxc_baseline</strong> (<em>str or None</em>) – Additional baseline functional to
+evaluate using the libxc library.</p></li>
+<li><p><strong>default_noise</strong> (<em>float</em>) – Default noise hyperparameter, used if noise
+is not provided for a particular data point</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="ciderpress.models.train.MOLGP.add_reactions">
+<span class="sig-name descname"><span class="pre">add_reactions</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rxn_list</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.models.train.MOLGP.add_reactions" title="Link to this definition"></a></dt>
+<dd><p>Store the reactions in rxn_list in the model. These will be used
+as training points when fit() is called. Note: For every mol_id
+present in the reactions, the corresponding system must have been
+added to the covariance dictionary via the store_mol_covs
+function.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>rxn_list</strong> – List of tuples. In each tuple, element 0
+is an integer mode (mode: 0 (X), 1 (C), or 2 (XC)),
+and element 1 is a reaction dict. Each dict should have</p>
+<ul class="simple">
+<li><p>structs: struct codes list
+(If an element in structs is a tuple, the first
+tuple element is a structure code, and the second
+is an orbital code.)</p></li>
+<li><p>counts: count codes list</p></li>
+<li><p>energy: Energy of the reaction</p></li>
+<li><p>unit: Eh per (rxn energy unit)</p></li>
+<li><p>noise (optional): noise in Eh for the reaction</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ciderpress.models.train.MOLGP.map">
+<span class="sig-name descname"><span class="pre">map</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">mapping_plans</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.models.train.MOLGP.map" title="Link to this definition"></a></dt>
+<dd><p>Map the MOLGP model to an Evaluator object that can efficiently
+evaluate the XC energy and which can also be serialized.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p><dl class="simple">
+<dt>Functions that map each</dt><dd><p>kernel to a MappedDFTKernel object</p>
+</dd>
+</dl>
+</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>list(callable)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ciderpress.models.train.MOLGP.set_control_points">
+<span class="sig-name descname"><span class="pre">set_control_points</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">X0T_list</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">reduce</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.models.train.MOLGP.set_control_points" title="Link to this definition"></a></dt>
+<dd><p>Transform raw descriptors X and use them as
+control points.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>X</strong> – Numpy array of raw features</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ciderpress.models.train.MOLGP.store_mol_covs">
+<span class="sig-name descname"><span class="pre">store_mol_covs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ddir</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mol_ids</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">get_orb_deriv</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">get_correlation</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.models.train.MOLGP.store_mol_covs" title="Link to this definition"></a></dt>
+<dd><p>Reads features (and optionally their derivatives with respect to orbital
+occupations) and computes covariances with the control point sets of all
+the kernels of the models (or only the exchange components if
+get_correlation=False). Also stores the reference energy data
+in the dataset</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>ddir</strong> (<em>str or dict[str]</em>) – If using DescParams (old version), should
+be single directory with the feature vectors. If using
+FeatureSettings (new version), should be dictionary of
+directories, with ‘REF’, ‘SL’, ‘NLDF’, ‘NLOF’, ‘SDMX’, and
+‘HYB’ being the keys. All are optional except ‘SL’ and ‘REF’.
+‘HYB’ stands for reference data. It should contain
+reference energies and raw, spin-polarized
+density/gradient/kinetic energy data.</p></li>
+<li><p><strong>mol_ids</strong> (<em>list[str]</em>) – system ids to search for in ddir</p></li>
+<li><p><strong>get_orb_deriv</strong> (<em>bool</em>) – Whether to read the orbital occupation
+derivatives. If None, reads them iff they are available.
+If True, reads them and throws an error if they are not
+available. If False, does not read them.</p></li>
+<li><p><strong>get_correlation</strong> (<em>bool</em>) – Whether to compute covariance for the
+correlation kernels (True) or just the exchange kernels
+(False).</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="ciderpress.models.train.MOLGP2">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">ciderpress.models.train.</span></span><span class="sig-name descname"><span class="pre">MOLGP2</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">kernels</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">settings</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">libxc_baseline</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">default_noise</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.03</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.models.train.MOLGP2" title="Link to this definition"></a></dt>
+<dd><p>Gaussian process model for the exchange-correlation functional
+or its components.</p>
+<p>Same as MOLGP, except kernels should be of type DFTKernel2.
+This requires a new class because DFTKernel2 has a different approach
+to evaluating baseline functional contributions, so a few
+functions in MOLGP need to be modified.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>kernels</strong> (<em>list[DFTKernel2]</em>) – List of kernels that sum to the XC energy.</p></li>
+<li><p><strong>settings</strong> (<em>DescParams or FeatureSettings</em>) – Settings for the
+features. Specifies what the feature vector is.</p></li>
+<li><p><strong>libxc_baseline</strong> (<em>str or None</em>) – Additional baseline functional to
+evaluate using the libxc library.</p></li>
+<li><p><strong>default_noise</strong> (<em>float</em>) – Default noise hyperparameter, used if noise
+is not provided for a particular data point</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="ciderpress.models.train.MOLGP2.map">
+<span class="sig-name descname"><span class="pre">map</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">mapping_plans</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.models.train.MOLGP2.map" title="Link to this definition"></a></dt>
+<dd><p>Map the MOLGP model to an Evaluator object that can efficiently
+evaluate the XC energy and which can also be serialized.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p><dl class="simple">
+<dt>Functions that map each</dt><dd><p>kernel to a MappedDFTKernel object</p>
+</dd>
+</dl>
+</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>list(callable)</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="models.html" class="btn btn-neutral float-left" title="The Models Module" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="dft_kernel.html" class="btn btn-neutral float-right" title="ciderpress.models.dft_kernel" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Kyle Bystrom.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>  
+
+  <style>
+    /* Sidebar header (and topbar for mobile) */
+    .wy-side-nav-search, .wy-nav-top {
+      background: #002040;
+    }
+    /* Sidebar */
+    .wy-nav-side {
+      background: #002040;
+    }
+  </style>
+
+
+</body>
+</html>

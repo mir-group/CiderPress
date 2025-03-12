@@ -1,0 +1,283 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>The Transform Data Module &mdash; CiderPress 0.4.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=6c02275b"></script>
+      <script src="../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="The XC Evaluator Modules" href="xc_evaluator.html" />
+    <link rel="prev" title="The Feature Normalizer Module" href="feat_normalizer.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html">
+            
+              <img src="../../_static/cider_logo_and_name.png" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../../installation/installation.html">Overview and Installation Instructions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../theory/theory.html">Theory Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../features/features.html">Density and Orbital Features in CiderPress</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="dft.html">DFT Module</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="settings.html">The Settings Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="plans.html">The Plans Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="feat_normalizer.html">The Feature Normalizer Module</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">The Transform Data Module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#ciderpress.dft.transform_data.EMap"><code class="docutils literal notranslate"><span class="pre">EMap</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ciderpress.dft.transform_data.FeatureNormalizer"><code class="docutils literal notranslate"><span class="pre">FeatureNormalizer</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ciderpress.dft.transform_data.LMap"><code class="docutils literal notranslate"><span class="pre">LMap</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ciderpress.dft.transform_data.OmegaMap"><code class="docutils literal notranslate"><span class="pre">OmegaMap</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ciderpress.dft.transform_data.SLBMap"><code class="docutils literal notranslate"><span class="pre">SLBMap</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ciderpress.dft.transform_data.SLDMap"><code class="docutils literal notranslate"><span class="pre">SLDMap</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ciderpress.dft.transform_data.SLNMap"><code class="docutils literal notranslate"><span class="pre">SLNMap</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ciderpress.dft.transform_data.SLTMap"><code class="docutils literal notranslate"><span class="pre">SLTMap</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ciderpress.dft.transform_data.SLTWMap"><code class="docutils literal notranslate"><span class="pre">SLTWMap</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ciderpress.dft.transform_data.SLXMap"><code class="docutils literal notranslate"><span class="pre">SLXMap</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ciderpress.dft.transform_data.SignedUMap"><code class="docutils literal notranslate"><span class="pre">SignedUMap</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ciderpress.dft.transform_data.TMap"><code class="docutils literal notranslate"><span class="pre">TMap</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ciderpress.dft.transform_data.UMap"><code class="docutils literal notranslate"><span class="pre">UMap</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ciderpress.dft.transform_data.V2Map"><code class="docutils literal notranslate"><span class="pre">V2Map</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ciderpress.dft.transform_data.V3Map"><code class="docutils literal notranslate"><span class="pre">V3Map</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ciderpress.dft.transform_data.V4Map"><code class="docutils literal notranslate"><span class="pre">V4Map</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ciderpress.dft.transform_data.VMap"><code class="docutils literal notranslate"><span class="pre">VMap</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ciderpress.dft.transform_data.VZMap"><code class="docutils literal notranslate"><span class="pre">VZMap</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ciderpress.dft.transform_data.WMap"><code class="docutils literal notranslate"><span class="pre">WMap</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ciderpress.dft.transform_data.XMap"><code class="docutils literal notranslate"><span class="pre">XMap</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ciderpress.dft.transform_data.YMap"><code class="docutils literal notranslate"><span class="pre">YMap</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ciderpress.dft.transform_data.ZMap"><code class="docutils literal notranslate"><span class="pre">ZMap</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ciderpress.dft.transform_data.cls"><code class="docutils literal notranslate"><span class="pre">cls</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="xc_evaluator.html">The XC Evaluator Modules</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../models/models.html">The Models Module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../pyscf/pyscf.html">PySCF Interface</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../gpaw/gpaw.html">GPAW Interface</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../c_extensions/c_extensions.html">C Extension Libraries</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">CiderPress</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="dft.html">DFT Module</a></li>
+      <li class="breadcrumb-item active">The Transform Data Module</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../../_sources/ciderpress/dft/transform_data.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="module-ciderpress.dft.transform_data">
+<span id="the-transform-data-module"></span><span id="transform-data-module"></span><h1>The Transform Data Module<a class="headerlink" href="#module-ciderpress.dft.transform_data" title="Link to this heading"></a></h1>
+<dl class="py class">
+<dt class="sig sig-object py" id="ciderpress.dft.transform_data.EMap">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">ciderpress.dft.transform_data.</span></span><span class="sig-name descname"><span class="pre">EMap</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">i</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scale</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">center</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bounds</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.transform_data.EMap" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="ciderpress.dft.transform_data.FeatureNormalizer">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">ciderpress.dft.transform_data.</span></span><span class="sig-name descname"><span class="pre">FeatureNormalizer</span></span><a class="headerlink" href="#ciderpress.dft.transform_data.FeatureNormalizer" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="ciderpress.dft.transform_data.LMap">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">ciderpress.dft.transform_data.</span></span><span class="sig-name descname"><span class="pre">LMap</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">i</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bounds</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.transform_data.LMap" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="ciderpress.dft.transform_data.OmegaMap">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">ciderpress.dft.transform_data.</span></span><span class="sig-name descname"><span class="pre">OmegaMap</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">i_n</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">i_s</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">i_alpha</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">c</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">B</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">C</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bounds</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.transform_data.OmegaMap" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="ciderpress.dft.transform_data.SLBMap">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">ciderpress.dft.transform_data.</span></span><span class="sig-name descname"><span class="pre">SLBMap</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">i</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">j</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">k</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.transform_data.SLBMap" title="Link to this definition"></a></dt>
+<dd><p>beta = (tau - tauw) / (tau + tau0)</p>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="ciderpress.dft.transform_data.SLDMap">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">ciderpress.dft.transform_data.</span></span><span class="sig-name descname"><span class="pre">SLDMap</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">i</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">j</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">k</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.transform_data.SLDMap" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="ciderpress.dft.transform_data.SLNMap">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">ciderpress.dft.transform_data.</span></span><span class="sig-name descname"><span class="pre">SLNMap</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">i</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gamma</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.transform_data.SLNMap" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="ciderpress.dft.transform_data.SLTMap">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">ciderpress.dft.transform_data.</span></span><span class="sig-name descname"><span class="pre">SLTMap</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">i</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">j</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.transform_data.SLTMap" title="Link to this definition"></a></dt>
+<dd><p>beta = (tau - tau0) / (tau + tau0)</p>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="ciderpress.dft.transform_data.SLTWMap">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">ciderpress.dft.transform_data.</span></span><span class="sig-name descname"><span class="pre">SLTWMap</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">i</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">j</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.transform_data.SLTWMap" title="Link to this definition"></a></dt>
+<dd><p>beta = (tauw - tau0) / (tauw + tau0)</p>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="ciderpress.dft.transform_data.SLXMap">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">ciderpress.dft.transform_data.</span></span><span class="sig-name descname"><span class="pre">SLXMap</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">i</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">j</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gamma</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.transform_data.SLXMap" title="Link to this definition"></a></dt>
+<dd><p>gamma * s^2 / (1 + gamma * s^2), where s^2 is the squared reduced gradient
+s^2 = sigma / C n^8/3</p>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="ciderpress.dft.transform_data.SignedUMap">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">ciderpress.dft.transform_data.</span></span><span class="sig-name descname"><span class="pre">SignedUMap</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">i</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gamma</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.transform_data.SignedUMap" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="ciderpress.dft.transform_data.TMap">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">ciderpress.dft.transform_data.</span></span><span class="sig-name descname"><span class="pre">TMap</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">i</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">j</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bounds</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.transform_data.TMap" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="ciderpress.dft.transform_data.UMap">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">ciderpress.dft.transform_data.</span></span><span class="sig-name descname"><span class="pre">UMap</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">i</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gamma</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bounds</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.transform_data.UMap" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="ciderpress.dft.transform_data.V2Map">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">ciderpress.dft.transform_data.</span></span><span class="sig-name descname"><span class="pre">V2Map</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">i</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">j</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.transform_data.V2Map" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="ciderpress.dft.transform_data.V3Map">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">ciderpress.dft.transform_data.</span></span><span class="sig-name descname"><span class="pre">V3Map</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">i</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">j</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gamma</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.transform_data.V3Map" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="ciderpress.dft.transform_data.V4Map">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">ciderpress.dft.transform_data.</span></span><span class="sig-name descname"><span class="pre">V4Map</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">i</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">j</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gamma</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.transform_data.V4Map" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="ciderpress.dft.transform_data.VMap">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">ciderpress.dft.transform_data.</span></span><span class="sig-name descname"><span class="pre">VMap</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">i</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gamma</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scale</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">center</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bounds</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.transform_data.VMap" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="ciderpress.dft.transform_data.VZMap">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">ciderpress.dft.transform_data.</span></span><span class="sig-name descname"><span class="pre">VZMap</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">i</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gamma</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scale</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">center</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bounds</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.transform_data.VZMap" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="ciderpress.dft.transform_data.WMap">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">ciderpress.dft.transform_data.</span></span><span class="sig-name descname"><span class="pre">WMap</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">i</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">j</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">k</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gammai</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gammaj</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.transform_data.WMap" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="ciderpress.dft.transform_data.XMap">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">ciderpress.dft.transform_data.</span></span><span class="sig-name descname"><span class="pre">XMap</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">i</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">j</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">k</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gammai</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gammaj</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.transform_data.XMap" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="ciderpress.dft.transform_data.YMap">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">ciderpress.dft.transform_data.</span></span><span class="sig-name descname"><span class="pre">YMap</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">i</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">j</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">k</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">l</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gammai</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gammaj</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gammak</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.transform_data.YMap" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="ciderpress.dft.transform_data.ZMap">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">ciderpress.dft.transform_data.</span></span><span class="sig-name descname"><span class="pre">ZMap</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">i</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gamma</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scale</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">center</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bounds</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.transform_data.ZMap" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="ciderpress.dft.transform_data.cls">
+<span class="sig-prename descclassname"><span class="pre">ciderpress.dft.transform_data.</span></span><span class="sig-name descname"><span class="pre">cls</span></span><a class="headerlink" href="#ciderpress.dft.transform_data.cls" title="Link to this definition"></a></dt>
+<dd><p>alias of <a class="reference internal" href="#ciderpress.dft.transform_data.OmegaMap" title="ciderpress.dft.transform_data.OmegaMap"><code class="xref py py-class docutils literal notranslate"><span class="pre">OmegaMap</span></code></a></p>
+</dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="feat_normalizer.html" class="btn btn-neutral float-left" title="The Feature Normalizer Module" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="xc_evaluator.html" class="btn btn-neutral float-right" title="The XC Evaluator Modules" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Kyle Bystrom.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>  
+
+  <style>
+    /* Sidebar header (and topbar for mobile) */
+    .wy-side-nav-search, .wy-nav-top {
+      background: #002040;
+    }
+    /* Sidebar */
+    .wy-nav-side {
+      background: #002040;
+    }
+  </style>
+
+
+</body>
+</html>

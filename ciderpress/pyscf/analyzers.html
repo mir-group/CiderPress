@@ -1,0 +1,311 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>analyzers &mdash; CiderPress 0.4.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=6c02275b"></script>
+      <script src="../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="descriptors" href="descriptors.html" />
+    <link rel="prev" title="pbc.dft" href="pbc/dft.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html">
+            
+              <img src="../../_static/cider_logo_and_name.png" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../../installation/installation.html">Overview and Installation Instructions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../theory/theory.html">Theory Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../features/features.html">Density and Orbital Features in CiderPress</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../dft/dft.html">DFT Module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../models/models.html">The Models Module</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="pyscf.html">PySCF Interface</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="dft.html">dft</a></li>
+<li class="toctree-l2"><a class="reference internal" href="pbc/dft.html">pbc.dft</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">analyzers</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#ciderpress.pyscf.analyzers.ElectronAnalyzer"><code class="docutils literal notranslate"><span class="pre">ElectronAnalyzer</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#ciderpress.pyscf.analyzers.ElectronAnalyzer.calculate_vxc"><code class="docutils literal notranslate"><span class="pre">ElectronAnalyzer.calculate_vxc()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#ciderpress.pyscf.analyzers.ElectronAnalyzer.calculate_vxc_on_mo"><code class="docutils literal notranslate"><span class="pre">ElectronAnalyzer.calculate_vxc_on_mo()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#ciderpress.pyscf.analyzers.ElectronAnalyzer.dump"><code class="docutils literal notranslate"><span class="pre">ElectronAnalyzer.dump()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#ciderpress.pyscf.analyzers.ElectronAnalyzer.from_calc"><code class="docutils literal notranslate"><span class="pre">ElectronAnalyzer.from_calc()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#ciderpress.pyscf.analyzers.ElectronAnalyzer.load"><code class="docutils literal notranslate"><span class="pre">ElectronAnalyzer.load()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#ciderpress.pyscf.analyzers.RHFAnalyzer"><code class="docutils literal notranslate"><span class="pre">RHFAnalyzer</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#ciderpress.pyscf.analyzers.RHFAnalyzer.get_ee_energy_density"><code class="docutils literal notranslate"><span class="pre">RHFAnalyzer.get_ee_energy_density()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#ciderpress.pyscf.analyzers.RHFAnalyzer.get_rs"><code class="docutils literal notranslate"><span class="pre">RHFAnalyzer.get_rs()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#ciderpress.pyscf.analyzers.RHFAnalyzer.get_xc"><code class="docutils literal notranslate"><span class="pre">RHFAnalyzer.get_xc()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#ciderpress.pyscf.analyzers.RHFAnalyzer.get_xc_energy"><code class="docutils literal notranslate"><span class="pre">RHFAnalyzer.get_xc_energy()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#ciderpress.pyscf.analyzers.RKSAnalyzer"><code class="docutils literal notranslate"><span class="pre">RKSAnalyzer</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ciderpress.pyscf.analyzers.UHFAnalyzer"><code class="docutils literal notranslate"><span class="pre">UHFAnalyzer</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ciderpress.pyscf.analyzers.UKSAnalyzer"><code class="docutils literal notranslate"><span class="pre">UKSAnalyzer</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="descriptors.html">descriptors</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../gpaw/gpaw.html">GPAW Interface</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../c_extensions/c_extensions.html">C Extension Libraries</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">CiderPress</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="pyscf.html">PySCF Interface</a></li>
+      <li class="breadcrumb-item active">analyzers</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../../_sources/ciderpress/pyscf/analyzers.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="analyzers">
+<h1>analyzers<a class="headerlink" href="#analyzers" title="Link to this heading"></a></h1>
+<p>The <a class="reference internal" href="#module-ciderpress.pyscf.analyzers" title="ciderpress.pyscf.analyzers"><code class="xref py py-mod docutils literal notranslate"><span class="pre">ciderpress.pyscf.analyzers</span></code></a> module provides
+post-processing tools for analyzing PySCF DFT calculations.
+In particular, sub-classes of <a class="reference internal" href="#ciderpress.pyscf.analyzers.ElectronAnalyzer" title="ciderpress.pyscf.analyzers.ElectronAnalyzer"><code class="xref py py-class docutils literal notranslate"><span class="pre">ciderpress.pyscf.analyzers.ElectronAnalyzer</span></code></a>
+can generate densities, kinetic energy densities,
+exchange energy densities, etc. on a real-space grid.</p>
+<dl class="py class" id="module-ciderpress.pyscf.analyzers">
+<dt class="sig sig-object py" id="ciderpress.pyscf.analyzers.ElectronAnalyzer">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">ciderpress.pyscf.analyzers.</span></span><span class="sig-name descname"><span class="pre">ElectronAnalyzer</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">mol</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dm</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">grids_level</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mo_occ</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mo_coeff</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mo_energy</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.pyscf.analyzers.ElectronAnalyzer" title="Link to this definition"></a></dt>
+<dd><p>A class for generating and storing data derived from a PySCF
+electronic structure calculation, in particular distributions
+on a real-space grid such as the density, exchange (correlation)
+energy density, Coulomb energy density, etc.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="ciderpress.pyscf.analyzers.ElectronAnalyzer.calculate_vxc">
+<span class="sig-name descname"><span class="pre">calculate_vxc</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">xcname</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">xcfunc</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">grids</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">xctype</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'MGGA'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.pyscf.analyzers.ElectronAnalyzer.calculate_vxc" title="Link to this definition"></a></dt>
+<dd><p>Computes the XC potential matrix for a functional,
+store it, and return it.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>xcname</strong> (<em>str</em>) – XC functional</p></li>
+<li><p><strong>xcfunc</strong> (<em>callable</em>) – XC function in case one
+wants to use an XC functional not in libxc</p></li>
+<li><p><strong>grids</strong> (<em>optional</em>) – Grid to use to calculate XC.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>XC potential matrix</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>vxc (nspin x nao x nao)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ciderpress.pyscf.analyzers.ElectronAnalyzer.calculate_vxc_on_mo">
+<span class="sig-name descname"><span class="pre">calculate_vxc_on_mo</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">xcname</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">orbs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.pyscf.analyzers.ElectronAnalyzer.calculate_vxc_on_mo" title="Link to this definition"></a></dt>
+<dd><p>Compute contributions of XC potential to the eigenvalues. If
+VXC_{xcname} is not in _data, calculate_vxc is called first.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>xcname</strong> (<em>str</em>) – Name of XC functional (for libxc)</p></li>
+<li><p><strong>orbs</strong> – Orbital index dictionary for computing orbital derivatives,
+in the format use for descriptors.get_descriptors.</p></li>
+<li><p><strong>**kwargs</strong> – extra arguments to pass to calculate_vxc, if it is called.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><dl class="simple">
+<dt>eigenvalue contributions. If orbs is provided, it will be in</dt><dd><p>the same format used by descritpors.get_descriptors.
+Otherwise, it will be a numpy array with all the eigenvalue
+contributions.</p>
+</dd>
+</dl>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ciderpress.pyscf.analyzers.ElectronAnalyzer.dump">
+<span class="sig-name descname"><span class="pre">dump</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">fname</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.pyscf.analyzers.ElectronAnalyzer.dump" title="Link to this definition"></a></dt>
+<dd><p>Dump self to an hdf5 file called fname.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>fname</strong> (<em>str</em>) – Name of file to dump to</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ciderpress.pyscf.analyzers.ElectronAnalyzer.from_calc">
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">from_calc</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">calc</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">grids_level</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">store_energy_orig</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.pyscf.analyzers.ElectronAnalyzer.from_calc" title="Link to this definition"></a></dt>
+<dd><p>NOTE: This has side effects on calc, see notes below.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>calc</strong> – SCF object from PySCF</p></li>
+<li><p><strong>grids_level</strong> – Size of PySCF grids for XC integration</p></li>
+<li><p><strong>store_energy_orig</strong> – Whether to store original xc energy.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>analyzer constructed from calc</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#ciderpress.pyscf.analyzers.ElectronAnalyzer" title="ciderpress.pyscf.analyzers.ElectronAnalyzer">ElectronAnalyzer</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ciderpress.pyscf.analyzers.ElectronAnalyzer.load">
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">load</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">fname</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.pyscf.analyzers.ElectronAnalyzer.load" title="Link to this definition"></a></dt>
+<dd><p>Load instance of cls from hdf5</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>fname</strong> (<em>str</em>) – Name of file from which to load</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="ciderpress.pyscf.analyzers.RHFAnalyzer">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">ciderpress.pyscf.analyzers.</span></span><span class="sig-name descname"><span class="pre">RHFAnalyzer</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">mol</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dm</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">grids_level</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mo_occ</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mo_coeff</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mo_energy</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.pyscf.analyzers.RHFAnalyzer" title="Link to this definition"></a></dt>
+<dd><dl class="py method">
+<dt class="sig sig-object py" id="ciderpress.pyscf.analyzers.RHFAnalyzer.get_ee_energy_density">
+<span class="sig-name descname"><span class="pre">get_ee_energy_density</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.pyscf.analyzers.RHFAnalyzer.get_ee_energy_density" title="Link to this definition"></a></dt>
+<dd><p>Returns the sum of E_{Ha} and E_{X}, i.e. the Coulomb repulsion
+energy of the HF or KS Slater determinant.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ciderpress.pyscf.analyzers.RHFAnalyzer.get_rs">
+<span class="sig-name descname"><span class="pre">get_rs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">term</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">omega</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tol</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1e-09</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.pyscf.analyzers.RHFAnalyzer.get_rs" title="Link to this definition"></a></dt>
+<dd><p>Function for accessing range-separated data from _data
+Finds match based on a tolerance, in case rounding
+issues arise with floats.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ciderpress.pyscf.analyzers.RHFAnalyzer.get_xc">
+<span class="sig-name descname"><span class="pre">get_xc</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">xcname</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.pyscf.analyzers.RHFAnalyzer.get_xc" title="Link to this definition"></a></dt>
+<dd><p>Function for accessing XC functional data from _data</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ciderpress.pyscf.analyzers.RHFAnalyzer.get_xc_energy">
+<span class="sig-name descname"><span class="pre">get_xc_energy</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">xcname</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.pyscf.analyzers.RHFAnalyzer.get_xc_energy" title="Link to this definition"></a></dt>
+<dd><p>Store and return the XC energy for the functional given by xcname</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="ciderpress.pyscf.analyzers.RKSAnalyzer">
+<span class="sig-prename descclassname"><span class="pre">ciderpress.pyscf.analyzers.</span></span><span class="sig-name descname"><span class="pre">RKSAnalyzer</span></span><a class="headerlink" href="#ciderpress.pyscf.analyzers.RKSAnalyzer" title="Link to this definition"></a></dt>
+<dd><p>alias of <a class="reference internal" href="#ciderpress.pyscf.analyzers.RHFAnalyzer" title="ciderpress.pyscf.analyzers.RHFAnalyzer"><code class="xref py py-class docutils literal notranslate"><span class="pre">RHFAnalyzer</span></code></a></p>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="ciderpress.pyscf.analyzers.UHFAnalyzer">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">ciderpress.pyscf.analyzers.</span></span><span class="sig-name descname"><span class="pre">UHFAnalyzer</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">mol</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dm</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">grids_level</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mo_occ</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mo_coeff</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mo_energy</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.pyscf.analyzers.UHFAnalyzer" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="ciderpress.pyscf.analyzers.UKSAnalyzer">
+<span class="sig-prename descclassname"><span class="pre">ciderpress.pyscf.analyzers.</span></span><span class="sig-name descname"><span class="pre">UKSAnalyzer</span></span><a class="headerlink" href="#ciderpress.pyscf.analyzers.UKSAnalyzer" title="Link to this definition"></a></dt>
+<dd><p>alias of <a class="reference internal" href="#ciderpress.pyscf.analyzers.UHFAnalyzer" title="ciderpress.pyscf.analyzers.UHFAnalyzer"><code class="xref py py-class docutils literal notranslate"><span class="pre">UHFAnalyzer</span></code></a></p>
+</dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="pbc/dft.html" class="btn btn-neutral float-left" title="pbc.dft" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="descriptors.html" class="btn btn-neutral float-right" title="descriptors" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Kyle Bystrom.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>  
+
+  <style>
+    /* Sidebar header (and topbar for mobile) */
+    .wy-side-nav-search, .wy-nav-top {
+      background: #002040;
+    }
+    /* Sidebar */
+    .wy-nav-side {
+      background: #002040;
+    }
+  </style>
+
+
+</body>
+</html>

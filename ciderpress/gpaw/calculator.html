@@ -1,0 +1,295 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GPAW Calculator Interface &mdash; CiderPress 0.4.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=6c02275b"></script>
+      <script src="../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="C Extension Libraries" href="../../c_extensions/c_extensions.html" />
+    <link rel="prev" title="GPAW Interface" href="gpaw.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html">
+            
+              <img src="../../_static/cider_logo_and_name.png" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../../installation/installation.html">Overview and Installation Instructions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../theory/theory.html">Theory Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../features/features.html">Density and Orbital Features in CiderPress</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../dft/dft.html">DFT Module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../models/models.html">The Models Module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../pyscf/pyscf.html">PySCF Interface</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="gpaw.html">GPAW Interface</a><ul class="current">
+<li class="toctree-l2 current"><a class="current reference internal" href="#">GPAW Calculator Interface</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#ciderpress.gpaw.calculator.CiderGPAW"><code class="docutils literal notranslate"><span class="pre">CiderGPAW</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#ciderpress.gpaw.calculator.CiderGPAW.initialize"><code class="docutils literal notranslate"><span class="pre">CiderGPAW.initialize()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#ciderpress.gpaw.calculator.cider_functional_from_dict"><code class="docutils literal notranslate"><span class="pre">cider_functional_from_dict()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ciderpress.gpaw.calculator.get_cider_functional"><code class="docutils literal notranslate"><span class="pre">get_cider_functional()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../c_extensions/c_extensions.html">C Extension Libraries</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">CiderPress</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="gpaw.html">GPAW Interface</a></li>
+      <li class="breadcrumb-item active">GPAW Calculator Interface</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../../_sources/ciderpress/gpaw/calculator.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="gpaw-calculator-interface">
+<span id="id1"></span><h1>GPAW Calculator Interface<a class="headerlink" href="#gpaw-calculator-interface" title="Link to this heading"></a></h1>
+<p>The GPAW calculator interfaces modifies GPAW to be
+compatible with CIDER functionals. There are two
+key components. The first is the function
+<a class="reference internal" href="#ciderpress.gpaw.calculator.get_cider_functional" title="ciderpress.gpaw.calculator.get_cider_functional"><code class="xref py py-func docutils literal notranslate"><span class="pre">ciderpress.gpaw.calculator.get_cider_functional()</span></code></a>,
+which generates a CIDER functional for use in GPAW.
+The second is the <a class="reference internal" href="#ciderpress.gpaw.calculator.CiderGPAW" title="ciderpress.gpaw.calculator.CiderGPAW"><code class="xref py py-func docutils literal notranslate"><span class="pre">ciderpress.gpaw.calculator.CiderGPAW()</span></code></a>
+class, which modifies the <code class="docutils literal notranslate"><span class="pre">GPAW</span></code> calculator object
+to be able to read and write calculations that use CIDER
+functionals.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">xc</span> <span class="o">=</span> <span class="n">get_cider_functional</span><span class="p">(</span><span class="o">...</span><span class="p">)</span>
+<span class="n">atoms</span><span class="o">.</span><span class="n">calc</span> <span class="o">=</span> <span class="n">CiderGPAW</span><span class="p">(</span><span class="n">xc</span><span class="o">=</span><span class="n">xc</span><span class="p">,</span> <span class="o">...</span><span class="p">)</span>
+<span class="n">atoms</span><span class="o">.</span><span class="n">get_potential_energy</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>For a full example, see <a class="reference external" href="https://github.com/mir-group/CiderPress/tree/main/examples/gpaw/simple_calc.py">examples/gpaw/simple_calc.py</a>
+and the other examples in <a class="reference external" href="https://github.com/mir-group/CiderPress/tree/main/examples/gpaw">examples/gpaw</a></p>
+<dl class="py class" id="module-ciderpress.gpaw.calculator">
+<dt class="sig sig-object py" id="ciderpress.gpaw.calculator.CiderGPAW">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">ciderpress.gpaw.calculator.</span></span><span class="sig-name descname"><span class="pre">CiderGPAW</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">restart</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">label</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">timer</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">communicator</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">txt</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'?'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">parallel</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.gpaw.calculator.CiderGPAW" title="Link to this definition"></a></dt>
+<dd><p>This class is equivalent to the GPAW calculator object
+provded in the gpaw package, except that it is able to load
+and save CIDER calculations. The GPAW object can run CIDER but
+not save/load CIDER calculations.</p>
+<p>One can also provide CIDER XC functional in dictionary format,
+but this is not advised since one also has to explicitly provide
+by the mlfunc_data parameter, which is the str of the yaml file
+representing the mlfunc object.</p>
+<p>Basic calculator implementation.</p>
+<dl class="simple">
+<dt>restart: str</dt><dd><p>Prefix for restart file.  May contain a directory. Default
+is None: don’t restart.</p>
+</dd>
+<dt>ignore_bad_restart_file: bool</dt><dd><p>Deprecated, please do not use.
+Passing more than one positional argument to Calculator()
+is deprecated and will stop working in the future.
+Ignore broken or missing restart file.  By default, it is an
+error if the restart file is missing or broken.</p>
+</dd>
+<dt>directory: str or PurePath</dt><dd><p>Working directory in which to read and write files and
+perform calculations.</p>
+</dd>
+<dt>label: str</dt><dd><p>Name used for all files.  Not supported by all calculators.
+May contain a directory, but please use the directory parameter
+for that instead.</p>
+</dd>
+<dt>atoms: Atoms object</dt><dd><p>Optional Atoms object to which the calculator will be
+attached.  When restarting, atoms will get its positions and
+unit-cell updated from file.</p>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="ciderpress.gpaw.calculator.CiderGPAW.initialize">
+<span class="sig-name descname"><span class="pre">initialize</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">atoms</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">reading</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.gpaw.calculator.CiderGPAW.initialize" title="Link to this definition"></a></dt>
+<dd><p>Inexpensive initialization.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="ciderpress.gpaw.calculator.cider_functional_from_dict">
+<span class="sig-prename descclassname"><span class="pre">ciderpress.gpaw.calculator.</span></span><span class="sig-name descname"><span class="pre">cider_functional_from_dict</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">d</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.gpaw.calculator.cider_functional_from_dict" title="Link to this definition"></a></dt>
+<dd><p>This is a function for reading CIDER functionals (and also
+standard functionals using the DiffPAW approach) from a dictionary
+that can be stored in a .gpw file. This is primarily a helper function
+for internal use, as it just reads the functional type and calls
+the from_dict() function of the respective class.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>d</strong> – XC data</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>XC Functional object for use in GPAW.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="ciderpress.gpaw.calculator.get_cider_functional">
+<span class="sig-prename descclassname"><span class="pre">ciderpress.gpaw.calculator.</span></span><span class="sig-name descname"><span class="pre">get_cider_functional</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">mlfunc</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">xmix</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">xkernel</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'GGA_X_PBE'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ckernel</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'GGA_C_PBE'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mlfunc_format</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">use_paw</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pasdw_ovlp_fit</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pasdw_store_funcs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">Nalpha</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">qmax</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">300</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">lambd</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.8</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">_force_nonlocal</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.gpaw.calculator.get_cider_functional" title="Link to this definition"></a></dt>
+<dd><p>Initialize a CIDER surrogate hybrid XC functional of the form:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">E_xc</span> <span class="o">=</span> <span class="n">xkernel</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="n">xmix</span><span class="p">)</span> <span class="o">+</span> <span class="n">ckernel</span> <span class="o">+</span> <span class="n">xmix</span> <span class="o">*</span> <span class="n">E_x</span><span class="o">^</span><span class="n">CIDER</span>
+</pre></div>
+</div>
+<p>where and <code class="docutils literal notranslate"><span class="pre">E_x^CIDER</span></code> is the ML exchange energy contained in mlfunc.
+xkernel and ckernel should be strings corresponding to an exchange
+and correlation functional in libxc. The above formula applies even
+if <code class="docutils literal notranslate"><span class="pre">E_x^CIDER</span></code> is a full XC functional. In this case, one should
+set <code class="docutils literal notranslate"><span class="pre">xkernel=None</span></code>, <code class="docutils literal notranslate"><span class="pre">ckernel=None</span></code>, <code class="docutils literal notranslate"><span class="pre">xmix=1.0</span></code>.</p>
+<p>NOTE: Do not use CIDER with ultrasoft pseudopotentials (PAW only).
+At your own risk, you can use CIDER with norm-conserving pseudopotentials,
+but correctness is not guaranteed because the nonlocal features will
+not be correct due to the lack of core electrons.</p>
+<p>NOTE: If the mlfunc is determined to be semilocal, all the
+internal settings are ignored, and a simpler, more efficient
+class is returned to evaluate the semilocal functional.</p>
+<p>NOTE: The parameters <code class="docutils literal notranslate"><span class="pre">pasdw_ovlp_fit</span></code> and <code class="docutils literal notranslate"><span class="pre">pasdw_store_funcs</span></code>
+are only used if <code class="docutils literal notranslate"><span class="pre">use_paw==True</span></code>. They control internal behavior
+of the PASDW algorithm used to evaluate the nonlocal density features
+in CIDER, but users might want to set them to address numerical
+stability or memory/performance trade-off issues.</p>
+<p>NOTE: The arguments <code class="docutils literal notranslate"><span class="pre">Nalpha</span></code>, <code class="docutils literal notranslate"><span class="pre">qmax</span></code>, and <code class="docutils literal notranslate"><span class="pre">lambd</span></code> can be set but
+are considered internal parameters and should usually be kept as their
+defaults, which should be reasonable for most cases. These parameters
+determine the spline used to interpolate over different values of
+the nonlocal density feature length-scale. A fourth parameter, <code class="docutils literal notranslate"><span class="pre">qmin</span></code>,
+also influences the spline. <code class="docutils literal notranslate"><span class="pre">qmin</span></code> is the mininum value of q to use
+for kernel interpolation. Currently, <code class="docutils literal notranslate"><span class="pre">qmin</span></code> is set automatically based
+on the minimum regularized value of the kernel exponent.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>mlfunc</strong> (<em>MappedXC, MappedXC2, str</em>) – An ML functional object or a str
+corresponding to the file name of a yaml or joblib file
+containing it.</p></li>
+<li><p><strong>xmix</strong> (<em>float, 1.00</em>) – Mixing parameter for CIDER exchnange.</p></li>
+<li><p><strong>xkernel</strong> (<em>str, GGA_X_PBE</em>) – libxc code str for semi-local X functional</p></li>
+<li><p><strong>ckernel</strong> (<em>str, GGA_C_PBE</em>) – libxc code str for semi-local C functional</p></li>
+<li><p><strong>mlfunc_format</strong> (<em>str, None</em>) – ‘joblib’ or ‘yaml’, specifies the format
+of mlfunc if it is a string corresponding to a file name.
+If unspecified, infer from file extension and raise error
+if file type cannot be determined.</p></li>
+<li><p><strong>use_paw</strong> (<em>bool, True</em>) – Whether to compute PAW corrections. This
+should be True unless you plan to use norm-conserving
+pseudopotentials (NCPPs). Note, the use of NCPPs is allowed
+but not advised, as large errors might arise due to the use
+of incorrect nonlocal features.</p></li>
+<li><p><strong>pasdw_ovlp_fit</strong> (<em>bool, True</em>) – Whether to use overlap fitting to
+attempt to improve numerical precision of PASDW projections.
+Default to True. Impact of this parameter should be minor.</p></li>
+<li><p><strong>pasdw_store_funcs</strong> (<em>bool, False</em>) – Whether to store projector
+functions used in the PASDW routine. Defaults to False
+because this can be memory intensive, but if you have the
+space, the computational cost of the atomic corrections
+can be greatly reduced by setting to True.</p></li>
+<li><p><strong>Nalpha</strong> (<em>int, None</em>) – Number of interpolation points for the nonlocal feature kernel.
+If None, set automatically based on lambd, qmax, and qmin.</p></li>
+<li><p><strong>qmax</strong> (<em>float, 300</em>) – Maximum value of q to use for kernel interpolation on FFT grid.
+Default should be fine for most cases.</p></li>
+<li><p><strong>lambd</strong> (<em>float, 1.8</em>) – Density of interpolation points. q_alpha=q_0 * lambd**alpha.
+Smaller lambd is more expensive and more precise.</p></li>
+<li><p><strong>_force_nonlocal</strong> (<em>bool, False</em>) – Use nonlocal kernel even if nonlocal
+features are not required. For debugging use only. Do not
+adjust except for testing.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A _CiderBase object (specific class depends on the parameters
+provided above, specifically on whether use_paw is True,
+whether the functional is GGA or MGGA form, and whether the
+functional is semi-local or nonlocal.)</p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="gpaw.html" class="btn btn-neutral float-left" title="GPAW Interface" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="../../c_extensions/c_extensions.html" class="btn btn-neutral float-right" title="C Extension Libraries" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Kyle Bystrom.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>  
+
+  <style>
+    /* Sidebar header (and topbar for mobile) */
+    .wy-side-nav-search, .wy-nav-top {
+      background: #002040;
+    }
+    /* Sidebar */
+    .wy-nav-side {
+      background: #002040;
+    }
+  </style>
+
+
+</body>
+</html>

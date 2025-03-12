@@ -1,0 +1,284 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Machine Learning Framework for CIDER Functionals &mdash; CiderPress 0.4.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=6c02275b"></script>
+      <script src="../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Numerical Evaluation of NLDF Features" href="nldf_numerical.html" />
+    <link rel="prev" title="Uniform Scaling" href="uniform_scaling.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html">
+            
+              <img src="../_static/cider_logo_and_name.png" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../installation/installation.html">Overview and Installation Instructions</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="theory.html">Theory Overview</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="uniform_scaling.html">Uniform Scaling</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Machine Learning Framework for CIDER Functionals</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#gaussian-process-regression">Gaussian Process Regression</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#fitting-total-energy-data">Fitting Total Energy Data</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#fitting-eigenvalues">Fitting Eigenvalues</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="nldf_numerical.html">Numerical Evaluation of NLDF Features</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../features/features.html">Density and Orbital Features in CiderPress</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../ciderpress/dft/dft.html">DFT Module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../ciderpress/models/models.html">The Models Module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../ciderpress/pyscf/pyscf.html">PySCF Interface</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../ciderpress/gpaw/gpaw.html">GPAW Interface</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../c_extensions/c_extensions.html">C Extension Libraries</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">CiderPress</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="theory.html">Theory Overview</a></li>
+      <li class="breadcrumb-item active">Machine Learning Framework for CIDER Functionals</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/theory/gp.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="machine-learning-framework-for-cider-functionals">
+<h1>Machine Learning Framework for CIDER Functionals<a class="headerlink" href="#machine-learning-framework-for-cider-functionals" title="Link to this heading"></a></h1>
+<p>This page covers the machine learning framework used to train exchange-correlation
+functionals in the CIDER formalism, which is built on Gaussian process regression
+(GPR).</p>
+<section id="gaussian-process-regression">
+<h2>Gaussian Process Regression<a class="headerlink" href="#gaussian-process-regression" title="Link to this heading"></a></h2>
+<p>Gaussian process regression is a nonparametric, Bayesian statistical learning model.
+The detailed theory of Gaussian processes can be found in the excellent textbook
+by Rasmussen and Williams. <a class="footnote-reference brackets" href="#footcite-rasmussen2006" id="id1" role="doc-noteref"><span class="fn-bracket">[</span>1<span class="fn-bracket">]</span></a> This section covers the application of Gaussian
+process regression to functional design. More details on the formalism
+can be found in Bystrom and Kozinsky<a class="footnote-reference brackets" href="#footcite-cider23x" id="id2" role="doc-noteref"><span class="fn-bracket">[</span>2<span class="fn-bracket">]</span></a> and Bystrom <em>et al.</em><a class="footnote-reference brackets" href="#footcite-cider24x" id="id3" role="doc-noteref"><span class="fn-bracket">[</span>3<span class="fn-bracket">]</span></a></p>
+<p>Consider the problem of learning some function <span class="math notranslate nohighlight">\(f(\mathbf{x})\)</span>, with
+<span class="math notranslate nohighlight">\(\mathbf{x}\)</span> being a feature vector of independent variables.
+Let <span class="math notranslate nohighlight">\(\mathbf{X}\)</span> be a feature matrix, where each row <span class="math notranslate nohighlight">\(\mathbf{x}_i\)</span>
+is the feature vector for training point <span class="math notranslate nohighlight">\(i\)</span>, and let <span class="math notranslate nohighlight">\(\mathbf{y}\)</span>
+be a target vector, where each element <span class="math notranslate nohighlight">\(y_i\)</span> is the observed value of
+the target function for training point <span class="math notranslate nohighlight">\(i\)</span>. Then, there are two key
+components necessary to construct a Gaussian process regression for
+<span class="math notranslate nohighlight">\(f(\mathbf{x})\)</span>. The first is the covariance kernel
+<span class="math notranslate nohighlight">\(k(\mathbf{x}, \mathbf{x}')\)</span>, which defines the covariance between the
+values of the predictive function for two points, i.e.
+<span class="math notranslate nohighlight">\(k(\mathbf{x}, \mathbf{x}')=\text{Cov}(f(\mathbf{x}), f(\mathbf{x}'))\)</span>.
+The matrix of covariances between training points is denoted <span class="math notranslate nohighlight">\(\mathbf{K}\)</span>
+with matrix elements <span class="math notranslate nohighlight">\(K_{ij}=k(\mathbf{x}_i, \mathbf{x}_j)\)</span>.
+The second is the noise labels <span class="math notranslate nohighlight">\(\sigma_i\)</span>, indicating the estimated
+prior uncertainty on each training observation <span class="math notranslate nohighlight">\(i\)</span>. We will denote the
+diagonal matrix whose entries are the noise covariances <span class="math notranslate nohighlight">\({\sigma_i^{}}^2\)</span>
+as <span class="math notranslate nohighlight">\(\boldsymbol{\Sigma}_\text{noise}\)</span>. Using these components, the
+predictive function for a test point <span class="math notranslate nohighlight">\(\mathbf{x}_*\)</span>
+takes the form <a class="footnote-reference brackets" href="#footcite-rasmussen2006" id="id4" role="doc-noteref"><span class="fn-bracket">[</span>1<span class="fn-bracket">]</span></a></p>
+<div class="math notranslate nohighlight">
+\[f(\mathbf{x}_*) = \sum_\alpha k(\mathbf{x}_*, \mathbf{x}_i) \alpha_i\]</div>
+<p>with the following definition for the weight vector <span class="math notranslate nohighlight">\(\boldsymbol{\alpha}\)</span>:</p>
+<div class="math notranslate nohighlight">
+\[\boldsymbol{\alpha} = \left(\mathbf{K} + \boldsymbol{\Sigma}_\text{noise}\right)^{-1} \mathbf{y}\]</div>
+<p>In the case of fitting energies of molecules and solids, we need to fit an
+extensive quantity in which the training labels are integrals of the predictive
+function <span class="math notranslate nohighlight">\(f(\mathbf{x})\)</span> over real space. The next section covers
+adjustments to the Gaussian process model necessary to perform this task.</p>
+</section>
+<section id="fitting-total-energy-data">
+<h2>Fitting Total Energy Data<a class="headerlink" href="#fitting-total-energy-data" title="Link to this heading"></a></h2>
+<p>Consider an extensive quantity <span class="math notranslate nohighlight">\(F\)</span>, which is a contribution to the
+total electronic energy of a chemical system. In the case of CiderPress,
+this quanity will be the exchange, correlation, or exchange-correlation energy.
+We can fit <span class="math notranslate nohighlight">\(F\)</span> by learning a function that gets integrated over
+real-space to yield <span class="math notranslate nohighlight">\(F\)</span> for a given system:</p>
+<div class="math notranslate nohighlight">
+\[F = \int \text{d}^3\mathbf{r}\,f\left(\mathbf{x}(\mathbf{r})\right) \label{eq:F_int}\]</div>
+<p>In the above equation, <span class="math notranslate nohighlight">\(f\left(\mathbf{x}(\mathbf{r})\right)\)</span> is the predictive
+function for the energy density to be learned by the Gaussian process.
+In practice, the integral must be performed numerically. For a given chemical system
+indexed by <span class="math notranslate nohighlight">\(m\)</span>, we write</p>
+<div class="math notranslate nohighlight">
+\[F^m = \sum_{g\in m} w_g^m f\left(\mathbf{x}_g^m\right) \label{eq:extensive_functional}\]</div>
+<p>where <span class="math notranslate nohighlight">\(g\)</span> indexes quadrature points and <span class="math notranslate nohighlight">\(w_g^m\)</span> are the respective quadrature weights.
+The covariances between the numerical integrals <span class="math notranslate nohighlight">\(F^m\)</span> and <span class="math notranslate nohighlight">\(F^n\)</span>
+can be written as</p>
+<div class="math notranslate nohighlight">
+\[\text{Cov}(F^m, F^n) = \sum_{g \in m} \sum_{h \in n} w_g^m w_h^n k(\mathbf{x}_g^m, \mathbf{x}_h^m)\]</div>
+<p>where <span class="math notranslate nohighlight">\(k(\mathbf{x}, \mathbf{x}')\)</span> is the covariance kernel for
+<span class="math notranslate nohighlight">\(f(\mathbf{x})\)</span>. Computing the above double numerical integral directly
+would be expensive. To overcome this issue, we define a small set of “control points”
+<span class="math notranslate nohighlight">\(\tilde{\mathbf{x}}_a\)</span> and approximate <span class="math notranslate nohighlight">\(\text{Cov}(F^m, F^n)\)</span>
+using a resolution-of-the-identity approximation:</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}\text{Cov}(F^m, F^n) = K_{mn} &amp;\approx \tilde{\mathbf{k}}_m \tilde{\mathbf{K}}^{-1} \tilde{\mathbf{k}}_n \label{eq:roi_cov} \\
+\left(\tilde{\mathbf{K}}\right)_{ab} &amp;= k(\tilde{\mathbf{x}}_a, \tilde{\mathbf{x}}_b) \\
+\left(\tilde{\mathbf{k}}_m\right)_a &amp;= \sum_{g\in m} w_g^m k(\mathbf{x}_g^m, \tilde{\mathbf{x}}_a)\end{split}\]</div>
+<p>Using this definition of the covariance kernel, the predictive function can be expressed as</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}f(\mathbf{x}_*) &amp;= \sum_a k(\mathbf{x}_*, \mathbf{\tilde{x}}_a) \alpha_a \label{eq:gp_sum_formula} \\
+\boldsymbol{\alpha} &amp;= \sum_m \mathbf{\tilde{k}}_m \left\{\left[\mathbf{K} + \boldsymbol{\Sigma}_\text{noise}\right]^{-1} \mathbf{y}\right\}_m \label{eq:gp_predictive_cider3}\end{split}\]</div>
+<p>with <span class="math notranslate nohighlight">\(\mathbf{y}\)</span> being the vector of training labels <span class="math notranslate nohighlight">\(F^m\)</span>.</p>
+</section>
+<section id="fitting-eigenvalues">
+<h2>Fitting Eigenvalues<a class="headerlink" href="#fitting-eigenvalues" title="Link to this heading"></a></h2>
+<p>The Gaussian process scheme discussed above can be extended to fit the eigenvalues
+of the Kohn-Sham Hamiltonian. <a class="footnote-reference brackets" href="#footcite-cider24x" id="id5" role="doc-noteref"><span class="fn-bracket">[</span>3<span class="fn-bracket">]</span></a>
+The <span class="math notranslate nohighlight">\(i\)</span>-th eigenvalue <span class="math notranslate nohighlight">\(\epsilon_i^m\)</span> of chemical system <span class="math notranslate nohighlight">\(m\)</span> is
+the partial derivate of the total energy with respect to the occupation
+number <span class="math notranslate nohighlight">\(f_i^m\)</span> of the orbital: <a class="footnote-reference brackets" href="#footcite-janak1978" id="id6" role="doc-noteref"><span class="fn-bracket">[</span>4<span class="fn-bracket">]</span></a></p>
+<div class="math notranslate nohighlight">
+\[\epsilon_i^m = \frac{\partial E}{\partial f_i^m}\]</div>
+<p>Most of the Kohn-Sham eigenvalues <span class="math notranslate nohighlight">\(\epsilon_i^m\)</span> are fictional and lack
+explicit physical meaning, but the LUMO and HOMO eigenvalues of the exact
+functional correspond to the electron affinity and negative of the ionization
+potential, respectively. Therefore, we are interested in explicitly
+fitting the derivative of our target quantity <span class="math notranslate nohighlight">\(\frac{\partial F}{\partial f_i^m}\)</span>.
+In the case of fitting exact exchange <span class="math notranslate nohighlight">\(E_\text{x}^\text{exact}\)</span>, one can
+explicitly compute <span class="math notranslate nohighlight">\(\frac{\partial E_\text{x}^\text{exact}}{\partial f_i^m}\)</span>
+for a given set of orbitals. For the full exchange-correlation energy, no
+explicit formula exists, but <span class="math notranslate nohighlight">\(\frac{\partial E_\text{xc}^\text{exact}}{\partial f_i^m}\)</span>
+can be extracted from an experimental/quantum chemistry measurement
+of the electron affinity (EA) or ionization potential (IP). The total energy
+in DFT is</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}E[n] &amp;= T[n] + V[n] + U[n] + E_\text{xc}[n] \\
+E[n] &amp;= E_0[n] + E_\text{xc}[n]\end{split}\]</div>
+<p>where <span class="math notranslate nohighlight">\(E_0[n]\)</span> is the sum of the kinetic (<span class="math notranslate nohighlight">\(T\)</span>), external (<span class="math notranslate nohighlight">\(V\)</span>),
+and Hartree (<span class="math notranslate nohighlight">\(U\)</span>) energies, all of which can be written explicitly in terms
+of the Kohn-Sham orbitals. Therefore, if we know an eigenvalue <span class="math notranslate nohighlight">\(\epsilon_i^m\)</span>
+from experimental/quantum chemistry measurements of the IP or EA, we can
+write</p>
+<div class="math notranslate nohighlight">
+\[\frac{\partial E_\text{xc}[n]}{\partial f_i^m} = \epsilon_i^m - \frac{\partial E_0[n]}{\partial f_i^m}\]</div>
+<p>This gives us an explicit expression for <span class="math notranslate nohighlight">\(\frac{\partial E_\text{xc}[n]}{\partial f_i^m}\)</span> that
+can be used as training data for the XC functional.</p>
+<p>Given such training data, we can relate the occupation derivative of <span class="math notranslate nohighlight">\(F\)</span> to our model energy
+density <span class="math notranslate nohighlight">\(f(\mathbf{x})\)</span> as</p>
+<div class="math notranslate nohighlight">
+\[\frac{\partial F^m}{\partial f_i^m} = \sum_{g \in m} w_g^m \frac{\partial f(\mathbf{x}_g^m)}{\partial\mathbf{x}_g^m} \cdot \frac{\partial \mathbf{x}_g^m}{\partial f_i^m}\]</div>
+<p>To fit our model to the above equation, we only need to know the covariance between
+<span class="math notranslate nohighlight">\(\frac{\partial F^m}{\partial f_i^m}\)</span> and <span class="math notranslate nohighlight">\(\frac{\partial F^n}{\partial f_j^n}\)</span>
+or <span class="math notranslate nohighlight">\(F^n\)</span>. This relationship is given by</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}\text{Cov}\left(\frac{\partial F^m}{\partial f_i^m}, F^n\right) &amp;= \tilde{\mathbf{d}}_{mi} \tilde{\mathbf{K}}^{-1} \tilde{\mathbf{k}}_n \\
+\text{Cov}\left(\frac{\partial F^m}{\partial f_i^m}, \frac{\partial F^n}{\partial f_j^n}\right) &amp;= \tilde{\mathbf{d}}_{mi} \tilde{\mathbf{K}}^{-1} \tilde{\mathbf{d}}_{nj} \\
+\left(\tilde{\mathbf{d}}_{mi}\right)_a &amp;= \sum_{g\in m} w_g^m \frac{\partial \mathbf{x}_g^m}{\partial f_i^m} \cdot \frac{\partial}{\partial \mathbf{x}_g^m} k(\mathbf{x}_g^m, \tilde{\mathbf{x}}_a)\end{split}\]</div>
+<p>which allows occupation derivative training data to be included in the Gaussian process.
+For further details, see Bystrom <em>et al.</em><a class="footnote-reference brackets" href="#footcite-cider24x" id="id7" role="doc-noteref"><span class="fn-bracket">[</span>3<span class="fn-bracket">]</span></a></p>
+<div class="docutils container" id="id8">
+<aside class="footnote-list brackets">
+<aside class="footnote brackets" id="footcite-rasmussen2006" role="doc-footnote">
+<span class="label"><span class="fn-bracket">[</span>1<span class="fn-bracket">]</span></span>
+<span class="backrefs">(<a role="doc-backlink" href="#id1">1</a>,<a role="doc-backlink" href="#id4">2</a>)</span>
+<p>Carl Edward Rasmussen and C K I Williams. <em>Gaussian Processes for Machine Learning</em>. The MIT Press, Cambridge, MA, USA, 2006. ISBN 0-262-18253-X.</p>
+</aside>
+<aside class="footnote brackets" id="footcite-cider23x" role="doc-footnote">
+<span class="label"><span class="fn-bracket">[</span><a role="doc-backlink" href="#id2">2</a><span class="fn-bracket">]</span></span>
+<p>Kyle Bystrom and Boris Kozinsky. Nonlocal machine-learned exchange functional for molecules and solids. <em>Phys. Rev. B</em>, 110:075130, Aug 2024. URL: <a class="reference external" href="https://link.aps.org/doi/10.1103/PhysRevB.110.075130">https://link.aps.org/doi/10.1103/PhysRevB.110.075130</a>, <a class="reference external" href="https://doi.org/10.1103/PhysRevB.110.075130">doi:10.1103/PhysRevB.110.075130</a>.</p>
+</aside>
+<aside class="footnote brackets" id="footcite-cider24x" role="doc-footnote">
+<span class="label"><span class="fn-bracket">[</span>3<span class="fn-bracket">]</span></span>
+<span class="backrefs">(<a role="doc-backlink" href="#id3">1</a>,<a role="doc-backlink" href="#id5">2</a>,<a role="doc-backlink" href="#id7">3</a>)</span>
+<p>Kyle Bystrom, Stefano Falletta, and Boris Kozinsky. Training machine-learned density functionals on band gaps. <em>Journal of Chemical Theory and Computation</em>, 20(17):7516–7532, 2024. PMID: 39178337. URL: <a class="reference external" href="https://doi.org/10.1021/acs.jctc.4c00999">https://doi.org/10.1021/acs.jctc.4c00999</a>, <a class="reference external" href="https://arxiv.org/abs/https://doi.org/10.1021/acs.jctc.4c00999">arXiv:https://doi.org/10.1021/acs.jctc.4c00999</a>, <a class="reference external" href="https://doi.org/10.1021/acs.jctc.4c00999">doi:10.1021/acs.jctc.4c00999</a>.</p>
+</aside>
+<aside class="footnote brackets" id="footcite-janak1978" role="doc-footnote">
+<span class="label"><span class="fn-bracket">[</span><a role="doc-backlink" href="#id6">4</a><span class="fn-bracket">]</span></span>
+<p>J. F. Janak. Proof that \frac\partial E\partial N_i=\epsilon_i in density-functional theory. <em>Phys. Rev. B</em>, 18(12):7165–7168, December 1978. <a class="reference external" href="https://doi.org/10.1103/PhysRevB.18.7165">doi:10.1103/PhysRevB.18.7165</a>.</p>
+</aside>
+</aside>
+</div>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="uniform_scaling.html" class="btn btn-neutral float-left" title="Uniform Scaling" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="nldf_numerical.html" class="btn btn-neutral float-right" title="Numerical Evaluation of NLDF Features" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Kyle Bystrom.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>  
+
+  <style>
+    /* Sidebar header (and topbar for mobile) */
+    .wy-side-nav-search, .wy-nav-top {
+      background: #002040;
+    }
+    /* Sidebar */
+    .wy-nav-side {
+      background: #002040;
+    }
+  </style>
+
+
+</body>
+</html>

@@ -1,0 +1,206 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Uniform Scaling &mdash; CiderPress 0.4.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=6c02275b"></script>
+      <script src="../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Machine Learning Framework for CIDER Functionals" href="gp.html" />
+    <link rel="prev" title="Theory Overview" href="theory.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html">
+            
+              <img src="../_static/cider_logo_and_name.png" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../installation/installation.html">Overview and Installation Instructions</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="theory.html">Theory Overview</a><ul class="current">
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Uniform Scaling</a></li>
+<li class="toctree-l2"><a class="reference internal" href="gp.html">Machine Learning Framework for CIDER Functionals</a></li>
+<li class="toctree-l2"><a class="reference internal" href="nldf_numerical.html">Numerical Evaluation of NLDF Features</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../features/features.html">Density and Orbital Features in CiderPress</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../ciderpress/dft/dft.html">DFT Module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../ciderpress/models/models.html">The Models Module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../ciderpress/pyscf/pyscf.html">PySCF Interface</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../ciderpress/gpaw/gpaw.html">GPAW Interface</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../c_extensions/c_extensions.html">C Extension Libraries</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">CiderPress</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="theory.html">Theory Overview</a></li>
+      <li class="breadcrumb-item active">Uniform Scaling</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/theory/uniform_scaling.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="uniform-scaling">
+<span id="unif-scaling"></span><h1>Uniform Scaling<a class="headerlink" href="#uniform-scaling" title="Link to this heading"></a></h1>
+<p>Uniform scaling is a critical concept for understanding density functional
+design. Consider a given electron density distribution <span class="math notranslate nohighlight">\(n(\mathbf{r})\)</span>.
+We can consider a transformed density of the form</p>
+<div class="math notranslate nohighlight">
+\[n_\lambda(\mathbf{r}) = \lambda^3 n(\lambda \mathbf{r})\]</div>
+<p>This transformation is called <em>uniform coordinate scaling</em>,<a class="footnote-reference brackets" href="#footcite-martin2004" id="id1" role="doc-noteref"><span class="fn-bracket">[</span>1<span class="fn-bracket">]</span></a>
+because it essentially involves redefining
+<span class="math notranslate nohighlight">\(\mathbf{r}\leftarrow\lambda\mathbf{r}\)</span>, which squishes
+(<span class="math notranslate nohighlight">\(\lambda&gt;0\)</span>) or expands (<span class="math notranslate nohighlight">\(\lambda&lt;0\)</span>) the
+density while maintaining its relative shape. The <span class="math notranslate nohighlight">\(\lambda^3\)</span>
+prefactor ensures that the particle number is conserved, i.e.</p>
+<div class="math notranslate nohighlight">
+\[\int \text{d}^3\mathbf{r} n_\lambda(\mathbf{r}) = \int \text{d}^3\mathbf{r} n(\mathbf{r})\]</div>
+<p>One can also consider uniform scaling of the density <em>matrix</em>:</p>
+<div class="math notranslate nohighlight">
+\[n_1^\lambda(\mathbf{r}, \mathbf{r}') = \lambda^3 n_1(\lambda \mathbf{r}, \lambda \mathbf{r}')\]</div>
+<p>NOTE: For orbital-dependent functionals, scaling the density and scaling the density matrix are
+not precisely equivalent, because there is a distribution of possible density
+matrices that can yield a given density. If the orbital-dependent potential
+causes the orbitals to rearrange themselves when uniform scaling occurs, the
+lowest-energy density matrix for a density <span class="math notranslate nohighlight">\(n_\lambda\)</span> will not necessarily
+be <span class="math notranslate nohighlight">\(n_1^\lambda\)</span>, i.e. the scaled density matrix obtained
+from the lowest-energy density matrix with density <span class="math notranslate nohighlight">\(n\)</span>. This is a very
+subtle point, however, and does not usually make a big impact, so in most
+cases we will always refer to scaling the density <span class="math notranslate nohighlight">\(n_\lambda\)</span> for
+simplicity, even when orbital-dependent quantities are involved.
+For more details, see Görling and Ernzerhof<a class="footnote-reference brackets" href="#footcite-gorling1995" id="id2" role="doc-noteref"><span class="fn-bracket">[</span>2<span class="fn-bracket">]</span></a>.</p>
+<p>The exact exchange functional <span class="math notranslate nohighlight">\(E_\text{x}[n]\)</span> has a simple,
+exact behavior under uniform scaling:<a class="footnote-reference brackets" href="#footcite-levy1985" id="id3" role="doc-noteref"><span class="fn-bracket">[</span>3<span class="fn-bracket">]</span></a></p>
+<div class="math notranslate nohighlight">
+\[E_\text{x}[n_\lambda] = \lambda E_\text{x}[n]\]</div>
+<p>The correlation functional <span class="math notranslate nohighlight">\(E_\text{c}[n]\)</span> does not have such simple
+behavior under uniform scaling, but it does obey the limits<a class="footnote-reference brackets" href="#footcite-kaplan2023" id="id4" role="doc-noteref"><span class="fn-bracket">[</span>4<span class="fn-bracket">]</span></a></p>
+<div class="math notranslate nohighlight">
+\[\begin{split}\lim_{\lambda\rightarrow 0} E_\text{c}[n_\lambda] &amp;= \lambda C_0[n] \\
+\lim_{\lambda\rightarrow \infty} E_\text{c}[n_\lambda] &amp;&gt; -\infty\end{split}\]</div>
+<p>Therefore, it can be helpful to design features with simple, well-understood
+behavior under uniform scaling. In particular, if the feature vector <span class="math notranslate nohighlight">\(\mathbf{x}\)</span>
+for the ML model is <em>scale-invariant</em>, i.e. if</p>
+<div class="math notranslate nohighlight">
+\[\mathbf{x}[n_\lambda](\mathbf{r}) = \mathbf{x}[n](\lambda \mathbf{r})\]</div>
+<p>then an exchange functional of the form</p>
+<div class="math notranslate nohighlight">
+\[E_\text{x}[n] = \int \text{d}^3\mathbf{r} e_\text{x}^\text{ML}(\mathbf{x}(\mathbf{r})\]</div>
+<p>obeys the uniform scaling rule for exchange (<span class="math notranslate nohighlight">\(E_\text{x}[n_\lambda] = \lambda E_\text{x}[n]\)</span>).
+Similar, scale-invariant features can also be useful for correlation functionals because
+their behavior under uniform scaling will be the same as the behavior of the multiplicative
+baseline functional used for training. If the baseline model has reasonable behavior under
+uniform scaling (such as PBE/SCAN), this could help make more physically realistic models.
+(However, it could also needlessly restrict the model’s flexibility, so there are trade-offs involved).</p>
+<div class="docutils container" id="id5">
+<aside class="footnote-list brackets">
+<aside class="footnote brackets" id="footcite-martin2004" role="doc-footnote">
+<span class="label"><span class="fn-bracket">[</span><a role="doc-backlink" href="#id1">1</a><span class="fn-bracket">]</span></span>
+<p>Richard M. Martin. <em>Electronic Structure: Basic Theory and Practical Methods</em>. Cambridge University Press, Cambridge, 2004.</p>
+</aside>
+<aside class="footnote brackets" id="footcite-gorling1995" role="doc-footnote">
+<span class="label"><span class="fn-bracket">[</span><a role="doc-backlink" href="#id2">2</a><span class="fn-bracket">]</span></span>
+<p>Andreas Görling and Matthias Ernzerhof. Energy differences between Kohn-Sham and Hartree-Fock wave functions yielding the same electron density. <em>Phys. Rev. A</em>, 51(6):4501–4513, jun 1995. URL: <a class="reference external" href="https://link.aps.org/doi/10.1103/PhysRevA.51.4501">https://link.aps.org/doi/10.1103/PhysRevA.51.4501</a>, <a class="reference external" href="https://doi.org/10.1103/PhysRevA.51.4501">doi:10.1103/PhysRevA.51.4501</a>.</p>
+</aside>
+<aside class="footnote brackets" id="footcite-levy1985" role="doc-footnote">
+<span class="label"><span class="fn-bracket">[</span><a role="doc-backlink" href="#id3">3</a><span class="fn-bracket">]</span></span>
+<p>Mel Levy and John P. Perdew. Hellmann-Feynman, virial, and scaling requisites for the exact universal density functionals. Shape of the correlation potential and diamagnetic susceptibility for atoms. <em>Phys. Rev. A</em>, 32(4):2010–2021, 1985. <a class="reference external" href="https://doi.org/10.1103/PhysRevA.32.2010">doi:10.1103/PhysRevA.32.2010</a>.</p>
+</aside>
+<aside class="footnote brackets" id="footcite-kaplan2023" role="doc-footnote">
+<span class="label"><span class="fn-bracket">[</span><a role="doc-backlink" href="#id4">4</a><span class="fn-bracket">]</span></span>
+<p>Aaron D. Kaplan, Mel Levy, and John P. Perdew. The Predictive Power of Exact Constraints and Appropriate Norms in Density Functional Theory. <em>Annu. Rev. Phys. Chem.</em>, 74(1):193–218, April 2023. <a class="reference external" href="https://doi.org/10.1146/annurev-physchem-062422-013259">doi:10.1146/annurev-physchem-062422-013259</a>.</p>
+</aside>
+</aside>
+</div>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="theory.html" class="btn btn-neutral float-left" title="Theory Overview" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="gp.html" class="btn btn-neutral float-right" title="Machine Learning Framework for CIDER Functionals" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Kyle Bystrom.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>  
+
+  <style>
+    /* Sidebar header (and topbar for mobile) */
+    .wy-side-nav-search, .wy-nav-top {
+      background: #002040;
+    }
+    /* Sidebar */
+    .wy-nav-side {
+      background: #002040;
+    }
+  </style>
+
+
+</body>
+</html>
