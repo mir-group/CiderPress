@@ -88,6 +88,8 @@ def get_cider_exponent(
     cond = rho < rhocut
     rho = rho.copy()
     rho[cond] = rhocut
+    sigma[cond] = rhocut**2
+    tau[cond] = rhocut
     if nspin == 1:
         B = np.pi / 2 ** (2.0 / 3) * (a0 - tau_fac)
     else:

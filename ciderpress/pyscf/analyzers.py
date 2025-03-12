@@ -154,8 +154,11 @@ class ElectronAnalyzer(ABC):
         analyzer_dict = recursive_bytes_to_str(analyzer_dict)
         return ElectronAnalyzer.from_dict(analyzer_dict)
 
-    def get(self, name):
-        return self._data[name]
+    def get(self, name, error_if_missing=True):
+        if error_if_missing:
+            return self._data[name]
+        else:
+            return self._data.get(name, None)
 
     def calculate_vxc(self, xcname, xcfunc=None, grids=None, xctype="MGGA"):
         """
@@ -304,6 +307,8 @@ class ElectronAnalyzer(ABC):
                 calc.grids.build()
                 if hasattr(calc, "with_df") and hasattr(calc.with_df, "grids"):
                     calc.with_df.build()
+                if hasattr(calc, "_numint") and hasattr(calc._numint, "build"):
+                    calc._numint.build()
                 e_tot = calc.energy_tot(analyzer.dm)
                 calc.grids.level = old_level
                 calc.grids.build()
