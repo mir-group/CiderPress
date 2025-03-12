@@ -1,7 +1,16 @@
 #!/usr/bin/env bash
 ./.github/workflows/apt_deps.sh
 pip install pytest
-pip3 install torch --index-url https://download.pytorch.org/whl/cu118
+if [ "$RUNNER_OS" == "Linux" ]
+then
+    pip3 install torch --index-url https://download.pytorch.org/whl/cu118
+elif [ "$RUNNER_OS" == "macOS" ]
+then
+    pip3 install torch
+else
+    echo "$RUNNER_OS not supported"
+    exit 1
+fi
 if [ "$RUNNER_OS" == "macOS" ]; then
     export CC=gcc-14
     export CXX=g++-14

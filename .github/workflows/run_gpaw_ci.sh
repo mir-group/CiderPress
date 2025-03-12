@@ -8,6 +8,7 @@ if [ "$RUNNER_OS" == "macOS" ]; then
     export LIBRARY_PATH=$(brew --prefix)/lib
     export LD_LIBRARY_PATH=$(brew --prefix)/lib
 fi
+export CMAKE_CONFIGURE_ARGS="-DBUILD_LIBXC=1 -DBUILD_FFTW=1 -DBUILD_WITH_MKL=0 -DBUILD_WITH_MPI=0 -DBUILD_MARCH_NATIVE=0"
 pip install .
 python scripts/download_functionals.py
 
