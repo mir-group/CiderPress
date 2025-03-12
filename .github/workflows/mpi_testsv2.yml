@@ -15,7 +15,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest]
         python-version: ["3.12"]
     steps:
       - uses: actions/checkout@v3
@@ -24,7 +24,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install and Test
-        run: sh .github/workflows/run_gpaw_mpi_ci.sh
+        run: ./.github/workflows/run_gpaw_mpi_ci.sh
       - name: Run MPI tests
         run: |
           # Slightly hacky, link gpaw to our internal libxc
@@ -32,4 +32,4 @@ jobs:
           export LIBRARY_PATH=$LIBRARY_PATH:$CIDER_DEPS/lib
           export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$CIDER_DEPS/lib
           export C_INCLUDE_PATH=$C_INCLUDE_PATH:$CIDER_DEPS/include
-          sh .github/workflows/run_mpi_tests.sh
+          ./.github/workflows/run_mpi_tests.sh

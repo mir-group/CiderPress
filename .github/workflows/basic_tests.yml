@@ -15,7 +15,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest]
+        os: [ubuntu-latest, macos-latest]
         python-version: ["3.12"]
     steps:
       - uses: actions/checkout@v3
@@ -24,7 +24,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install and Test
-        run: sh .github/workflows/run_core_ci.sh
+        run: ./.github/workflows/run_core_ci.sh
 
   gpaw-build:
     runs-on: ${{ matrix.os }}
@@ -40,4 +40,4 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install and Test
-        run: sh .github/workflows/run_gpaw_ci.sh
+        run: ./.github/workflows/run_gpaw_ci.sh

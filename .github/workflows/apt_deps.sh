@@ -10,12 +10,16 @@ then
 	curl
 elif [ "$RUNNER_OS" == "macOS" ]
 then
-    brew install gcc \
+    brew install \
+        gcc@14 \
         libomp \
         openblas \
         lapack \
         cmake \
-        curl
+        curl \
+        libxc \
+        fftw \
+        wget
 else
     echo "$RUNNER_OS not supported"
     exit 1

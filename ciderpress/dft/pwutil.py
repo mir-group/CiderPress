@@ -24,7 +24,7 @@ import numpy as np
 
 from ciderpress.lib import load_library
 
-pw_cutil = load_library("libpwutil.so")
+pw_cutil = load_library("libpwutil")
 
 
 def eval_pasdw_funcs(radfuncs_ng, ylm_lg, nlist_i, lmlist_i):
