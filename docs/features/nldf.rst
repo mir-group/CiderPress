@@ -65,7 +65,7 @@ Version I
 ---------
 
 Version I modifies Version J in two ways. First, :math:`a_i[n](\mathbf{r})`, the exponent contribution computed
-at point :math:`mathbf{r}` is not used; only :math:`a_0[n](\mathbf{r}')`. Second, several different options
+at point :math:`\mathbf{r}` is not used; only :math:`a_0[n](\mathbf{r}')`. Second, several different options
 are introduced for the integration kernel, resulting in a general form
 
 .. math:: G_*[n](\mathbf{r}) = \int \text{d}^3\mathbf{r}' k_*(a_0[n](\mathbf{r}'), |\mathbf{r}-\mathbf{r}'|) n(\mathbf{r}')
@@ -73,7 +73,7 @@ are introduced for the integration kernel, resulting in a general form
 The :math:`*` symbol is a stand-in for the form of integration kernel used. The options are listed below:
 
 * ``se``: :math:`k_\text{se}(a, r) = \text{e}^{-ar^2}`
-* ``se_r2``: :math:``
+* ``se_r2``: :math:`k_\text{se_r2}(a,r) = r^2 \text{e}^{-ar^2}`
 * ``se_apr2`` :math:`k_\text{se_apr2}(a, r) = a r^2 \text{e}^{-ar^2}`
 * ``se_ap``: :math:`k_\text{se_ap}(a, r) = a \text{e}^{-ar^2}`
 * ``se_ap2r2``: :math:`k_\text{se_ap2r2}(a, r) = a^2 r^2 \text{e}^{-ar^2}`
@@ -90,9 +90,9 @@ There are two options for :math:`k` in the above formula:
 
 To construct rotationally invariant descriptors, the vector integrals :math:`\mathbf{g}_*[n](\mathbf{r})`
 must be dotted with the density gradient or with another vector integral. For example,
-one could have :math:`G=\mathbf{g}_\text{se\_grad} \cdot \mathbf{g}_\text{se\_grad}`
+one could have :math:`G=\mathbf{g}_\text{se_grad} \cdot \mathbf{g}_\text{se_grad}`
 
-As with Version J, there is experimental support for multiplying math:`n(\mathbf{r}')` by another
+As with Version J, there is experimental support for multiplying :math:`n(\mathbf{r}')` by another
 function :math:`b(\mathbf{r}')` before integrating.
 
 Unforunately, while all the above Version I variants are supported in the code (in any combination),
