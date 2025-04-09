@@ -1,0 +1,631 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Plane-wave Utilities (pwutil) &mdash; CiderPress 0.4.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=6c02275b"></script>
+      <script src="../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="prev" title="C Extension Libraries" href="c_extensions.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html">
+            
+              <img src="../_static/cider_logo_and_name.png" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../installation/installation.html">Overview and Installation Instructions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../theory/theory.html">Theory Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../features/features.html">Density and Orbital Features in CiderPress</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../ciderpress/dft/dft.html">DFT Module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../ciderpress/models/models.html">The Models Module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../ciderpress/pyscf/pyscf.html">PySCF Interface</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../ciderpress/gpaw/gpaw.html">GPAW Interface</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="c_extensions.html">C Extension Libraries</a><ul class="current">
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Plane-wave Utilities (pwutil)</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#c.CIDERPW_PI"><code class="docutils literal notranslate"><span class="pre">CIDERPW_PI</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#c.CIDERPW_R2C"><code class="docutils literal notranslate"><span class="pre">CIDERPW_R2C</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#c.CIDERPW_C2C"><code class="docutils literal notranslate"><span class="pre">CIDERPW_C2C</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#c.ciderpw_data"><code class="docutils literal notranslate"><span class="pre">ciderpw_data</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#c.ciderpw_has_mpi"><code class="docutils literal notranslate"><span class="pre">ciderpw_has_mpi()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#c.ciderpw_allocate_buffers"><code class="docutils literal notranslate"><span class="pre">ciderpw_allocate_buffers()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#c.ciderpw_get_struct_size"><code class="docutils literal notranslate"><span class="pre">ciderpw_get_struct_size()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#c.ciderpw_nullify"><code class="docutils literal notranslate"><span class="pre">ciderpw_nullify()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#c.ciderpw_finalize"><code class="docutils literal notranslate"><span class="pre">ciderpw_finalize()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#c.ciderpw_set_unit_cell"><code class="docutils literal notranslate"><span class="pre">ciderpw_set_unit_cell()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#c.ciderpw_new_anyspin"><code class="docutils literal notranslate"><span class="pre">ciderpw_new_anyspin()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#c.ciderpw_create"><code class="docutils literal notranslate"><span class="pre">ciderpw_create()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#c.ciderpw_setup_kernel"><code class="docutils literal notranslate"><span class="pre">ciderpw_setup_kernel()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#c.ciderpw_get_bound_inds"><code class="docutils literal notranslate"><span class="pre">ciderpw_get_bound_inds()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#c.ciderpw_get_recip_size"><code class="docutils literal notranslate"><span class="pre">ciderpw_get_recip_size()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#c.ciderpw_get_real_size"><code class="docutils literal notranslate"><span class="pre">ciderpw_get_real_size()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#c.ciderpw_get_work_size"><code class="docutils literal notranslate"><span class="pre">ciderpw_get_work_size()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#c.ciderpw_get_work_pointer"><code class="docutils literal notranslate"><span class="pre">ciderpw_get_work_pointer()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#c.ciderpw_get_local_size_and_lda"><code class="docutils literal notranslate"><span class="pre">ciderpw_get_local_size_and_lda()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#c.ciderpw_compute_kernels_helper"><code class="docutils literal notranslate"><span class="pre">ciderpw_compute_kernels_helper()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#c.ciderpw_compute_kernels_sym_helper"><code class="docutils literal notranslate"><span class="pre">ciderpw_compute_kernels_sym_helper()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#c.ciderpw_compute_kernels"><code class="docutils literal notranslate"><span class="pre">ciderpw_compute_kernels()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#c.ciderpw_compute_kernels_sym"><code class="docutils literal notranslate"><span class="pre">ciderpw_compute_kernels_sym()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#c.ciderpw_compute_kernels_t"><code class="docutils literal notranslate"><span class="pre">ciderpw_compute_kernels_t()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#c.ciderpw_multiply_l1"><code class="docutils literal notranslate"><span class="pre">ciderpw_multiply_l1()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#c.ciderpw_convolution_fwd"><code class="docutils literal notranslate"><span class="pre">ciderpw_convolution_fwd()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#c.ciderpw_convolution_bwd"><code class="docutils literal notranslate"><span class="pre">ciderpw_convolution_bwd()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#c.ciderpw_compute_features"><code class="docutils literal notranslate"><span class="pre">ciderpw_compute_features()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#c.ciderpw_compute_potential"><code class="docutils literal notranslate"><span class="pre">ciderpw_compute_potential()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#c.ciderpw_eval_feature_vj"><code class="docutils literal notranslate"><span class="pre">ciderpw_eval_feature_vj()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#c.ciderpw_add_potential_vj"><code class="docutils literal notranslate"><span class="pre">ciderpw_add_potential_vj()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#c.ciderpw_set_work"><code class="docutils literal notranslate"><span class="pre">ciderpw_set_work()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#c.ciderpw_zero_work"><code class="docutils literal notranslate"><span class="pre">ciderpw_zero_work()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#c.ciderpw_fill_atom_info"><code class="docutils literal notranslate"><span class="pre">ciderpw_fill_atom_info()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#c.ciderpw_add_atom_info"><code class="docutils literal notranslate"><span class="pre">ciderpw_add_atom_info()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#c.ciderpw_set_atom_info"><code class="docutils literal notranslate"><span class="pre">ciderpw_set_atom_info()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#c.ciderpw_copy_work_array_recip"><code class="docutils literal notranslate"><span class="pre">ciderpw_copy_work_array_recip()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#c.ciderpw_copy_work_array_real"><code class="docutils literal notranslate"><span class="pre">ciderpw_copy_work_array_real()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#c.ciderpw_copy_work_array"><code class="docutils literal notranslate"><span class="pre">ciderpw_copy_work_array()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#c.ciderpw_unit_cell"><code class="docutils literal notranslate"><span class="pre">ciderpw_unit_cell</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#c.ciderpw_unit_cell.vec"><code class="docutils literal notranslate"><span class="pre">vec</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#c.ciderpw_unit_cell.Nglobal"><code class="docutils literal notranslate"><span class="pre">Nglobal</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#c.ciderpw_unit_cell.Nlocal"><code class="docutils literal notranslate"><span class="pre">Nlocal</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#c.ciderpw_unit_cell.offset"><code class="docutils literal notranslate"><span class="pre">offset</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#c.ciderpw_unit_cell.dV"><code class="docutils literal notranslate"><span class="pre">dV</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#c.ciderpw_kernel"><code class="docutils literal notranslate"><span class="pre">ciderpw_kernel</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#c.ciderpw_kernel.kernel_type"><code class="docutils literal notranslate"><span class="pre">kernel_type</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#c.ciderpw_kernel.nalpha"><code class="docutils literal notranslate"><span class="pre">nalpha</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#c.ciderpw_kernel.nbeta"><code class="docutils literal notranslate"><span class="pre">nbeta</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#c.ciderpw_kernel.work_size"><code class="docutils literal notranslate"><span class="pre">work_size</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#c.ciderpw_kernel.expnts_ba"><code class="docutils literal notranslate"><span class="pre">expnts_ba</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#c.ciderpw_kernel.norms_ba"><code class="docutils literal notranslate"><span class="pre">norms_ba</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#c.ciderpw_kernel.expnts_ab"><code class="docutils literal notranslate"><span class="pre">expnts_ab</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#c.ciderpw_kernel.norms_ab"><code class="docutils literal notranslate"><span class="pre">norms_ab</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#c.ciderpw_kernel.num_l1_feats"><code class="docutils literal notranslate"><span class="pre">num_l1_feats</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#c.ciderpw_data_obj"><code class="docutils literal notranslate"><span class="pre">ciderpw_data_obj</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#c.ciderpw_data_obj.initialized"><code class="docutils literal notranslate"><span class="pre">initialized</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#c.ciderpw_data_obj.nspin"><code class="docutils literal notranslate"><span class="pre">nspin</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#c.ciderpw_data_obj.cell"><code class="docutils literal notranslate"><span class="pre">cell</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#c.ciderpw_data_obj.icell"><code class="docutils literal notranslate"><span class="pre">icell</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#c.ciderpw_data_obj.kernel"><code class="docutils literal notranslate"><span class="pre">kernel</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#c.ciderpw_data_obj.fft_type"><code class="docutils literal notranslate"><span class="pre">fft_type</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#c.ciderpw_data_obj.mpi_rank"><code class="docutils literal notranslate"><span class="pre">mpi_rank</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#c.ciderpw_data_obj.mpi_size"><code class="docutils literal notranslate"><span class="pre">mpi_size</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#c.ciderpw_data_obj.Ng"><code class="docutils literal notranslate"><span class="pre">Ng</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#c.ciderpw_data_obj.Nglobal"><code class="docutils literal notranslate"><span class="pre">Nglobal</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#c.ciderpw_data_obj.kLDA"><code class="docutils literal notranslate"><span class="pre">kLDA</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#c.ciderpw_data_obj.gLDA"><code class="docutils literal notranslate"><span class="pre">gLDA</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#c.ciderpw_data_obj.work_ska"><code class="docutils literal notranslate"><span class="pre">work_ska</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#c.ciderpw_data_obj.plan_g2k"><code class="docutils literal notranslate"><span class="pre">plan_g2k</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#c.ciderpw_data_obj.plan_k2g"><code class="docutils literal notranslate"><span class="pre">plan_k2g</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#c.ciderpw_data_obj.nk"><code class="docutils literal notranslate"><span class="pre">nk</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#c.ciderpw_data_obj.k2_G"><code class="docutils literal notranslate"><span class="pre">k2_G</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#c.ciderpw_data_obj.kx_G"><code class="docutils literal notranslate"><span class="pre">kx_G</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#c.ciderpw_data_obj.ky_G"><code class="docutils literal notranslate"><span class="pre">ky_G</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#c.ciderpw_data_obj.kz_G"><code class="docutils literal notranslate"><span class="pre">kz_G</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#c.ciderpw_data_obj.wt_G"><code class="docutils literal notranslate"><span class="pre">wt_G</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#c.ciderpw_data_obj.work_array_size"><code class="docutils literal notranslate"><span class="pre">work_array_size</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#c.ciderpw_data_obj.errorcode"><code class="docutils literal notranslate"><span class="pre">errorcode</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">CiderPress</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="c_extensions.html">C Extension Libraries</a></li>
+      <li class="breadcrumb-item active">Plane-wave Utilities (pwutil)</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/c_extensions/pwutil.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="plane-wave-utilities-pwutil">
+<h1>Plane-wave Utilities (pwutil)<a class="headerlink" href="#plane-wave-utilities-pwutil" title="Link to this heading"></a></h1>
+<div class="breathe-sectiondef docutils container">
+<p class="breathe-sectiondef-title rubric" id="breathe-section-title-defines">Defines</p>
+<dl class="c macro">
+<dt class="sig sig-object c" id="c.CIDERPW_PI">
+<span class="target" id="nldf__fft__core_8h_1a78fd563b828142d079b38e7dba3438fb"></span><span class="sig-name descname"><span class="n"><span class="pre">CIDERPW_PI</span></span></span><a class="headerlink" href="#c.CIDERPW_PI" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="c macro">
+<dt class="sig sig-object c" id="c.CIDERPW_R2C">
+<span class="target" id="nldf__fft__core_8h_1aa1cb8de60c197982044c7f1afaeaa066"></span><span class="sig-name descname"><span class="n"><span class="pre">CIDERPW_R2C</span></span></span><a class="headerlink" href="#c.CIDERPW_R2C" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="c macro">
+<dt class="sig sig-object c" id="c.CIDERPW_C2C">
+<span class="target" id="nldf__fft__core_8h_1a34f7731a0f9de561669b24c752857c7b"></span><span class="sig-name descname"><span class="n"><span class="pre">CIDERPW_C2C</span></span></span><a class="headerlink" href="#c.CIDERPW_C2C" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+</div>
+<div class="breathe-sectiondef docutils container">
+<p class="breathe-sectiondef-title rubric" id="breathe-section-title-typedefs">Typedefs</p>
+<dl class="c type">
+<dt class="sig sig-object c" id="c.ciderpw_data">
+<span class="target" id="nldf__fft__core_8h_1a584645b8b6b0142880171f9c63260852"></span><span class="k"><span class="pre">typedef</span></span><span class="w"> </span><span class="k"><span class="pre">struct</span></span><span class="w"> </span><a class="reference internal" href="#c.ciderpw_data_obj" title="ciderpw_data_obj"><span class="n"><span class="pre">ciderpw_data_obj</span></span></a><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="sig-name descname"><span class="n"><span class="pre">ciderpw_data</span></span></span><a class="headerlink" href="#c.ciderpw_data" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+</div>
+<div class="breathe-sectiondef docutils container">
+<p class="breathe-sectiondef-title rubric" id="breathe-section-title-functions">Functions</p>
+<dl class="c function">
+<dt class="sig sig-object c" id="c.ciderpw_has_mpi">
+<span class="target" id="nldf__fft__core_8h_1a5fecee758600fcf664b095a0261d14f7"></span><span class="kt"><span class="pre">int</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">ciderpw_has_mpi</span></span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#c.ciderpw_has_mpi" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="c function">
+<dt class="sig sig-object c" id="c.ciderpw_allocate_buffers">
+<span class="target" id="nldf__fft__core_8h_1a0b355419c0cd28e285ea5aa15e5a1e21"></span><span class="kt"><span class="pre">void</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">ciderpw_allocate_buffers</span></span></span><span class="sig-paren">(</span><a class="reference internal" href="#c.ciderpw_data" title="ciderpw_data"><span class="n"><span class="pre">ciderpw_data</span></span></a><span class="w"> </span><span class="n"><span class="pre">data</span></span><span class="sig-paren">)</span><a class="headerlink" href="#c.ciderpw_allocate_buffers" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="c function">
+<dt class="sig sig-object c" id="c.ciderpw_get_struct_size">
+<span class="target" id="nldf__fft__core_8h_1afc76ff86f5e74338f5c8453352b12dd4"></span><span class="kt"><span class="pre">int</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">ciderpw_get_struct_size</span></span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#c.ciderpw_get_struct_size" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="c function">
+<dt class="sig sig-object c" id="c.ciderpw_nullify">
+<span class="target" id="nldf__fft__core_8h_1a2dae4fdeef1c2ef4e2665c9a402ec5dc"></span><span class="kt"><span class="pre">void</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">ciderpw_nullify</span></span></span><span class="sig-paren">(</span><a class="reference internal" href="#c.ciderpw_data" title="ciderpw_data"><span class="n"><span class="pre">ciderpw_data</span></span></a><span class="w"> </span><span class="n"><span class="pre">data</span></span><span class="sig-paren">)</span><a class="headerlink" href="#c.ciderpw_nullify" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="c function">
+<dt class="sig sig-object c" id="c.ciderpw_finalize">
+<span class="target" id="nldf__fft__core_8h_1a59ed58ebffbdf776ab96779698c2bec5"></span><span class="kt"><span class="pre">void</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">ciderpw_finalize</span></span></span><span class="sig-paren">(</span><a class="reference internal" href="#c.ciderpw_data" title="ciderpw_data"><span class="n"><span class="pre">ciderpw_data</span></span></a><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="n"><span class="pre">cider</span></span><span class="sig-paren">)</span><a class="headerlink" href="#c.ciderpw_finalize" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="c function">
+<dt class="sig sig-object c" id="c.ciderpw_set_unit_cell">
+<span class="target" id="nldf__fft__core_8h_1a6ede451b35e96bb1be96bd5b0ffb36f3"></span><span class="kt"><span class="pre">void</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">ciderpw_set_unit_cell</span></span></span><span class="sig-paren">(</span><a class="reference internal" href="#c.ciderpw_data" title="ciderpw_data"><span class="n"><span class="pre">ciderpw_data</span></span></a><span class="w"> </span><span class="n"><span class="pre">data</span></span>, <span class="kt"><span class="pre">int</span></span><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="n"><span class="pre">N_c</span></span>, <span class="kt"><span class="pre">double</span></span><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="n"><span class="pre">cell_cv</span></span><span class="sig-paren">)</span><a class="headerlink" href="#c.ciderpw_set_unit_cell" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="c function">
+<dt class="sig sig-object c" id="c.ciderpw_new_anyspin">
+<span class="target" id="nldf__fft__core_8h_1a99b95c99d3aca3ae73dd85b23209c87d"></span><a class="reference internal" href="#c.ciderpw_data" title="ciderpw_data"><span class="n"><span class="pre">ciderpw_data</span></span></a><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">ciderpw_new_anyspin</span></span></span><span class="sig-paren">(</span><span class="kt"><span class="pre">int</span></span><span class="w"> </span><span class="n"><span class="pre">nspin</span></span><span class="sig-paren">)</span><a class="headerlink" href="#c.ciderpw_new_anyspin" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="c function">
+<dt class="sig sig-object c" id="c.ciderpw_create">
+<span class="target" id="nldf__fft__core_8h_1a9884a59cc95f0d45eb6e33de9eeaea82"></span><span class="kt"><span class="pre">void</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">ciderpw_create</span></span></span><span class="sig-paren">(</span><a class="reference internal" href="#c.ciderpw_data" title="ciderpw_data"><span class="n"><span class="pre">ciderpw_data</span></span></a><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="n"><span class="pre">cider</span></span>, <span class="kt"><span class="pre">double</span></span><span class="w"> </span><span class="n"><span class="pre">scale</span></span>, <span class="kt"><span class="pre">int</span></span><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="n"><span class="pre">N_c</span></span>, <span class="kt"><span class="pre">double</span></span><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="n"><span class="pre">cell_cv</span></span><span class="sig-paren">)</span><a class="headerlink" href="#c.ciderpw_create" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="c function">
+<dt class="sig sig-object c" id="c.ciderpw_setup_kernel">
+<span class="target" id="nldf__fft__core_8h_1ae6bb28d4822b901a91e6e426ab41a3e0"></span><span class="kt"><span class="pre">void</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">ciderpw_setup_kernel</span></span></span><span class="sig-paren">(</span><a class="reference internal" href="#c.ciderpw_data" title="ciderpw_data"><span class="n"><span class="pre">ciderpw_data</span></span></a><span class="w"> </span><span class="n"><span class="pre">data</span></span>, <span class="kt"><span class="pre">int</span></span><span class="w"> </span><span class="n"><span class="pre">nalpha</span></span>, <span class="kt"><span class="pre">int</span></span><span class="w"> </span><span class="n"><span class="pre">nbeta</span></span>, <span class="kt"><span class="pre">double</span></span><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="n"><span class="pre">norms_ab</span></span>, <span class="kt"><span class="pre">double</span></span><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="n"><span class="pre">expnts_ab</span></span><span class="sig-paren">)</span><a class="headerlink" href="#c.ciderpw_setup_kernel" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="c function">
+<dt class="sig sig-object c" id="c.ciderpw_get_bound_inds">
+<span class="target" id="nldf__fft__core_8h_1a56b2dd9c80c8e083272db6fae4f508dd"></span><span class="kt"><span class="pre">void</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">ciderpw_get_bound_inds</span></span></span><span class="sig-paren">(</span><a class="reference internal" href="#c.ciderpw_data" title="ciderpw_data"><span class="n"><span class="pre">ciderpw_data</span></span></a><span class="w"> </span><span class="n"><span class="pre">data</span></span>, <span class="kt"><span class="pre">int</span></span><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="n"><span class="pre">bound_inds</span></span><span class="sig-paren">)</span><a class="headerlink" href="#c.ciderpw_get_bound_inds" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="c function">
+<dt class="sig sig-object c" id="c.ciderpw_get_recip_size">
+<span class="target" id="nldf__fft__core_8h_1a3ca648ab1cc8573026a8ed82724a9207"></span><span class="n"><span class="pre">size_t</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">ciderpw_get_recip_size</span></span></span><span class="sig-paren">(</span><a class="reference internal" href="#c.ciderpw_data" title="ciderpw_data"><span class="n"><span class="pre">ciderpw_data</span></span></a><span class="w"> </span><span class="n"><span class="pre">data</span></span><span class="sig-paren">)</span><a class="headerlink" href="#c.ciderpw_get_recip_size" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="c function">
+<dt class="sig sig-object c" id="c.ciderpw_get_real_size">
+<span class="target" id="nldf__fft__core_8h_1a6191d53e3b915a8e679ab658efe1afa2"></span><span class="n"><span class="pre">size_t</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">ciderpw_get_real_size</span></span></span><span class="sig-paren">(</span><a class="reference internal" href="#c.ciderpw_data" title="ciderpw_data"><span class="n"><span class="pre">ciderpw_data</span></span></a><span class="w"> </span><span class="n"><span class="pre">data</span></span><span class="sig-paren">)</span><a class="headerlink" href="#c.ciderpw_get_real_size" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="c function">
+<dt class="sig sig-object c" id="c.ciderpw_get_work_size">
+<span class="target" id="nldf__fft__core_8h_1aa4e73fd02569e6426f23eacf9f8b29c9"></span><span class="n"><span class="pre">size_t</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">ciderpw_get_work_size</span></span></span><span class="sig-paren">(</span><a class="reference internal" href="#c.ciderpw_data" title="ciderpw_data"><span class="n"><span class="pre">ciderpw_data</span></span></a><span class="w"> </span><span class="n"><span class="pre">data</span></span><span class="sig-paren">)</span><a class="headerlink" href="#c.ciderpw_get_work_size" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="c function">
+<dt class="sig sig-object c" id="c.ciderpw_get_work_pointer">
+<span class="target" id="nldf__fft__core_8h_1ad66f16a8dd3f47de8a76a2a8aa2cbdb2"></span><span class="kt"><span class="pre">double</span></span><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="sig-name descname"><span class="n"><span class="pre">ciderpw_get_work_pointer</span></span></span><span class="sig-paren">(</span><a class="reference internal" href="#c.ciderpw_data" title="ciderpw_data"><span class="n"><span class="pre">ciderpw_data</span></span></a><span class="w"> </span><span class="n"><span class="pre">data</span></span><span class="sig-paren">)</span><a class="headerlink" href="#c.ciderpw_get_work_pointer" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="c function">
+<dt class="sig sig-object c" id="c.ciderpw_get_local_size_and_lda">
+<span class="target" id="nldf__fft__core_8h_1ab9dd73299ed43a9b83299258d6f4f57e"></span><span class="kt"><span class="pre">void</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">ciderpw_get_local_size_and_lda</span></span></span><span class="sig-paren">(</span><a class="reference internal" href="#c.ciderpw_data" title="ciderpw_data"><span class="n"><span class="pre">ciderpw_data</span></span></a><span class="w"> </span><span class="n"><span class="pre">data</span></span>, <span class="kt"><span class="pre">int</span></span><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="n"><span class="pre">sizes</span></span><span class="sig-paren">)</span><a class="headerlink" href="#c.ciderpw_get_local_size_and_lda" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="c function">
+<dt class="sig sig-object c" id="c.ciderpw_compute_kernels_helper">
+<span class="target" id="nldf__fft__core_8h_1ac36541827f35d2868d5692fcb6e11625"></span><span class="kt"><span class="pre">void</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">ciderpw_compute_kernels_helper</span></span></span><span class="sig-paren">(</span><span class="kt"><span class="pre">double</span></span><span class="w"> </span><span class="n"><span class="pre">k2</span></span>, <span class="kt"><span class="pre">double</span></span><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="n"><span class="pre">kernel_ab</span></span>, <span class="kt"><span class="pre">double</span></span><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="n"><span class="pre">norms_ab</span></span>, <span class="kt"><span class="pre">double</span></span><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="n"><span class="pre">expnts_ab</span></span>, <span class="kt"><span class="pre">int</span></span><span class="w"> </span><span class="n"><span class="pre">n_ab</span></span><span class="sig-paren">)</span><a class="headerlink" href="#c.ciderpw_compute_kernels_helper" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="c function">
+<dt class="sig sig-object c" id="c.ciderpw_compute_kernels_sym_helper">
+<span class="target" id="nldf__fft__core_8h_1a76d6e6861042c656ccd07d8e803f7d32"></span><span class="kt"><span class="pre">void</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">ciderpw_compute_kernels_sym_helper</span></span></span><span class="sig-paren">(</span><span class="kt"><span class="pre">double</span></span><span class="w"> </span><span class="n"><span class="pre">k2</span></span>, <span class="kt"><span class="pre">double</span></span><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="n"><span class="pre">kernel_ab</span></span>, <span class="kt"><span class="pre">double</span></span><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="n"><span class="pre">norms_ab</span></span>, <span class="kt"><span class="pre">double</span></span><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="n"><span class="pre">expnts_ab</span></span>, <span class="kt"><span class="pre">int</span></span><span class="w"> </span><span class="n"><span class="pre">nalpha</span></span><span class="sig-paren">)</span><a class="headerlink" href="#c.ciderpw_compute_kernels_sym_helper" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="c function">
+<dt class="sig sig-object c" id="c.ciderpw_compute_kernels">
+<span class="target" id="nldf__fft__core_8h_1a791f26db9da6ecefff9f16503b1adc7f"></span><span class="kt"><span class="pre">void</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">ciderpw_compute_kernels</span></span></span><span class="sig-paren">(</span><span class="k"><span class="pre">struct</span></span><span class="w"> </span><a class="reference internal" href="#c.ciderpw_kernel" title="ciderpw_kernel"><span class="n"><span class="pre">ciderpw_kernel</span></span></a><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="n"><span class="pre">kernel</span></span>, <span class="kt"><span class="pre">double</span></span><span class="w"> </span><span class="n"><span class="pre">k2</span></span>, <span class="kt"><span class="pre">double</span></span><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="n"><span class="pre">kernel_ba</span></span><span class="sig-paren">)</span><a class="headerlink" href="#c.ciderpw_compute_kernels" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="c function">
+<dt class="sig sig-object c" id="c.ciderpw_compute_kernels_sym">
+<span class="target" id="nldf__fft__core_8h_1a65bfebed8913cb3e50b71525736452bf"></span><span class="kt"><span class="pre">void</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">ciderpw_compute_kernels_sym</span></span></span><span class="sig-paren">(</span><span class="k"><span class="pre">struct</span></span><span class="w"> </span><a class="reference internal" href="#c.ciderpw_kernel" title="ciderpw_kernel"><span class="n"><span class="pre">ciderpw_kernel</span></span></a><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="n"><span class="pre">kernel</span></span>, <span class="kt"><span class="pre">double</span></span><span class="w"> </span><span class="n"><span class="pre">k2</span></span>, <span class="kt"><span class="pre">double</span></span><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="n"><span class="pre">kernel_ba</span></span><span class="sig-paren">)</span><a class="headerlink" href="#c.ciderpw_compute_kernels_sym" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="c function">
+<dt class="sig sig-object c" id="c.ciderpw_compute_kernels_t">
+<span class="target" id="nldf__fft__core_8h_1a35429088627e08a0fd4529514801d744"></span><span class="kt"><span class="pre">void</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">ciderpw_compute_kernels_t</span></span></span><span class="sig-paren">(</span><span class="k"><span class="pre">struct</span></span><span class="w"> </span><a class="reference internal" href="#c.ciderpw_kernel" title="ciderpw_kernel"><span class="n"><span class="pre">ciderpw_kernel</span></span></a><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="n"><span class="pre">kernel</span></span>, <span class="kt"><span class="pre">double</span></span><span class="w"> </span><span class="n"><span class="pre">k2</span></span>, <span class="kt"><span class="pre">double</span></span><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="n"><span class="pre">kernel_ab</span></span><span class="sig-paren">)</span><a class="headerlink" href="#c.ciderpw_compute_kernels_t" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="c function">
+<dt class="sig sig-object c" id="c.ciderpw_multiply_l1">
+<span class="target" id="nldf__fft__core_8h_1acb7dd0b744635d9df254c285239f663d"></span><span class="kt"><span class="pre">void</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">ciderpw_multiply_l1</span></span></span><span class="sig-paren">(</span><a class="reference internal" href="#c.ciderpw_data" title="ciderpw_data"><span class="n"><span class="pre">ciderpw_data</span></span></a><span class="w"> </span><span class="n"><span class="pre">data</span></span><span class="sig-paren">)</span><a class="headerlink" href="#c.ciderpw_multiply_l1" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="c function">
+<dt class="sig sig-object c" id="c.ciderpw_convolution_fwd">
+<span class="target" id="nldf__fft__core_8h_1ad78718ee9668551be8afda91320bf4a7"></span><span class="kt"><span class="pre">void</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">ciderpw_convolution_fwd</span></span></span><span class="sig-paren">(</span><a class="reference internal" href="#c.ciderpw_data" title="ciderpw_data"><span class="n"><span class="pre">ciderpw_data</span></span></a><span class="w"> </span><span class="n"><span class="pre">data</span></span><span class="sig-paren">)</span><a class="headerlink" href="#c.ciderpw_convolution_fwd" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="c function">
+<dt class="sig sig-object c" id="c.ciderpw_convolution_bwd">
+<span class="target" id="nldf__fft__core_8h_1a50f4920862093bfe3c9386f5e625d6d7"></span><span class="kt"><span class="pre">void</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">ciderpw_convolution_bwd</span></span></span><span class="sig-paren">(</span><a class="reference internal" href="#c.ciderpw_data" title="ciderpw_data"><span class="n"><span class="pre">ciderpw_data</span></span></a><span class="w"> </span><span class="n"><span class="pre">data</span></span><span class="sig-paren">)</span><a class="headerlink" href="#c.ciderpw_convolution_bwd" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="c function">
+<dt class="sig sig-object c" id="c.ciderpw_compute_features">
+<span class="target" id="nldf__fft__core_8h_1a7ee44935cff939a998397e3f52354288"></span><span class="kt"><span class="pre">void</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">ciderpw_compute_features</span></span></span><span class="sig-paren">(</span><a class="reference internal" href="#c.ciderpw_data" title="ciderpw_data"><span class="n"><span class="pre">ciderpw_data</span></span></a><span class="w"> </span><span class="n"><span class="pre">data</span></span><span class="sig-paren">)</span><a class="headerlink" href="#c.ciderpw_compute_features" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="c function">
+<dt class="sig sig-object c" id="c.ciderpw_compute_potential">
+<span class="target" id="nldf__fft__core_8h_1a19f41ecd3b5f826f790b405fc13f7b74"></span><span class="kt"><span class="pre">void</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">ciderpw_compute_potential</span></span></span><span class="sig-paren">(</span><a class="reference internal" href="#c.ciderpw_data" title="ciderpw_data"><span class="n"><span class="pre">ciderpw_data</span></span></a><span class="w"> </span><span class="n"><span class="pre">data</span></span><span class="sig-paren">)</span><a class="headerlink" href="#c.ciderpw_compute_potential" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="c function">
+<dt class="sig sig-object c" id="c.ciderpw_eval_feature_vj">
+<span class="target" id="nldf__fft__core_8h_1ae5b2f8bba1c14e2871f3bdbda3707b68"></span><span class="kt"><span class="pre">void</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">ciderpw_eval_feature_vj</span></span></span><span class="sig-paren">(</span><a class="reference internal" href="#c.ciderpw_data" title="ciderpw_data"><span class="n"><span class="pre">ciderpw_data</span></span></a><span class="w"> </span><span class="n"><span class="pre">data</span></span>, <span class="kt"><span class="pre">double</span></span><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="n"><span class="pre">feat_g</span></span>, <span class="kt"><span class="pre">double</span></span><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="n"><span class="pre">p_gq</span></span><span class="sig-paren">)</span><a class="headerlink" href="#c.ciderpw_eval_feature_vj" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="c function">
+<dt class="sig sig-object c" id="c.ciderpw_add_potential_vj">
+<span class="target" id="nldf__fft__core_8h_1a6de7265d46918017851e3daf2a28c312"></span><span class="kt"><span class="pre">void</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">ciderpw_add_potential_vj</span></span></span><span class="sig-paren">(</span><a class="reference internal" href="#c.ciderpw_data" title="ciderpw_data"><span class="n"><span class="pre">ciderpw_data</span></span></a><span class="w"> </span><span class="n"><span class="pre">data</span></span>, <span class="kt"><span class="pre">double</span></span><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="n"><span class="pre">vfeat_g</span></span>, <span class="kt"><span class="pre">double</span></span><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="n"><span class="pre">p_gq</span></span><span class="sig-paren">)</span><a class="headerlink" href="#c.ciderpw_add_potential_vj" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="c function">
+<dt class="sig sig-object c" id="c.ciderpw_set_work">
+<span class="target" id="nldf__fft__core_8h_1a819555810818b245ada683165250d2b2"></span><span class="kt"><span class="pre">void</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">ciderpw_set_work</span></span></span><span class="sig-paren">(</span><a class="reference internal" href="#c.ciderpw_data" title="ciderpw_data"><span class="n"><span class="pre">ciderpw_data</span></span></a><span class="w"> </span><span class="n"><span class="pre">data</span></span>, <span class="kt"><span class="pre">double</span></span><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="n"><span class="pre">fun_g</span></span>, <span class="kt"><span class="pre">double</span></span><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="n"><span class="pre">p_gq</span></span><span class="sig-paren">)</span><a class="headerlink" href="#c.ciderpw_set_work" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="c function">
+<dt class="sig sig-object c" id="c.ciderpw_zero_work">
+<span class="target" id="nldf__fft__core_8h_1a2d4f2131419142148fc34bf974374537"></span><span class="kt"><span class="pre">void</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">ciderpw_zero_work</span></span></span><span class="sig-paren">(</span><a class="reference internal" href="#c.ciderpw_data" title="ciderpw_data"><span class="n"><span class="pre">ciderpw_data</span></span></a><span class="w"> </span><span class="n"><span class="pre">data</span></span><span class="sig-paren">)</span><a class="headerlink" href="#c.ciderpw_zero_work" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="c function">
+<dt class="sig sig-object c" id="c.ciderpw_fill_atom_info">
+<span class="target" id="nldf__fft__core_8h_1aab13e4d3e23d94a95a7000eaabd6d2f4"></span><span class="kt"><span class="pre">void</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">ciderpw_fill_atom_info</span></span></span><span class="sig-paren">(</span><a class="reference internal" href="#c.ciderpw_data" title="ciderpw_data"><span class="n"><span class="pre">ciderpw_data</span></span></a><span class="w"> </span><span class="n"><span class="pre">data</span></span>, <span class="n"><span class="pre">int64_t</span></span><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="n"><span class="pre">inds_c</span></span>, <span class="kt"><span class="pre">double</span></span><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="n"><span class="pre">disps_c</span></span>, <span class="n"><span class="pre">int64_t</span></span><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="n"><span class="pre">num_c</span></span>, <span class="kt"><span class="pre">double</span></span><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="n"><span class="pre">r_vg</span></span>, <span class="n"><span class="pre">int64_t</span></span><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="n"><span class="pre">locs_g</span></span><span class="sig-paren">)</span><a class="headerlink" href="#c.ciderpw_fill_atom_info" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="c function">
+<dt class="sig sig-object c" id="c.ciderpw_add_atom_info">
+<span class="target" id="nldf__fft__core_8h_1a86be788a777dfd28d6805c5480499502"></span><span class="kt"><span class="pre">void</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">ciderpw_add_atom_info</span></span></span><span class="sig-paren">(</span><a class="reference internal" href="#c.ciderpw_data" title="ciderpw_data"><span class="n"><span class="pre">ciderpw_data</span></span></a><span class="w"> </span><span class="n"><span class="pre">data</span></span>, <span class="kt"><span class="pre">double</span></span><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="n"><span class="pre">funcs_ga</span></span>, <span class="n"><span class="pre">int64_t</span></span><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="n"><span class="pre">locs_g</span></span>, <span class="kt"><span class="pre">int</span></span><span class="w"> </span><span class="n"><span class="pre">ng</span></span><span class="sig-paren">)</span><a class="headerlink" href="#c.ciderpw_add_atom_info" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="c function">
+<dt class="sig sig-object c" id="c.ciderpw_set_atom_info">
+<span class="target" id="nldf__fft__core_8h_1ae81821e3d5e954cd12171f2d50c0ffff"></span><span class="kt"><span class="pre">void</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">ciderpw_set_atom_info</span></span></span><span class="sig-paren">(</span><a class="reference internal" href="#c.ciderpw_data" title="ciderpw_data"><span class="n"><span class="pre">ciderpw_data</span></span></a><span class="w"> </span><span class="n"><span class="pre">data</span></span>, <span class="kt"><span class="pre">double</span></span><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="n"><span class="pre">funcs_ga</span></span>, <span class="n"><span class="pre">int64_t</span></span><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="n"><span class="pre">locs_g</span></span>, <span class="kt"><span class="pre">int</span></span><span class="w"> </span><span class="n"><span class="pre">ng</span></span><span class="sig-paren">)</span><a class="headerlink" href="#c.ciderpw_set_atom_info" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="c function">
+<dt class="sig sig-object c" id="c.ciderpw_copy_work_array_recip">
+<span class="target" id="nldf__fft__core_8h_1a3e89f42990b6112adda853165b61d73c"></span><span class="kt"><span class="pre">void</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">ciderpw_copy_work_array_recip</span></span></span><span class="sig-paren">(</span><a class="reference internal" href="#c.ciderpw_data" title="ciderpw_data"><span class="n"><span class="pre">ciderpw_data</span></span></a><span class="w"> </span><span class="n"><span class="pre">data</span></span>, <span class="kt"><span class="pre">double</span></span><span class="w"> </span><span class="kt"><span class="pre">complex</span></span><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="n"><span class="pre">out</span></span><span class="sig-paren">)</span><a class="headerlink" href="#c.ciderpw_copy_work_array_recip" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="c function">
+<dt class="sig sig-object c" id="c.ciderpw_copy_work_array_real">
+<span class="target" id="nldf__fft__core_8h_1aeaa4dbc8dcbfdc97764a94ebf653eed5"></span><span class="kt"><span class="pre">void</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">ciderpw_copy_work_array_real</span></span></span><span class="sig-paren">(</span><a class="reference internal" href="#c.ciderpw_data" title="ciderpw_data"><span class="n"><span class="pre">ciderpw_data</span></span></a><span class="w"> </span><span class="n"><span class="pre">data</span></span>, <span class="kt"><span class="pre">double</span></span><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="n"><span class="pre">out</span></span><span class="sig-paren">)</span><a class="headerlink" href="#c.ciderpw_copy_work_array_real" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="c function">
+<dt class="sig sig-object c" id="c.ciderpw_copy_work_array">
+<span class="target" id="nldf__fft__core_8h_1a49176db861d854d43eb0f8204cf9c0bc"></span><span class="kt"><span class="pre">void</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">ciderpw_copy_work_array</span></span></span><span class="sig-paren">(</span><a class="reference internal" href="#c.ciderpw_data" title="ciderpw_data"><span class="n"><span class="pre">ciderpw_data</span></span></a><span class="w"> </span><span class="n"><span class="pre">data</span></span>, <span class="kt"><span class="pre">double</span></span><span class="w"> </span><span class="kt"><span class="pre">complex</span></span><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="n"><span class="pre">out</span></span><span class="sig-paren">)</span><a class="headerlink" href="#c.ciderpw_copy_work_array" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+</div>
+<dl class="c struct">
+<dt class="sig sig-object c" id="c.ciderpw_unit_cell">
+<span class="target" id="structciderpw__unit__cell"></span><span class="k"><span class="pre">struct</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">ciderpw_unit_cell</span></span></span><a class="headerlink" href="#c.ciderpw_unit_cell" title="Link to this definition"></a><br /></dt>
+<dd><div class="breathe-sectiondef docutils container">
+<p class="breathe-sectiondef-title rubric" id="breathe-section-title-public-members">Public Members</p>
+<dl class="c var">
+<dt class="sig sig-object c" id="c.ciderpw_unit_cell.vec">
+<span class="target" id="structciderpw__unit__cell_1a8bc99fcb19c75ef3e2cccf0bea5c63ac"></span><span class="kt"><span class="pre">double</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">vec</span></span></span><span class="p"><span class="pre">[</span></span><span class="m"><span class="pre">9</span></span><span class="p"><span class="pre">]</span></span><a class="headerlink" href="#c.ciderpw_unit_cell.vec" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="c var">
+<dt class="sig sig-object c" id="c.ciderpw_unit_cell.Nglobal">
+<span class="target" id="structciderpw__unit__cell_1a19cc00f3d67ef8fb002fcb8ab12ef7e7"></span><span class="kt"><span class="pre">int</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">Nglobal</span></span></span><span class="p"><span class="pre">[</span></span><span class="m"><span class="pre">3</span></span><span class="p"><span class="pre">]</span></span><a class="headerlink" href="#c.ciderpw_unit_cell.Nglobal" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="c var">
+<dt class="sig sig-object c" id="c.ciderpw_unit_cell.Nlocal">
+<span class="target" id="structciderpw__unit__cell_1a4ffd6e414e2830e59e1ad35b70e28d71"></span><span class="kt"><span class="pre">int</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">Nlocal</span></span></span><span class="p"><span class="pre">[</span></span><span class="m"><span class="pre">3</span></span><span class="p"><span class="pre">]</span></span><a class="headerlink" href="#c.ciderpw_unit_cell.Nlocal" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="c var">
+<dt class="sig sig-object c" id="c.ciderpw_unit_cell.offset">
+<span class="target" id="structciderpw__unit__cell_1a76ab61f4ddfc6f5182d57c1a55fe5f00"></span><span class="kt"><span class="pre">int</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">offset</span></span></span><span class="p"><span class="pre">[</span></span><span class="m"><span class="pre">3</span></span><span class="p"><span class="pre">]</span></span><a class="headerlink" href="#c.ciderpw_unit_cell.offset" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="c var">
+<dt class="sig sig-object c" id="c.ciderpw_unit_cell.dV">
+<span class="target" id="structciderpw__unit__cell_1afa90b85e2f10df974178701458700c4b"></span><span class="kt"><span class="pre">double</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">dV</span></span></span><a class="headerlink" href="#c.ciderpw_unit_cell.dV" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+</div>
+</dd></dl>
+
+<dl class="c struct">
+<dt class="sig sig-object c" id="c.ciderpw_kernel">
+<span class="target" id="structciderpw__kernel"></span><span class="k"><span class="pre">struct</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">ciderpw_kernel</span></span></span><a class="headerlink" href="#c.ciderpw_kernel" title="Link to this definition"></a><br /></dt>
+<dd><div class="breathe-sectiondef docutils container">
+<p class="breathe-sectiondef-title rubric" id="breathe-section-title-public-members">Public Members</p>
+<dl class="c var">
+<dt class="sig sig-object c" id="c.ciderpw_kernel.kernel_type">
+<span class="target" id="structciderpw__kernel_1a7ca9ff1b30700d1973295dd7d0162f05"></span><span class="kt"><span class="pre">int</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">kernel_type</span></span></span><a class="headerlink" href="#c.ciderpw_kernel.kernel_type" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="c var">
+<dt class="sig sig-object c" id="c.ciderpw_kernel.nalpha">
+<span class="target" id="structciderpw__kernel_1a66e9535b3d2728c934d0c04f6f06e058"></span><span class="kt"><span class="pre">int</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">nalpha</span></span></span><a class="headerlink" href="#c.ciderpw_kernel.nalpha" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="c var">
+<dt class="sig sig-object c" id="c.ciderpw_kernel.nbeta">
+<span class="target" id="structciderpw__kernel_1a51fc56367847a979b02363f2c1206231"></span><span class="kt"><span class="pre">int</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">nbeta</span></span></span><a class="headerlink" href="#c.ciderpw_kernel.nbeta" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="c var">
+<dt class="sig sig-object c" id="c.ciderpw_kernel.work_size">
+<span class="target" id="structciderpw__kernel_1a8e3f02845fdae7b68ee95855849359cc"></span><span class="kt"><span class="pre">int</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">work_size</span></span></span><a class="headerlink" href="#c.ciderpw_kernel.work_size" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="c var">
+<dt class="sig sig-object c" id="c.ciderpw_kernel.expnts_ba">
+<span class="target" id="structciderpw__kernel_1a45e3b3433572816695dc6e935d49cbe0"></span><span class="kt"><span class="pre">double</span></span><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="sig-name descname"><span class="n"><span class="pre">expnts_ba</span></span></span><a class="headerlink" href="#c.ciderpw_kernel.expnts_ba" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="c var">
+<dt class="sig sig-object c" id="c.ciderpw_kernel.norms_ba">
+<span class="target" id="structciderpw__kernel_1a621926df055e70cab4a5165d6024e4ed"></span><span class="kt"><span class="pre">double</span></span><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="sig-name descname"><span class="n"><span class="pre">norms_ba</span></span></span><a class="headerlink" href="#c.ciderpw_kernel.norms_ba" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="c var">
+<dt class="sig sig-object c" id="c.ciderpw_kernel.expnts_ab">
+<span class="target" id="structciderpw__kernel_1aa45bee31bd1559e79d9f405637486e1b"></span><span class="kt"><span class="pre">double</span></span><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="sig-name descname"><span class="n"><span class="pre">expnts_ab</span></span></span><a class="headerlink" href="#c.ciderpw_kernel.expnts_ab" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="c var">
+<dt class="sig sig-object c" id="c.ciderpw_kernel.norms_ab">
+<span class="target" id="structciderpw__kernel_1a6a42759c19807dfefc08947d8045d08e"></span><span class="kt"><span class="pre">double</span></span><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="sig-name descname"><span class="n"><span class="pre">norms_ab</span></span></span><a class="headerlink" href="#c.ciderpw_kernel.norms_ab" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="c var">
+<dt class="sig sig-object c" id="c.ciderpw_kernel.num_l1_feats">
+<span class="target" id="structciderpw__kernel_1a8367910ca18b68a036e6a01f57900df9"></span><span class="kt"><span class="pre">int</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">num_l1_feats</span></span></span><a class="headerlink" href="#c.ciderpw_kernel.num_l1_feats" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+</div>
+</dd></dl>
+
+<dl class="c struct">
+<dt class="sig sig-object c" id="c.ciderpw_data_obj">
+<span class="target" id="structciderpw__data__obj"></span><span class="k"><span class="pre">struct</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">ciderpw_data_obj</span></span></span><a class="headerlink" href="#c.ciderpw_data_obj" title="Link to this definition"></a><br /></dt>
+<dd><div class="breathe-sectiondef docutils container">
+<p class="breathe-sectiondef-title rubric" id="breathe-section-title-public-members">Public Members</p>
+<dl class="c var">
+<dt class="sig sig-object c" id="c.ciderpw_data_obj.initialized">
+<span class="target" id="structciderpw__data__obj_1af5df8e56aa6c67e9e877c3bd32c6a0d9"></span><span class="kt"><span class="pre">int</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">initialized</span></span></span><a class="headerlink" href="#c.ciderpw_data_obj.initialized" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="c var">
+<dt class="sig sig-object c" id="c.ciderpw_data_obj.nspin">
+<span class="target" id="structciderpw__data__obj_1a4d69dc58d924ab2d5e3d36cb7071d9f7"></span><span class="kt"><span class="pre">int</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">nspin</span></span></span><a class="headerlink" href="#c.ciderpw_data_obj.nspin" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="c var">
+<dt class="sig sig-object c" id="c.ciderpw_data_obj.cell">
+<span class="target" id="structciderpw__data__obj_1a1e00d8212d07c2a2547dddee5d8fb8ba"></span><span class="k"><span class="pre">struct</span></span><span class="w"> </span><a class="reference internal" href="#c.ciderpw_unit_cell" title="ciderpw_unit_cell"><span class="n"><span class="pre">ciderpw_unit_cell</span></span></a><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">cell</span></span></span><a class="headerlink" href="#c.ciderpw_data_obj.cell" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="c var">
+<dt class="sig sig-object c" id="c.ciderpw_data_obj.icell">
+<span class="target" id="structciderpw__data__obj_1a97c50ea0b341e191861927528111163d"></span><span class="k"><span class="pre">struct</span></span><span class="w"> </span><a class="reference internal" href="#c.ciderpw_unit_cell" title="ciderpw_unit_cell"><span class="n"><span class="pre">ciderpw_unit_cell</span></span></a><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">icell</span></span></span><a class="headerlink" href="#c.ciderpw_data_obj.icell" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="c var">
+<dt class="sig sig-object c" id="c.ciderpw_data_obj.kernel">
+<span class="target" id="structciderpw__data__obj_1a99f61cc83f6d3dffa6576fa86d094aaa"></span><span class="k"><span class="pre">struct</span></span><span class="w"> </span><a class="reference internal" href="#c.ciderpw_kernel" title="ciderpw_kernel"><span class="n"><span class="pre">ciderpw_kernel</span></span></a><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">kernel</span></span></span><a class="headerlink" href="#c.ciderpw_data_obj.kernel" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="c var">
+<dt class="sig sig-object c" id="c.ciderpw_data_obj.fft_type">
+<span class="target" id="structciderpw__data__obj_1a07352f04e9aab2ef005b44d978d1048a"></span><span class="kt"><span class="pre">int</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">fft_type</span></span></span><a class="headerlink" href="#c.ciderpw_data_obj.fft_type" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="c var">
+<dt class="sig sig-object c" id="c.ciderpw_data_obj.mpi_rank">
+<span class="target" id="structciderpw__data__obj_1a28b82e729598c86f9488053815635c7b"></span><span class="kt"><span class="pre">int</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">mpi_rank</span></span></span><a class="headerlink" href="#c.ciderpw_data_obj.mpi_rank" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="c var">
+<dt class="sig sig-object c" id="c.ciderpw_data_obj.mpi_size">
+<span class="target" id="structciderpw__data__obj_1a53b4244d61a9e6c46cba9a204c2c47af"></span><span class="kt"><span class="pre">int</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">mpi_size</span></span></span><a class="headerlink" href="#c.ciderpw_data_obj.mpi_size" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="c var">
+<dt class="sig sig-object c" id="c.ciderpw_data_obj.Ng">
+<span class="target" id="structciderpw__data__obj_1aa28a06b7ab68d59c8671a68295bcd1e4"></span><span class="kt"><span class="pre">int</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">Ng</span></span></span><a class="headerlink" href="#c.ciderpw_data_obj.Ng" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="c var">
+<dt class="sig sig-object c" id="c.ciderpw_data_obj.Nglobal">
+<span class="target" id="structciderpw__data__obj_1a310eae183694b7193b35bafe7483b0f0"></span><span class="kt"><span class="pre">int</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">Nglobal</span></span></span><a class="headerlink" href="#c.ciderpw_data_obj.Nglobal" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="c var">
+<dt class="sig sig-object c" id="c.ciderpw_data_obj.kLDA">
+<span class="target" id="structciderpw__data__obj_1a76959b773f96da5f59d69a3ab4ac2462"></span><span class="kt"><span class="pre">int</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">kLDA</span></span></span><a class="headerlink" href="#c.ciderpw_data_obj.kLDA" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="c var">
+<dt class="sig sig-object c" id="c.ciderpw_data_obj.gLDA">
+<span class="target" id="structciderpw__data__obj_1ad28b3bc2e79160835df29ae1e4b22354"></span><span class="kt"><span class="pre">int</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">gLDA</span></span></span><a class="headerlink" href="#c.ciderpw_data_obj.gLDA" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="c var">
+<dt class="sig sig-object c" id="c.ciderpw_data_obj.work_ska">
+<span class="target" id="structciderpw__data__obj_1ae7238873a0c40370288110fa27ebc7d2"></span><span class="kt"><span class="pre">double</span></span><span class="w"> </span><span class="kt"><span class="pre">complex</span></span><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="sig-name descname"><span class="n"><span class="pre">work_ska</span></span></span><a class="headerlink" href="#c.ciderpw_data_obj.work_ska" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="c var">
+<dt class="sig sig-object c" id="c.ciderpw_data_obj.plan_g2k">
+<span class="target" id="structciderpw__data__obj_1a448d62636897b6946c445bb15838cb3d"></span><span class="n"><span class="pre">fft_plan_t</span></span><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="sig-name descname"><span class="n"><span class="pre">plan_g2k</span></span></span><a class="headerlink" href="#c.ciderpw_data_obj.plan_g2k" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="c var">
+<dt class="sig sig-object c" id="c.ciderpw_data_obj.plan_k2g">
+<span class="target" id="structciderpw__data__obj_1a1c87bf9c6e0d620597d14d53c4aa78ae"></span><span class="n"><span class="pre">fft_plan_t</span></span><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="sig-name descname"><span class="n"><span class="pre">plan_k2g</span></span></span><a class="headerlink" href="#c.ciderpw_data_obj.plan_k2g" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="c var">
+<dt class="sig sig-object c" id="c.ciderpw_data_obj.nk">
+<span class="target" id="structciderpw__data__obj_1af1d17149e05aae8442dc09883bc933bf"></span><span class="kt"><span class="pre">int</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">nk</span></span></span><a class="headerlink" href="#c.ciderpw_data_obj.nk" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="c var">
+<dt class="sig sig-object c" id="c.ciderpw_data_obj.k2_G">
+<span class="target" id="structciderpw__data__obj_1a5230062cc1943406cfc9175990ebf0c5"></span><span class="kt"><span class="pre">double</span></span><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="sig-name descname"><span class="n"><span class="pre">k2_G</span></span></span><a class="headerlink" href="#c.ciderpw_data_obj.k2_G" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="c var">
+<dt class="sig sig-object c" id="c.ciderpw_data_obj.kx_G">
+<span class="target" id="structciderpw__data__obj_1ab2052fc23295f52682217b7d872e14d6"></span><span class="kt"><span class="pre">double</span></span><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="sig-name descname"><span class="n"><span class="pre">kx_G</span></span></span><a class="headerlink" href="#c.ciderpw_data_obj.kx_G" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="c var">
+<dt class="sig sig-object c" id="c.ciderpw_data_obj.ky_G">
+<span class="target" id="structciderpw__data__obj_1af3f255ed909206fe0ec35aa97ba624ed"></span><span class="kt"><span class="pre">double</span></span><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="sig-name descname"><span class="n"><span class="pre">ky_G</span></span></span><a class="headerlink" href="#c.ciderpw_data_obj.ky_G" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="c var">
+<dt class="sig sig-object c" id="c.ciderpw_data_obj.kz_G">
+<span class="target" id="structciderpw__data__obj_1af48da391ef8a5dc5197b6806192864fe"></span><span class="kt"><span class="pre">double</span></span><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="sig-name descname"><span class="n"><span class="pre">kz_G</span></span></span><a class="headerlink" href="#c.ciderpw_data_obj.kz_G" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="c var">
+<dt class="sig sig-object c" id="c.ciderpw_data_obj.wt_G">
+<span class="target" id="structciderpw__data__obj_1adb39c5cd6870e7014d4ca9b92f1a1145"></span><span class="n"><span class="pre">uint8_t</span></span><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="sig-name descname"><span class="n"><span class="pre">wt_G</span></span></span><a class="headerlink" href="#c.ciderpw_data_obj.wt_G" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="c var">
+<dt class="sig sig-object c" id="c.ciderpw_data_obj.work_array_size">
+<span class="target" id="structciderpw__data__obj_1aa6fa4bb7c3030ede423bce9d7bb81aa8"></span><span class="n"><span class="pre">size_t</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">work_array_size</span></span></span><a class="headerlink" href="#c.ciderpw_data_obj.work_array_size" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="c var">
+<dt class="sig sig-object c" id="c.ciderpw_data_obj.errorcode">
+<span class="target" id="structciderpw__data__obj_1ab491d20f707124fc8215af46d333e536"></span><span class="kt"><span class="pre">int</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">errorcode</span></span></span><a class="headerlink" href="#c.ciderpw_data_obj.errorcode" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+</div>
+</dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="c_extensions.html" class="btn btn-neutral float-left" title="C Extension Libraries" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Kyle Bystrom.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>  
+
+  <style>
+    /* Sidebar header (and topbar for mobile) */
+    .wy-side-nav-search, .wy-nav-top {
+      background: #002040;
+    }
+    /* Sidebar */
+    .wy-nav-side {
+      background: #002040;
+    }
+  </style>
+
+
+</body>
+</html>

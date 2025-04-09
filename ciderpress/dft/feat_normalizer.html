@@ -1,0 +1,366 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>The Feature Normalizer Module &mdash; CiderPress 0.4.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=6c02275b"></script>
+      <script src="../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="The Transform Data Module" href="transform_data.html" />
+    <link rel="prev" title="The Plans Module" href="plans.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html">
+            
+              <img src="../../_static/cider_logo_and_name.png" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../../installation/installation.html">Overview and Installation Instructions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../theory/theory.html">Theory Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../features/features.html">Density and Orbital Features in CiderPress</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="dft.html">DFT Module</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="settings.html">The Settings Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="plans.html">The Plans Module</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">The Feature Normalizer Module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#ciderpress.dft.feat_normalizer.ConstantNormalizer"><code class="docutils literal notranslate"><span class="pre">ConstantNormalizer</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#ciderpress.dft.feat_normalizer.ConstantNormalizer.fill_bwd"><code class="docutils literal notranslate"><span class="pre">ConstantNormalizer.fill_bwd()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#ciderpress.dft.feat_normalizer.ConstantNormalizer.fill_fwd"><code class="docutils literal notranslate"><span class="pre">ConstantNormalizer.fill_fwd()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#ciderpress.dft.feat_normalizer.DensityNormalizer"><code class="docutils literal notranslate"><span class="pre">DensityNormalizer</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#ciderpress.dft.feat_normalizer.DensityNormalizer.fill_bwd"><code class="docutils literal notranslate"><span class="pre">DensityNormalizer.fill_bwd()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#ciderpress.dft.feat_normalizer.DensityNormalizer.fill_fwd"><code class="docutils literal notranslate"><span class="pre">DensityNormalizer.fill_fwd()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#ciderpress.dft.feat_normalizer.FeatNormalizer"><code class="docutils literal notranslate"><span class="pre">FeatNormalizer</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#ciderpress.dft.feat_normalizer.FeatNormalizer.fill_bwd"><code class="docutils literal notranslate"><span class="pre">FeatNormalizer.fill_bwd()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#ciderpress.dft.feat_normalizer.FeatNormalizer.fill_fwd"><code class="docutils literal notranslate"><span class="pre">FeatNormalizer.fill_fwd()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#ciderpress.dft.feat_normalizer.GeneralNormalizer"><code class="docutils literal notranslate"><span class="pre">GeneralNormalizer</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#ciderpress.dft.feat_normalizer.GeneralNormalizer.fill_bwd"><code class="docutils literal notranslate"><span class="pre">GeneralNormalizer.fill_bwd()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#ciderpress.dft.feat_normalizer.GeneralNormalizer.fill_fwd"><code class="docutils literal notranslate"><span class="pre">GeneralNormalizer.fill_fwd()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#ciderpress.dft.feat_normalizer.InhomogeneityNormalizer"><code class="docutils literal notranslate"><span class="pre">InhomogeneityNormalizer</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#ciderpress.dft.feat_normalizer.InhomogeneityNormalizer.fill_bwd"><code class="docutils literal notranslate"><span class="pre">InhomogeneityNormalizer.fill_bwd()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#ciderpress.dft.feat_normalizer.InhomogeneityNormalizer.fill_fwd"><code class="docutils literal notranslate"><span class="pre">InhomogeneityNormalizer.fill_fwd()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="transform_data.html">The Transform Data Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="xc_evaluator.html">The XC Evaluator Modules</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../models/models.html">The Models Module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../pyscf/pyscf.html">PySCF Interface</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../gpaw/gpaw.html">GPAW Interface</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../c_extensions/c_extensions.html">C Extension Libraries</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">CiderPress</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="dft.html">DFT Module</a></li>
+      <li class="breadcrumb-item active">The Feature Normalizer Module</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../../_sources/ciderpress/dft/feat_normalizer.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="module-ciderpress.dft.feat_normalizer">
+<span id="the-feature-normalizer-module"></span><span id="feat-normalizer-module"></span><h1>The Feature Normalizer Module<a class="headerlink" href="#module-ciderpress.dft.feat_normalizer" title="Link to this heading"></a></h1>
+<p>This class provides tools for normalizing features to have more
+desirable behavior under uniform scaling.</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="ciderpress.dft.feat_normalizer.ConstantNormalizer">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">ciderpress.dft.feat_normalizer.</span></span><span class="sig-name descname"><span class="pre">ConstantNormalizer</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">const</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.feat_normalizer.ConstantNormalizer" title="Link to this definition"></a></dt>
+<dd><dl class="py method">
+<dt class="sig sig-object py" id="ciderpress.dft.feat_normalizer.ConstantNormalizer.fill_bwd">
+<span class="sig-name descname"><span class="pre">fill_bwd</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dfdxn</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rho</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">inh</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dfdx</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dfdrho</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dfdinh</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.feat_normalizer.ConstantNormalizer.fill_bwd" title="Link to this definition"></a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>dfdxn</strong></p></li>
+<li><p><strong>x</strong></p></li>
+<li><p><strong>rho</strong></p></li>
+<li><p><strong>inh</strong></p></li>
+<li><p><strong>dfdx</strong> – Can be empty</p></li>
+<li><p><strong>dfdrho</strong> – Must be initialized because it is added to</p></li>
+<li><p><strong>dfdinh</strong> – Must be initialized because it is added to</p></li>
+</ul>
+</dd>
+</dl>
+<p>Returns:</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ciderpress.dft.feat_normalizer.ConstantNormalizer.fill_fwd">
+<span class="sig-name descname"><span class="pre">fill_fwd</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rho</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">inh</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">xn</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.feat_normalizer.ConstantNormalizer.fill_fwd" title="Link to this definition"></a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>x</strong></p></li>
+<li><p><strong>rho</strong></p></li>
+<li><p><strong>inh</strong></p></li>
+<li><p><strong>xn</strong> – Can be empty</p></li>
+</ul>
+</dd>
+</dl>
+<p>Returns:</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="ciderpress.dft.feat_normalizer.DensityNormalizer">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">ciderpress.dft.feat_normalizer.</span></span><span class="sig-name descname"><span class="pre">DensityNormalizer</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">const</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">power</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.feat_normalizer.DensityNormalizer" title="Link to this definition"></a></dt>
+<dd><dl class="py method">
+<dt class="sig sig-object py" id="ciderpress.dft.feat_normalizer.DensityNormalizer.fill_bwd">
+<span class="sig-name descname"><span class="pre">fill_bwd</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dfdxn</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rho</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">inh</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dfdx</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dfdrho</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dfdinh</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.feat_normalizer.DensityNormalizer.fill_bwd" title="Link to this definition"></a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>dfdxn</strong></p></li>
+<li><p><strong>x</strong></p></li>
+<li><p><strong>rho</strong></p></li>
+<li><p><strong>inh</strong></p></li>
+<li><p><strong>dfdx</strong> – Can be empty</p></li>
+<li><p><strong>dfdrho</strong> – Must be initialized because it is added to</p></li>
+<li><p><strong>dfdinh</strong> – Must be initialized because it is added to</p></li>
+</ul>
+</dd>
+</dl>
+<p>Returns:</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ciderpress.dft.feat_normalizer.DensityNormalizer.fill_fwd">
+<span class="sig-name descname"><span class="pre">fill_fwd</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rho</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">inh</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">xn</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.feat_normalizer.DensityNormalizer.fill_fwd" title="Link to this definition"></a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>x</strong></p></li>
+<li><p><strong>rho</strong></p></li>
+<li><p><strong>inh</strong></p></li>
+<li><p><strong>xn</strong> – Can be empty</p></li>
+</ul>
+</dd>
+</dl>
+<p>Returns:</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="ciderpress.dft.feat_normalizer.FeatNormalizer">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">ciderpress.dft.feat_normalizer.</span></span><span class="sig-name descname"><span class="pre">FeatNormalizer</span></span><a class="headerlink" href="#ciderpress.dft.feat_normalizer.FeatNormalizer" title="Link to this definition"></a></dt>
+<dd><dl class="py method">
+<dt class="sig sig-object py" id="ciderpress.dft.feat_normalizer.FeatNormalizer.fill_bwd">
+<em class="property"><span class="k"><span class="pre">abstractmethod</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">fill_bwd</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dfdxn</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rho</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">inh</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dfdx</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dfdrho</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dfdinh</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.feat_normalizer.FeatNormalizer.fill_bwd" title="Link to this definition"></a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>dfdxn</strong></p></li>
+<li><p><strong>x</strong></p></li>
+<li><p><strong>rho</strong></p></li>
+<li><p><strong>inh</strong></p></li>
+<li><p><strong>dfdx</strong> – Can be empty</p></li>
+<li><p><strong>dfdrho</strong> – Must be initialized because it is added to</p></li>
+<li><p><strong>dfdinh</strong> – Must be initialized because it is added to</p></li>
+</ul>
+</dd>
+</dl>
+<p>Returns:</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ciderpress.dft.feat_normalizer.FeatNormalizer.fill_fwd">
+<em class="property"><span class="k"><span class="pre">abstractmethod</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">fill_fwd</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rho</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">inh</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">xn</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.feat_normalizer.FeatNormalizer.fill_fwd" title="Link to this definition"></a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>x</strong></p></li>
+<li><p><strong>rho</strong></p></li>
+<li><p><strong>inh</strong></p></li>
+<li><p><strong>xn</strong> – Can be empty</p></li>
+</ul>
+</dd>
+</dl>
+<p>Returns:</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="ciderpress.dft.feat_normalizer.GeneralNormalizer">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">ciderpress.dft.feat_normalizer.</span></span><span class="sig-name descname"><span class="pre">GeneralNormalizer</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">const1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">const2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">power1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">power2</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.feat_normalizer.GeneralNormalizer" title="Link to this definition"></a></dt>
+<dd><dl class="py method">
+<dt class="sig sig-object py" id="ciderpress.dft.feat_normalizer.GeneralNormalizer.fill_bwd">
+<span class="sig-name descname"><span class="pre">fill_bwd</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dfdxn</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rho</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">inh</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dfdx</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dfdrho</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dfdinh</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.feat_normalizer.GeneralNormalizer.fill_bwd" title="Link to this definition"></a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>dfdxn</strong></p></li>
+<li><p><strong>x</strong></p></li>
+<li><p><strong>rho</strong></p></li>
+<li><p><strong>inh</strong></p></li>
+<li><p><strong>dfdx</strong> – Can be empty</p></li>
+<li><p><strong>dfdrho</strong> – Must be initialized because it is added to</p></li>
+<li><p><strong>dfdinh</strong> – Must be initialized because it is added to</p></li>
+</ul>
+</dd>
+</dl>
+<p>Returns:</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ciderpress.dft.feat_normalizer.GeneralNormalizer.fill_fwd">
+<span class="sig-name descname"><span class="pre">fill_fwd</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rho</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">inh</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">xn</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.feat_normalizer.GeneralNormalizer.fill_fwd" title="Link to this definition"></a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>x</strong></p></li>
+<li><p><strong>rho</strong></p></li>
+<li><p><strong>inh</strong></p></li>
+<li><p><strong>xn</strong> – Can be empty</p></li>
+</ul>
+</dd>
+</dl>
+<p>Returns:</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="ciderpress.dft.feat_normalizer.InhomogeneityNormalizer">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">ciderpress.dft.feat_normalizer.</span></span><span class="sig-name descname"><span class="pre">InhomogeneityNormalizer</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">const1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">const2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">power</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.feat_normalizer.InhomogeneityNormalizer" title="Link to this definition"></a></dt>
+<dd><dl class="py method">
+<dt class="sig sig-object py" id="ciderpress.dft.feat_normalizer.InhomogeneityNormalizer.fill_bwd">
+<span class="sig-name descname"><span class="pre">fill_bwd</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dfdxn</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rho</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">inh</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dfdx</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dfdrho</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dfdinh</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.feat_normalizer.InhomogeneityNormalizer.fill_bwd" title="Link to this definition"></a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>dfdxn</strong></p></li>
+<li><p><strong>x</strong></p></li>
+<li><p><strong>rho</strong></p></li>
+<li><p><strong>inh</strong></p></li>
+<li><p><strong>dfdx</strong> – Can be empty</p></li>
+<li><p><strong>dfdrho</strong> – Must be initialized because it is added to</p></li>
+<li><p><strong>dfdinh</strong> – Must be initialized because it is added to</p></li>
+</ul>
+</dd>
+</dl>
+<p>Returns:</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ciderpress.dft.feat_normalizer.InhomogeneityNormalizer.fill_fwd">
+<span class="sig-name descname"><span class="pre">fill_fwd</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rho</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">inh</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">xn</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.feat_normalizer.InhomogeneityNormalizer.fill_fwd" title="Link to this definition"></a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>x</strong></p></li>
+<li><p><strong>rho</strong></p></li>
+<li><p><strong>inh</strong></p></li>
+<li><p><strong>xn</strong> – Can be empty</p></li>
+</ul>
+</dd>
+</dl>
+<p>Returns:</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="plans.html" class="btn btn-neutral float-left" title="The Plans Module" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="transform_data.html" class="btn btn-neutral float-right" title="The Transform Data Module" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Kyle Bystrom.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>  
+
+  <style>
+    /* Sidebar header (and topbar for mobile) */
+    .wy-side-nav-search, .wy-nav-top {
+      background: #002040;
+    }
+    /* Sidebar */
+    .wy-nav-side {
+      background: #002040;
+    }
+  </style>
+
+
+</body>
+</html>

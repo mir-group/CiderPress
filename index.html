@@ -1,0 +1,191 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CiderPress: Machine Learning Exchange-Correlation Functionals &mdash; CiderPress 0.4.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=6c02275b"></script>
+      <script src="_static/doctools.js?v=9bcbadda"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Overview and Installation Instructions" href="installation/installation.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="#">
+            
+              <img src="_static/cider_logo_and_name.png" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="installation/installation.html">Overview and Installation Instructions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="theory/theory.html">Theory Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="features/features.html">Density and Orbital Features in CiderPress</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ciderpress/dft/dft.html">DFT Module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ciderpress/models/models.html">The Models Module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ciderpress/pyscf/pyscf.html">PySCF Interface</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ciderpress/gpaw/gpaw.html">GPAW Interface</a></li>
+<li class="toctree-l1"><a class="reference internal" href="c_extensions/c_extensions.html">C Extension Libraries</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="#">CiderPress</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="#" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">CiderPress: Machine Learning Exchange-Correlation Functionals</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/index.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="ciderpress-machine-learning-exchange-correlation-functionals">
+<h1>CiderPress: Machine Learning Exchange-Correlation Functionals<a class="headerlink" href="#ciderpress-machine-learning-exchange-correlation-functionals" title="Link to this heading"></a></h1>
+<p>Welcome to the CiderPress documentation! CiderPress is a Python package built
+for running machine-learned exchange-correlation functionals within the CIDER
+framework. This documentation is currently under construction. In the meantime,
+please feel free to post a Github issue or reach out the developers at
+<a class="reference external" href="mailto:kylebystrom&#37;&#52;&#48;gmail&#46;com">kylebystrom<span>&#64;</span>gmail<span>&#46;</span>com</a>.</p>
+<div class="toctree-wrapper compound">
+<p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="installation/installation.html">Overview and Installation Instructions</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="installation/installation.html#what-is-the-cider-formalism">What is the CIDER formalism?</a></li>
+<li class="toctree-l2"><a class="reference internal" href="installation/installation.html#warning-the-ciderpress-code-base-is-experimental"><strong>WARNING</strong>: The CiderPress Code Base is Experimental</a></li>
+<li class="toctree-l2"><a class="reference internal" href="installation/installation.html#installation">Installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="installation/installation.html#how-can-i-run-a-cider-calculation">How can I run a CIDER calculation?</a></li>
+<li class="toctree-l2"><a class="reference internal" href="installation/installation.html#how-can-i-train-a-cider-functional">How can I train a CIDER functional?</a></li>
+<li class="toctree-l2"><a class="reference internal" href="installation/installation.html#known-issues">Known Issues</a></li>
+<li class="toctree-l2"><a class="reference internal" href="installation/installation.html#questions-and-comments">Questions and Comments</a></li>
+<li class="toctree-l2"><a class="reference internal" href="installation/installation.html#citing">Citing</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="theory/theory.html">Theory Overview</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="theory/uniform_scaling.html">Uniform Scaling</a></li>
+<li class="toctree-l2"><a class="reference internal" href="theory/gp.html">Machine Learning Framework for CIDER Functionals</a></li>
+<li class="toctree-l2"><a class="reference internal" href="theory/nldf_numerical.html">Numerical Evaluation of NLDF Features</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="features/features.html">Density and Orbital Features in CiderPress</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="features/sl.html">Semilocal Features (SL)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="features/nldf.html">Nonlocal Density Features (NLDF)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="features/nlof.html">Nonlocal Orbital Features (NLOF)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="features/sdmx.html">Smooth Density Matrix Exchange (SDMX)</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="ciderpress/dft/dft.html">DFT Module</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="ciderpress/dft/settings.html">The Settings Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ciderpress/dft/plans.html">The Plans Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ciderpress/dft/feat_normalizer.html">The Feature Normalizer Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ciderpress/dft/transform_data.html">The Transform Data Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ciderpress/dft/xc_evaluator.html">The XC Evaluator Modules</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="ciderpress/models/models.html">The Models Module</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="ciderpress/models/train.html">ciderpress.models.train</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ciderpress/models/dft_kernel.html">ciderpress.models.dft_kernel</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ciderpress/models/kernels.html">ciderpress.models.kernels</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ciderpress/models/kernel_tools.html">Kernel Tools</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="ciderpress/pyscf/pyscf.html">PySCF Interface</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="ciderpress/pyscf/dft.html">dft</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ciderpress/pyscf/pbc/dft.html">pbc.dft</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ciderpress/pyscf/analyzers.html">analyzers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ciderpress/pyscf/descriptors.html">descriptors</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="ciderpress/gpaw/gpaw.html">GPAW Interface</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="ciderpress/gpaw/calculator.html">GPAW Calculator Interface</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="c_extensions/c_extensions.html">C Extension Libraries</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="c_extensions/pwutil.html">Plane-wave Utilities (pwutil)</a></li>
+</ul>
+</li>
+</ul>
+</div>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="installation/installation.html" class="btn btn-neutral float-right" title="Overview and Installation Instructions" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Kyle Bystrom.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>  
+
+  <style>
+    /* Sidebar header (and topbar for mobile) */
+    .wy-side-nav-search, .wy-nav-top {
+      background: #002040;
+    }
+    /* Sidebar */
+    .wy-nav-side {
+      background: #002040;
+    }
+  </style>
+
+
+</body>
+</html>

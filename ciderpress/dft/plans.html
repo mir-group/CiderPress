@@ -1,0 +1,481 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>The Plans Module &mdash; CiderPress 0.4.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=6c02275b"></script>
+      <script src="../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="The Feature Normalizer Module" href="feat_normalizer.html" />
+    <link rel="prev" title="The Settings Module" href="settings.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html">
+            
+              <img src="../../_static/cider_logo_and_name.png" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../../installation/installation.html">Overview and Installation Instructions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../theory/theory.html">Theory Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../features/features.html">Density and Orbital Features in CiderPress</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="dft.html">DFT Module</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="settings.html">The Settings Module</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">The Plans Module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#ciderpress.dft.plans.FracLaplPlan"><code class="docutils literal notranslate"><span class="pre">FracLaplPlan</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ciderpress.dft.plans.HybridPlan"><code class="docutils literal notranslate"><span class="pre">HybridPlan</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ciderpress.dft.plans.NLDFAuxiliaryPlan"><code class="docutils literal notranslate"><span class="pre">NLDFAuxiliaryPlan</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#ciderpress.dft.plans.NLDFAuxiliaryPlan.eval_feat_exp"><code class="docutils literal notranslate"><span class="pre">NLDFAuxiliaryPlan.eval_feat_exp()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#ciderpress.dft.plans.NLDFAuxiliaryPlan.eval_rho_full"><code class="docutils literal notranslate"><span class="pre">NLDFAuxiliaryPlan.eval_rho_full()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#ciderpress.dft.plans.NLDFAuxiliaryPlan.eval_vxc_full"><code class="docutils literal notranslate"><span class="pre">NLDFAuxiliaryPlan.eval_vxc_full()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#ciderpress.dft.plans.NLDFAuxiliaryPlan.get_function_to_convolve"><code class="docutils literal notranslate"><span class="pre">NLDFAuxiliaryPlan.get_function_to_convolve()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#ciderpress.dft.plans.NLDFAuxiliaryPlan.get_q2a"><code class="docutils literal notranslate"><span class="pre">NLDFAuxiliaryPlan.get_q2a()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#ciderpress.dft.plans.NLDFAuxiliaryPlan.num_vj"><code class="docutils literal notranslate"><span class="pre">NLDFAuxiliaryPlan.num_vj</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#ciderpress.dft.plans.NLDFGaussianPlan"><code class="docutils literal notranslate"><span class="pre">NLDFGaussianPlan</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ciderpress.dft.plans.NLDFSplinePlan"><code class="docutils literal notranslate"><span class="pre">NLDFSplinePlan</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#ciderpress.dft.plans.NLDFSplinePlan.get_a2q_fast"><code class="docutils literal notranslate"><span class="pre">NLDFSplinePlan.get_a2q_fast()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#ciderpress.dft.plans.SADMPlan"><code class="docutils literal notranslate"><span class="pre">SADMPlan</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#ciderpress.dft.plans.SADMPlan.get_features"><code class="docutils literal notranslate"><span class="pre">SADMPlan.get_features()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="feat_normalizer.html">The Feature Normalizer Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="transform_data.html">The Transform Data Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="xc_evaluator.html">The XC Evaluator Modules</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../models/models.html">The Models Module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../pyscf/pyscf.html">PySCF Interface</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../gpaw/gpaw.html">GPAW Interface</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../c_extensions/c_extensions.html">C Extension Libraries</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">CiderPress</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="dft.html">DFT Module</a></li>
+      <li class="breadcrumb-item active">The Plans Module</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../../_sources/ciderpress/dft/plans.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="module-ciderpress.dft.plans">
+<span id="the-plans-module"></span><span id="plans-module"></span><h1>The Plans Module<a class="headerlink" href="#module-ciderpress.dft.plans" title="Link to this heading"></a></h1>
+<dl class="py class">
+<dt class="sig sig-object py" id="ciderpress.dft.plans.FracLaplPlan">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">ciderpress.dft.plans.</span></span><span class="sig-name descname"><span class="pre">FracLaplPlan</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">settings</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nspin</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nrho_sl</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">drho_start</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.plans.FracLaplPlan" title="Link to this definition"></a></dt>
+<dd><p>Plan for the Fractional Laplacian features. These features do not
+require additional settings for how to compute them, so this
+class basically just stores the settings class and nspin. Currently,
+evaluation of the orbital operations must be implemented
+in each DFT code separately.</p>
+<p>Initialize FracLaplPlan instance</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>settings</strong> (<em>FracLaplSettings</em>) – settings for the fractional
+laplacian descriptors</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="ciderpress.dft.plans.HybridPlan">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">ciderpress.dft.plans.</span></span><span class="sig-name descname"><span class="pre">HybridPlan</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">settings</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nspin</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.plans.HybridPlan" title="Link to this definition"></a></dt>
+<dd><p>Plan for hybrid DFT. Not yet implemented</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>settings</strong> (<em>HybridSettings</em>)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="ciderpress.dft.plans.NLDFAuxiliaryPlan">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">ciderpress.dft.plans.</span></span><span class="sig-name descname"><span class="pre">NLDFAuxiliaryPlan</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">nldf_settings</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nspin</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">lambd</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nalpha</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">coef_order</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'gq'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha_formula</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'etb'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">proc_inds</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rhocut</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1e-10</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">expcut</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1e-10</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">raise_large_expnt_error</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">use_smooth_expnt_cutoff</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.plans.NLDFAuxiliaryPlan" title="Link to this definition"></a></dt>
+<dd><p>Plan for expanding the NLDFs using an auxiliary basis or spline.
+Stores the list of interpolation exponents and how they were constructed,
+as well as instructions for evaluating the auxiliary coefficients.
+Also has a method to call the relevant C function to get the coefficients.</p>
+<p>Initialize NLDFAuxiliaryPlan</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>nldf_settings</strong> (<em>NLDFSettings</em>) – code-universal NLDF settings</p></li>
+<li><p><strong>nspin</strong> (<em>int</em>) – 1 (non-spin-polarized) or 2 (spin-polarized)</p></li>
+<li><p><strong>alpha0</strong> (<em>float</em>) – Small-exponent setting for constructing
+list of alphas.</p></li>
+<li><p><strong>lambd</strong> (<em>float</em>) – Inverse density of interpolation.
+Must be &gt; 1. 1=infinitesimal spacing of Gaussian exponents</p></li>
+<li><p><strong>nalpha</strong> (<em>int</em>) – Number of interpolating exponents</p></li>
+<li><p><strong>coef_order</strong> (<em>str</em>) – Whether interpolation/expansion coefficients
+have grid as the slow (first) index (‘gq’) or exponent (‘qg’)</p></li>
+<li><p><strong>alpha_formula</strong> (<em>str</em>) – How to generate the interpolating exponents.
+Must be ‘etb’ (alphas[j] = alpha0 * lambd**j))
+or ‘zexp’ (alphas[j] = alpha0 * (lambd**j - 1) / (lambd - 1))</p></li>
+<li><p><strong>proc_inds</strong> (<em>list or np.ndarray</em>) – If parallelized, which
+alpha indexes does this process cover. List or array
+of integers.</p></li>
+<li><p><strong>rhocut</strong> (<em>float</em>) – Small-density cutoff for stability</p></li>
+<li><p><strong>expcut</strong> (<em>float</em>) – Small-exponent cutoff for stability</p></li>
+<li><p><strong>raise_large_expnt_error</strong> (<em>bool, True</em>) – If True, raise an error
+if a convolution exponent is larger than the largest interpolation
+value. It is generally best to set this to true to make
+sure a calculation doesn’t accidentally lose significant precision
+to going outside the interpolation range.</p></li>
+<li><p><strong>use_smooth_expnt_cutoff</strong> (<em>bool, False</em>) – If True, use a damping function
+for large exponent to smoothly ensure that as the exponent goes
+to infinity, the damped exponent goes to alpha_max. The
+smoothing function is design to contribute insignificantly
+except for near and beyond alpha_max.</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="ciderpress.dft.plans.NLDFAuxiliaryPlan.eval_feat_exp">
+<span class="sig-name descname"><span class="pre">eval_feat_exp</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rho_tuple</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">i</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">-1</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.plans.NLDFAuxiliaryPlan.eval_feat_exp" title="Link to this definition"></a></dt>
+<dd><p>Evaluate the exponents that determine the length-scale
+of feature i at each grid point. i can take a range
+from -1 (theta exponent) to the number of version j/k
+features minus 1.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>rho</strong> (<em>np.ndarray</em>) – density</p></li>
+<li><p><strong>sigma</strong> (<em>np.ndarray</em>) – squared gradient</p></li>
+<li><p><strong>tau</strong> (<em>np.ndarray</em>) – kinetic energy density</p></li>
+<li><p><strong>i</strong> – feature id. -1 corresponds to theta exponent</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>the cider exponent array (np.ndarray)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ciderpress.dft.plans.NLDFAuxiliaryPlan.eval_rho_full">
+<span class="sig-name descname"><span class="pre">eval_rho_full</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">f</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rho_data</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">spin</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">feat</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dfeat</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cache_p</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">apply_transformation</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">coeff_multipliers</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.plans.NLDFAuxiliaryPlan.eval_rho_full" title="Link to this definition"></a></dt>
+<dd><p>Evaluate the raw features. IMPORTANT: For spin-polarized calculations,
+spin must be passed explicitly and must be different for each
+spin channel, otherwise cached data will get overwritten, leading
+to incorrect gradients later on. If apply_transformation is True, f is overwritten.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>f</strong> (<em>np.ndarray</em>) – Feature interpolation coefficients, of shape
+(ngrids, nalpha) for coef_order==”qg” else (nalpha, ngrids)</p></li>
+<li><p><strong>rho_data</strong> (<em>np.ndarray</em>) – Density vector [n, dn/dx, dn/dy, dn/dz, (tau)]</p></li>
+<li><p><strong>spin</strong> (<em>int, 0</em>) – Spin index of this density, for caching data.</p></li>
+<li><p><strong>feat</strong> (<em>np.ndarray, None</em>) – Shape (nfeat, ngrids) optional buffer
+for features</p></li>
+<li><p><strong>dfeat</strong> (<em>np.ndarray, None</em>) – Shape (nfeat, ngrids) optional buffer
+for feature derivatives</p></li>
+<li><p><strong>cache_p</strong> (<em>bool, True</em>) – Cache nalpha x ngrids-size arrays for
+interpolation coefficients. Slightly faster, but more memory
+intensive.</p></li>
+<li><p><strong>apply_transformation</strong> (<em>bool, False</em>) – For Gaussian interpolation,
+apply the linear transformation from the projection values
+to the interpolation coefficients.</p></li>
+<li><p><strong>coeff_multipliers</strong> (<em>np.ndarray, None</em>) – If not None, multiply the
+interpolation coefficients by this (nalpha,)-shapred array</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Features (nfeat, ngrids)
+and derivative of features (nfeat, ngrids) with respect to
+the feat_params exponent.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>(np.ndarray, np.ndarray)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ciderpress.dft.plans.NLDFAuxiliaryPlan.eval_vxc_full">
+<span class="sig-name descname"><span class="pre">eval_vxc_full</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">vfeat</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vrho_data</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dfeat</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rho_data</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">spin</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">p_i_qg</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vf</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.plans.NLDFAuxiliaryPlan.eval_vxc_full" title="Link to this definition"></a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>vfeat</strong> (<em>np.ndarray</em>) – (nfeat, ngrids) derivative of energy density
+with respect to features</p></li>
+<li><p><strong>vrho_data</strong> (<em>np.ndarray</em>) – (nrho, ngrids) derivative of energy density
+with respect to density vector [n, dn/dx, dn/dy, dn/dz, (tau)]</p></li>
+<li><p><strong>dfeat</strong> (<em>np.ndarray</em>) – (nfeat, ngrids) derivative of features
+with respect to NLDF exponents.</p></li>
+<li><p><strong>rho_data</strong> (<em>np.ndarray</em>) – density vector</p></li>
+<li><p><strong>p_i_qg</strong> (<em>np.ndarray, None</em>) – Interpolation coefficients for features. If None,
+the features must be cached using cache_p=True during
+eval_rho_full</p></li>
+<li><p><strong>vf</strong> (<em>np.ndarray, None</em>) – Optional buffer for vf</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Shape (nalpha + num_vi_ints + vf_buffer_nslot, ngrids)
+or transpose if coef_order == ‘gq’.
+The last vf_buffer_nslot rows (qg) or columns (gq)
+are zeros. The remaining rows are filled with the
+functional derivatives with respect to the nonlocal
+density integrals.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>(np.ndarray)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ciderpress.dft.plans.NLDFAuxiliaryPlan.get_function_to_convolve">
+<span class="sig-name descname"><span class="pre">get_function_to_convolve</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rho_tuple</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.plans.NLDFAuxiliaryPlan.get_function_to_convolve" title="Link to this definition"></a></dt>
+<dd><p>Returns the function that gets convolved to make the nonlocal
+density features. Usually the density rho (settings.rho_mult=’one’),
+but can also be other quantities like the rho times the theta
+exponent (rho_mult=’expnt’).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>rho</strong> (<em>np.ndarray</em>) – Density</p></li>
+<li><p><strong>sigma</strong> (<em>np.ndarray</em>) – Squared gradient of density</p></li>
+<li><p><strong>tau</strong> (<em>np.ndarray</em>) – Kinetic energy density</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>function to convolve, as well as its derivatives
+with respect to rho, sigma, and tau. Combined, this makes for a
+tuple of four arrays.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>tuple(np.ndarray)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ciderpress.dft.plans.NLDFAuxiliaryPlan.get_q2a">
+<span class="sig-name descname"><span class="pre">get_q2a</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">q</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.plans.NLDFAuxiliaryPlan.get_q2a" title="Link to this definition"></a></dt>
+<dd><p>Convert (float) q index to exponent alpha.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="ciderpress.dft.plans.NLDFAuxiliaryPlan.num_vj">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">num_vj</span></span><a class="headerlink" href="#ciderpress.dft.plans.NLDFAuxiliaryPlan.num_vj" title="Link to this definition"></a></dt>
+<dd><p>Number of vj or vk features</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="ciderpress.dft.plans.NLDFGaussianPlan">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">ciderpress.dft.plans.</span></span><span class="sig-name descname"><span class="pre">NLDFGaussianPlan</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">nldf_settings</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nspin</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">lambd</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nalpha</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">coef_order</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'gq'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha_formula</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'etb'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">proc_inds</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rhocut</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1e-10</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">expcut</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1e-10</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">raise_large_expnt_error</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">use_smooth_expnt_cutoff</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.plans.NLDFGaussianPlan" title="Link to this definition"></a></dt>
+<dd><p>Initialize NLDFAuxiliaryPlan</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>nldf_settings</strong> (<em>NLDFSettings</em>) – code-universal NLDF settings</p></li>
+<li><p><strong>nspin</strong> (<em>int</em>) – 1 (non-spin-polarized) or 2 (spin-polarized)</p></li>
+<li><p><strong>alpha0</strong> (<em>float</em>) – Small-exponent setting for constructing
+list of alphas.</p></li>
+<li><p><strong>lambd</strong> (<em>float</em>) – Inverse density of interpolation.
+Must be &gt; 1. 1=infinitesimal spacing of Gaussian exponents</p></li>
+<li><p><strong>nalpha</strong> (<em>int</em>) – Number of interpolating exponents</p></li>
+<li><p><strong>coef_order</strong> (<em>str</em>) – Whether interpolation/expansion coefficients
+have grid as the slow (first) index (‘gq’) or exponent (‘qg’)</p></li>
+<li><p><strong>alpha_formula</strong> (<em>str</em>) – How to generate the interpolating exponents.
+Must be ‘etb’ (alphas[j] = alpha0 * lambd**j))
+or ‘zexp’ (alphas[j] = alpha0 * (lambd**j - 1) / (lambd - 1))</p></li>
+<li><p><strong>proc_inds</strong> (<em>list or np.ndarray</em>) – If parallelized, which
+alpha indexes does this process cover. List or array
+of integers.</p></li>
+<li><p><strong>rhocut</strong> (<em>float</em>) – Small-density cutoff for stability</p></li>
+<li><p><strong>expcut</strong> (<em>float</em>) – Small-exponent cutoff for stability</p></li>
+<li><p><strong>raise_large_expnt_error</strong> (<em>bool, True</em>) – If True, raise an error
+if a convolution exponent is larger than the largest interpolation
+value. It is generally best to set this to true to make
+sure a calculation doesn’t accidentally lose significant precision
+to going outside the interpolation range.</p></li>
+<li><p><strong>use_smooth_expnt_cutoff</strong> (<em>bool, False</em>) – If True, use a damping function
+for large exponent to smoothly ensure that as the exponent goes
+to infinity, the damped exponent goes to alpha_max. The
+smoothing function is design to contribute insignificantly
+except for near and beyond alpha_max.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="ciderpress.dft.plans.NLDFSplinePlan">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">ciderpress.dft.plans.</span></span><span class="sig-name descname"><span class="pre">NLDFSplinePlan</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">nldf_settings</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nspin</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">lambd</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nalpha</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">coef_order</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'gq'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha_formula</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'etb'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">proc_inds</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">spline_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rhocut</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1e-10</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">expcut</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1e-10</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">raise_large_expnt_error</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">use_smooth_expnt_cutoff</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.plans.NLDFSplinePlan" title="Link to this definition"></a></dt>
+<dd><p>Initialize NLDFAuxiliaryPlan</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>nldf_settings</strong> (<em>NLDFSettings</em>) – code-universal NLDF settings</p></li>
+<li><p><strong>nspin</strong> (<em>int</em>) – 1 (non-spin-polarized) or 2 (spin-polarized)</p></li>
+<li><p><strong>alpha0</strong> (<em>float</em>) – Small-exponent setting for constructing
+list of alphas.</p></li>
+<li><p><strong>lambd</strong> (<em>float</em>) – Inverse density of interpolation.
+Must be &gt; 1. 1=infinitesimal spacing of Gaussian exponents</p></li>
+<li><p><strong>nalpha</strong> (<em>int</em>) – Number of interpolating exponents</p></li>
+<li><p><strong>coef_order</strong> (<em>str</em>) – Whether interpolation/expansion coefficients
+have grid as the slow (first) index (‘gq’) or exponent (‘qg’)</p></li>
+<li><p><strong>alpha_formula</strong> (<em>str</em>) – How to generate the interpolating exponents.
+Must be ‘etb’ (alphas[j] = alpha0 * lambd**j))
+or ‘zexp’ (alphas[j] = alpha0 * (lambd**j - 1) / (lambd - 1))</p></li>
+<li><p><strong>proc_inds</strong> (<em>list or np.ndarray</em>) – If parallelized, which
+alpha indexes does this process cover. List or array
+of integers.</p></li>
+<li><p><strong>rhocut</strong> (<em>float</em>) – Small-density cutoff for stability</p></li>
+<li><p><strong>expcut</strong> (<em>float</em>) – Small-exponent cutoff for stability</p></li>
+<li><p><strong>raise_large_expnt_error</strong> (<em>bool, True</em>) – If True, raise an error
+if a convolution exponent is larger than the largest interpolation
+value. It is generally best to set this to true to make
+sure a calculation doesn’t accidentally lose significant precision
+to going outside the interpolation range.</p></li>
+<li><p><strong>use_smooth_expnt_cutoff</strong> (<em>bool, False</em>) – If True, use a damping function
+for large exponent to smoothly ensure that as the exponent goes
+to infinity, the damped exponent goes to alpha_max. The
+smoothing function is design to contribute insignificantly
+except for near and beyond alpha_max.</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="ciderpress.dft.plans.NLDFSplinePlan.get_a2q_fast">
+<span class="sig-name descname"><span class="pre">get_a2q_fast</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">exp_g</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.plans.NLDFSplinePlan.get_a2q_fast" title="Link to this definition"></a></dt>
+<dd><p>A fast (parallel C-backend) version of get_a2q that
+also has a local option to get the q values just
+for the local alphas.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="ciderpress.dft.plans.SADMPlan">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">ciderpress.dft.plans.</span></span><span class="sig-name descname"><span class="pre">SADMPlan</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">settings</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nspin</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">lambd</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nalpha</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fit_metric</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'ovlp'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.plans.SADMPlan" title="Link to this definition"></a></dt>
+<dd><p>Plan for evaluating exchange energy of spherically averaged density
+matrix. Stores the settings (basically an empty class since the feature
+is not tunable, though local range separation might be added later),
+the nspin, and paramters for an even-tempered Gaussian basis for
+expanding the spherically averaged density matrix. Currently,
+evaluation of the integrals must be implemented in each DFT code separately.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>settings</strong> (<em>SADMSettings</em>) – Settings for the descriptor.</p></li>
+<li><p><strong>nspin</strong> (<em>int</em>) – Number of spins, 2 for spin-polarized and 1 for
+non-spin-polarized</p></li>
+<li><p><strong>alpha0</strong> (<em>float</em>) – Minimum exponent. sqrt(1/alpha0) should be at least
+the width of the system, or altneratively the maximum distance
+at which the exchange hole is expected to have significant density.</p></li>
+<li><p><strong>lambd</strong> (<em>float</em>) – ETB lambda parameter</p></li>
+<li><p><strong>nalpha</strong> (<em>int</em>) – Number of ETB basis functions</p></li>
+<li><p><strong>fit_metric</strong> (<em>str</em>) – ‘ovlp’ or ‘coul’, the metric for expanding the
+density matrix in the auxiliary basis.</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="ciderpress.dft.plans.SADMPlan.get_features">
+<span class="sig-name descname"><span class="pre">get_features</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">p_vag</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">out</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">l0tmp</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">l1tmp</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.dft.plans.SADMPlan.get_features" title="Link to this definition"></a></dt>
+<dd><p>Should pass out[idm], l0tmp[idm], etc. to this function</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="settings.html" class="btn btn-neutral float-left" title="The Settings Module" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="feat_normalizer.html" class="btn btn-neutral float-right" title="The Feature Normalizer Module" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Kyle Bystrom.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>  
+
+  <style>
+    /* Sidebar header (and topbar for mobile) */
+    .wy-side-nav-search, .wy-nav-top {
+      background: #002040;
+    }
+    /* Sidebar */
+    .wy-nav-side {
+      background: #002040;
+    }
+  </style>
+
+
+</body>
+</html>

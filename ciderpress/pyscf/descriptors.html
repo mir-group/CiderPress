@@ -1,0 +1,201 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>descriptors &mdash; CiderPress 0.4.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=6c02275b"></script>
+      <script src="../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="GPAW Interface" href="../gpaw/gpaw.html" />
+    <link rel="prev" title="analyzers" href="analyzers.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html">
+            
+              <img src="../../_static/cider_logo_and_name.png" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../../installation/installation.html">Overview and Installation Instructions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../theory/theory.html">Theory Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../features/features.html">Density and Orbital Features in CiderPress</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../dft/dft.html">DFT Module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../models/models.html">The Models Module</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="pyscf.html">PySCF Interface</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="dft.html">dft</a></li>
+<li class="toctree-l2"><a class="reference internal" href="pbc/dft.html">pbc.dft</a></li>
+<li class="toctree-l2"><a class="reference internal" href="analyzers.html">analyzers</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">descriptors</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#ciderpress.pyscf.descriptors.get_descriptors"><code class="docutils literal notranslate"><span class="pre">get_descriptors()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../gpaw/gpaw.html">GPAW Interface</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../c_extensions/c_extensions.html">C Extension Libraries</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">CiderPress</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="pyscf.html">PySCF Interface</a></li>
+      <li class="breadcrumb-item active">descriptors</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../../_sources/ciderpress/pyscf/descriptors.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="descriptors">
+<h1>descriptors<a class="headerlink" href="#descriptors" title="Link to this heading"></a></h1>
+<p>The <a class="reference internal" href="#module-ciderpress.pyscf.descriptors" title="ciderpress.pyscf.descriptors"><code class="xref py py-mod docutils literal notranslate"><span class="pre">ciderpress.pyscf.descriptors</span></code></a> module provides the
+function <code class="xref py py-func docutils literal notranslate"><span class="pre">get_descriptors()</span></code>, which computes a
+set of requested CIDER features from a completed PySCF calculation.
+This is the utility used to generate the features
+for training CIDER models</p>
+<p id="module-ciderpress.pyscf.descriptors">This module is for fast evaluation of features and their derivatives with
+respect to orbital occupations and rotations. Only for b and d features</p>
+<dl class="py function">
+<dt class="sig sig-object py" id="ciderpress.pyscf.descriptors.get_descriptors">
+<span class="sig-prename descclassname"><span class="pre">ciderpress.pyscf.descriptors.</span></span><span class="sig-name descname"><span class="pre">get_descriptors</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">analyzer</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">settings</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">orbs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ciderpress.pyscf.descriptors.get_descriptors" title="Link to this definition"></a></dt>
+<dd><p>Get the descriptors for version b or d (l=0 only). Analyzer must
+contain mo_occ, mo_energy, and mo_coeff attributes.
+Can get feature derivatives with respect to orbital occupation using orbs.
+Spin polarization is determined automatically from the analyzer class type.</p>
+<p>orbs format: orbs is a dictionary of lists or (for a spin-polarized system) a
+2-tuple of dictionary of lists. Each key is either ‘B’, ‘O’, or ‘U’,
+with the value being a list of orbital indexes with respect to which to
+compute occupation derivatives of the features. ‘B’ indexes up from the
+bottom, i.e. the lowest-energy core states. ‘O’ indexes down from the
+highest occupied molecular orbital. ‘U’ indexes up from the lowest
+unoccupied molecular orbital. 0-indexing is used in all cases.
+For the spin-polarized case, if orbs is a single dictionary rather than
+a 2-tuple, orbital indexing is performed over the combined set of
+orbitals.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>analyzer</strong> (<em>RHFAnalyzer or UHFAnalyzer</em>) – analyzer object containing the
+desired molecule and density matrix/orbitals for which to compute
+features and their derivatives.</p></li>
+<li><p><strong>version</strong> – ‘b’, ‘d’, or ‘l’, feature version to evaluate. ‘l’ stands
+for local and computes [rho, drho_x, drho_y, drho_z, tau]</p></li>
+<li><p><strong>orbs</strong> – Orbital index dictionary for computing orbital derivatives.</p></li>
+<li><p><strong>**kwargs</strong> – Any settings one wants to change from the default for the
+PyscfNLDFGenerator object.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The routine returns a tuple of length 3. The first item in
+the tuple is desc, an np.ndarray of shape (nspin, nfeat, ngrid),
+which contains the descriptors for the system. The second item
+is ddesc, a dict(str : dict(int : np.ndarray(nfeat, ngrds))),
+which contains derivatives of the features with respect to the orbitals given by
+orbs, stored in a nested dictionary first by indexing style
+(B, O, or U) and then by an orbital index. If orbs was a 2-tuple,
+ddesc is a 2-tuple. Index format is the same as orbs, so a
+U-indexed orbital in orbs is U-indexed in ddesc. If calculation
+was spin-polarized but orbs was not spin-separated, each value in
+the ddesc dictionary is a 2-tuple (spin, deriv_array).
+The final element in the array is eigvals, which is
+a (dict(str : dict(int : float)) or (dict, dict),
+containing the eigenvalues of the relevant orbitals.
+These are important as baseline energy derivatives, assuming
+the baseline functional is the same as the reference functional
+for the eigenvalues.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>tuple</p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="analyzers.html" class="btn btn-neutral float-left" title="analyzers" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="../gpaw/gpaw.html" class="btn btn-neutral float-right" title="GPAW Interface" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Kyle Bystrom.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>  
+
+  <style>
+    /* Sidebar header (and topbar for mobile) */
+    .wy-side-nav-search, .wy-nav-top {
+      background: #002040;
+    }
+    /* Sidebar */
+    .wy-nav-side {
+      background: #002040;
+    }
+  </style>
+
+
+</body>
+</html>

@@ -1,0 +1,229 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Smooth Density Matrix Exchange (SDMX) &mdash; CiderPress 0.4.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=6c02275b"></script>
+      <script src="../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="DFT Module" href="../ciderpress/dft/dft.html" />
+    <link rel="prev" title="Nonlocal Orbital Features (NLOF)" href="nlof.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html">
+            
+              <img src="../_static/cider_logo_and_name.png" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../installation/installation.html">Overview and Installation Instructions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../theory/theory.html">Theory Overview</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="features.html">Density and Orbital Features in CiderPress</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="sl.html">Semilocal Features (SL)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="nldf.html">Nonlocal Density Features (NLDF)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="nlof.html">Nonlocal Orbital Features (NLOF)</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Smooth Density Matrix Exchange (SDMX)</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../ciderpress/dft/dft.html">DFT Module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../ciderpress/models/models.html">The Models Module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../ciderpress/pyscf/pyscf.html">PySCF Interface</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../ciderpress/gpaw/gpaw.html">GPAW Interface</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../c_extensions/c_extensions.html">C Extension Libraries</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">CiderPress</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="features.html">Density and Orbital Features in CiderPress</a></li>
+      <li class="breadcrumb-item active">Smooth Density Matrix Exchange (SDMX)</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/features/sdmx.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="smooth-density-matrix-exchange-sdmx">
+<span id="sdmx-feat"></span><h1>Smooth Density Matrix Exchange (SDMX)<a class="headerlink" href="#smooth-density-matrix-exchange-sdmx" title="Link to this heading"></a></h1>
+<p>SDMX features<a class="footnote-reference brackets" href="#footcite-cider24x" id="id1" role="doc-noteref"><span class="fn-bracket">[</span>1<span class="fn-bracket">]</span></a> are nonlocal featurizations of the density matrix.
+The basic idea of SDMX is to “smooth” out the density matrix around a reference point
+<span class="math notranslate nohighlight">\(\mathbf{r}\)</span> and also project it onto low-order spherical harmonics
+(i.e. principle quantum numbers of <span class="math notranslate nohighlight">\(\ell=0\)</span> and <span class="math notranslate nohighlight">\(\ell=1\)</span>).
+As a result, one can obtain very simple (but nonlocal) proxies for the shape of
+the exchange hole <span class="math notranslate nohighlight">\(|n_1(\mathbf{r},\mathbf{r}')|^2\)</span>, which can be used for fitting
+both the exchange and correlation energies. The formulas and details for the different
+SDMX versions are described below. These features take significant inspiration from the
+“Rung 3.5” functionals developed by Janesko <em>et al.</em>.<a class="footnote-reference brackets" href="#footcite-janesko2010" id="id2" role="doc-noteref"><span class="fn-bracket">[</span>2<span class="fn-bracket">]</span></a><a class="footnote-reference brackets" href="#footcite-janesko2013" id="id3" role="doc-noteref"><span class="fn-bracket">[</span>3<span class="fn-bracket">]</span></a><a class="footnote-reference brackets" href="#footcite-janesko2014" id="id4" role="doc-noteref"><span class="fn-bracket">[</span>4<span class="fn-bracket">]</span></a><a class="footnote-reference brackets" href="#footcite-janesko2018" id="id5" role="doc-noteref"><span class="fn-bracket">[</span>5<span class="fn-bracket">]</span></a>
+We also plan to implement Rung 3.5 functionals and add them as an alternative
+to SDMX features, but this development has not been done yet. The key difference between
+SDMX and the original Rung 3.5 approach is that SMDX features are strictly quadratic
+functionals of the density matrix, while Rung 3.5 functionals are not.</p>
+<p>One key consideration in the design of the SDMX features is their behavior under
+<a class="reference internal" href="../theory/uniform_scaling.html#unif-scaling"><span class="std std-ref">uniform scaling</span></a> of the density.
+In keeping with the design objective of enabling the incorporation of exact constraints
+into ML functionals, all SDMX features have power law behavior under uniform scaling, as discussed below.</p>
+<p>The construction of the most basic SDMX feature starts with a smoothed, spherically averaged density matrix</p>
+<div class="math notranslate nohighlight">
+\[\rho^0(R; \mathbf{r}) = \int \text{d}^3 \mathbf{r}'\, h(|\mathbf{r}'-\mathbf{r}|; R) n_1(\mathbf{r}', \mathbf{r})\]</div>
+<p>where <span class="math notranslate nohighlight">\(R\)</span> is a length-scale parameter, and <span class="math notranslate nohighlight">\(h\)</span> is a smooth convolution kernel.
+Then, one can construct the set of features <span class="math notranslate nohighlight">\(H_j^0(\mathbf{r})\)</span> as</p>
+<div class="math notranslate nohighlight">
+\[H_j^0(\mathbf{r}) = 4\pi \int \text{d} R\, R^{2-j} \left|\rho^0(R; \mathbf{r})\right|^2\]</div>
+<p>where <span class="math notranslate nohighlight">\(j\)</span> is real. Currently we use <span class="math notranslate nohighlight">\(j\in\{0,1,2\}\)</span>, but other values of <span class="math notranslate nohighlight">\(j\)</span>
+(including non-integers) are possible. However, <span class="math notranslate nohighlight">\(j&lt;0\)</span> and <span class="math notranslate nohighlight">\(j&gt;2\)</span> might cause
+numerical stability and normalization issues. Currently, <span class="math notranslate nohighlight">\(h(u; R)\)</span> takes the form</p>
+<div class="math notranslate nohighlight">
+\[h(u; R) = \left(\frac{2}{\pi}\right)^{3/2} \frac{4}{4-\sqrt{2}}\frac{e^{-2u^2/R^2}}{R^3} \left(1 - e^{-2u^2/R^2}\right)\]</div>
+<p>Different functions could be chosen, but the important aspect of the smoothing
+functions is that convolving the density matrix with it yields a smoothed
+approximation to the spherically averaged density matrix at distance <span class="math notranslate nohighlight">\(R\)</span>,
+and that the level of smoothing increases as <span class="math notranslate nohighlight">\(R\)</span> increases. These properties
+are necessary 1) to obey uniform scaling rules and 2) to ensure that <span class="math notranslate nohighlight">\(\rho^0(R; \mathbf{r})\)</span>
+can be expanded efficiently using a Gaussian basis. To evaluate <span class="math notranslate nohighlight">\(H_j^0(\mathbf{r})\)</span>,
+the smoothed density matrix <span class="math notranslate nohighlight">\(\rho^0(R; \mathbf{r})\)</span> is evaluated at a discrete set
+of distances <span class="math notranslate nohighlight">\(R_i\)</span> and then interpolated over <span class="math notranslate nohighlight">\(R\)</span> using a Gaussian basis;
+<span class="math notranslate nohighlight">\(H_j^0\)</span> can then be evaluated analytically within the Gaussian basis. Note that under
+<a class="reference internal" href="../theory/uniform_scaling.html#unif-scaling"><span class="std std-ref">uniform scaling</span></a>, this feature scales as <span class="math notranslate nohighlight">\(\lambda^{3+j}\)</span>, i.e.</p>
+<div class="math notranslate nohighlight">
+\[H_j^0[n_\lambda](\mathbf{r})=\lambda^{3+j} H_j^0[n](\lambda\mathbf{r})\]</div>
+<p>The complexity of the SDMX features can be increased by also calculating expectation
+values of the gradients of the smoothed density matrix with respect to the length-scale
+<span class="math notranslate nohighlight">\(R\)</span>, as follows:</p>
+<div class="math notranslate nohighlight">
+\[H_j^{0\text{d}}(\mathbf{r}) = 4\pi \int \text{d} R\, R^{4-j} \left|\frac{\partial}{\partial R} \rho^0(R; \mathbf{r})\right|^2\]</div>
+<p>In practice, these features can be obtained at almost no computational overhead compared
+to the original <span class="math notranslate nohighlight">\(H_j^0\)</span> features because the bottleneck computational operations
+are the same as those needed to compute <span class="math notranslate nohighlight">\(H_j^0\)</span>.
+The uniform scaling behavior of <span class="math notranslate nohighlight">\(H_j^{0\text{d}}\)</span> is also <span class="math notranslate nohighlight">\(\lambda^{3+j}\)</span>.</p>
+<p>The angular complexity of the SDMX features can be increased by computing
+(in addition to <span class="math notranslate nohighlight">\(\rho^0\)</span>) the following higher-order quantity</p>
+<div class="math notranslate nohighlight">
+\[\boldsymbol{\rho}^1(R; \mathbf{r}) = \int \text{d}^3\mathbf{r}' \left[ \nabla h(|\mathbf{r}'-\mathbf{r}|; R) \right]  n_1(\mathbf{r}', \mathbf{r})\]</div>
+<p>which involves the gradient of <span class="math notranslate nohighlight">\(h(|\mathbf{r}'-\mathbf{r}|; R)\)</span> with
+respect to <span class="math notranslate nohighlight">\(\mathbf{r}\)</span>. Then, one can compute new features</p>
+<div class="math notranslate nohighlight">
+\[H_j^\text{1}(\mathbf{r}) = 4\pi \int \text{d}R\, R^{4-j} \left|\boldsymbol{\rho}^1(R; \mathbf{r})\right|^2\]</div>
+<p>These are more costly to compute than <span class="math notranslate nohighlight">\(H_j^0\)</span> or <span class="math notranslate nohighlight">\(H_j^\text{0d}\)</span>,
+but they provide significantly more information to the model because they
+contain <span class="math notranslate nohighlight">\(\ell=1\)</span> angular information. The uniform scaling behavior of
+<span class="math notranslate nohighlight">\(H_j^1\)</span> is also <span class="math notranslate nohighlight">\(\lambda^{3+j}\)</span>.</p>
+<p>Finally, one can combine the radial and Cartesian derivatives to construct one more type of feature</p>
+<div class="math notranslate nohighlight">
+\[H_j^\text{1d}(\mathbf{r}) = 4\pi \int \text{d}R\, R^{6-j} \left|\frac{\partial}{\partial R} \boldsymbol{\rho}^1(R; \mathbf{r})\right|^2\]</div>
+<p>which also scales as <span class="math notranslate nohighlight">\(\lambda^{3+j}\)</span> under uniform scaling and comes at very little
+additional computational cost if <span class="math notranslate nohighlight">\(\boldsymbol{\rho}^1(R; \mathbf{r})\)</span>
+was already computed to evaluate <span class="math notranslate nohighlight">\(H_j^\text{1}(\mathbf{r})\)</span>.</p>
+<div class="docutils container" id="id6">
+<aside class="footnote-list brackets">
+<aside class="footnote brackets" id="footcite-cider24x" role="doc-footnote">
+<span class="label"><span class="fn-bracket">[</span><a role="doc-backlink" href="#id1">1</a><span class="fn-bracket">]</span></span>
+<p>Kyle Bystrom, Stefano Falletta, and Boris Kozinsky. Training machine-learned density functionals on band gaps. <em>Journal of Chemical Theory and Computation</em>, 20(17):7516–7532, 2024. PMID: 39178337. URL: <a class="reference external" href="https://doi.org/10.1021/acs.jctc.4c00999">https://doi.org/10.1021/acs.jctc.4c00999</a>, <a class="reference external" href="https://arxiv.org/abs/https://doi.org/10.1021/acs.jctc.4c00999">arXiv:https://doi.org/10.1021/acs.jctc.4c00999</a>, <a class="reference external" href="https://doi.org/10.1021/acs.jctc.4c00999">doi:10.1021/acs.jctc.4c00999</a>.</p>
+</aside>
+<aside class="footnote brackets" id="footcite-janesko2010" role="doc-footnote">
+<span class="label"><span class="fn-bracket">[</span><a role="doc-backlink" href="#id2">2</a><span class="fn-bracket">]</span></span>
+<p>Benjamin G. Janesko. Rung 3.5 density functionals. <em>J. Chem. Phys.</em>, 133(10):104103, September 2010. <a class="reference external" href="https://doi.org/10.1063/1.3475563">doi:10.1063/1.3475563</a>.</p>
+</aside>
+<aside class="footnote brackets" id="footcite-janesko2013" role="doc-footnote">
+<span class="label"><span class="fn-bracket">[</span><a role="doc-backlink" href="#id3">3</a><span class="fn-bracket">]</span></span>
+<p>Benjamin G. Janesko. Rung 3.5 density functionals: Another step on Jacob’s ladder. <em>Int. J. Quantum Chem.</em>, 113(2):83–88, 2013. <a class="reference external" href="https://arxiv.org/abs/https://onlinelibrary.wiley.com/doi/pdf/10.1002/qua.24256">arXiv:https://onlinelibrary.wiley.com/doi/pdf/10.1002/qua.24256</a>, <a class="reference external" href="https://doi.org/10.1002/qua.24256">doi:10.1002/qua.24256</a>.</p>
+</aside>
+<aside class="footnote brackets" id="footcite-janesko2014" role="doc-footnote">
+<span class="label"><span class="fn-bracket">[</span><a role="doc-backlink" href="#id4">4</a><span class="fn-bracket">]</span></span>
+<p>Benjamin G. Janesko, Giovanni Scalmani, and Michael J. Frisch. Practical auxiliary basis implementation of Rung 3.5 functionals. <em>J. Chem. Phys.</em>, 141(3):034103, 07 2014. URL: <a class="reference external" href="https://doi.org/10.1063/1.4887085">https://doi.org/10.1063/1.4887085</a>, <a class="reference external" href="https://arxiv.org/abs/https://pubs.aip.org/aip/jcp/article-pdf/doi/10.1063/1.4887085/15479930/034103\_1\_online.pdf">arXiv:https://pubs.aip.org/aip/jcp/article-pdf/doi/10.1063/1.4887085/15479930/034103\_1\_online.pdf</a>, <a class="reference external" href="https://doi.org/10.1063/1.4887085">doi:10.1063/1.4887085</a>.</p>
+</aside>
+<aside class="footnote brackets" id="footcite-janesko2018" role="doc-footnote">
+<span class="label"><span class="fn-bracket">[</span><a role="doc-backlink" href="#id5">5</a><span class="fn-bracket">]</span></span>
+<p>Benjamin G. Janesko, Emil Proynov, Giovanni Scalmani, and Michael J. Frisch. Long-range-corrected Rung 3.5 density functional approximations. <em>J. Chem. Phys.</em>, 148(10):104112, 03 2018. URL: <a class="reference external" href="https://doi.org/10.1063/1.5017981">https://doi.org/10.1063/1.5017981</a>, <a class="reference external" href="https://arxiv.org/abs/https://pubs.aip.org/aip/jcp/article-pdf/doi/10.1063/1.5017981/15543588/104112\_1\_online.pdf">arXiv:https://pubs.aip.org/aip/jcp/article-pdf/doi/10.1063/1.5017981/15543588/104112\_1\_online.pdf</a>, <a class="reference external" href="https://doi.org/10.1063/1.5017981">doi:10.1063/1.5017981</a>.</p>
+</aside>
+</aside>
+</div>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="nlof.html" class="btn btn-neutral float-left" title="Nonlocal Orbital Features (NLOF)" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="../ciderpress/dft/dft.html" class="btn btn-neutral float-right" title="DFT Module" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Kyle Bystrom.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>  
+
+  <style>
+    /* Sidebar header (and topbar for mobile) */
+    .wy-side-nav-search, .wy-nav-top {
+      background: #002040;
+    }
+    /* Sidebar */
+    .wy-nav-side {
+      background: #002040;
+    }
+  </style>
+
+
+</body>
+</html>

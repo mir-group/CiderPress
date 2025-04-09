@@ -1,0 +1,169 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Numerical Evaluation of NLDF Features &mdash; CiderPress 0.4.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=6c02275b"></script>
+      <script src="../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Density and Orbital Features in CiderPress" href="../features/features.html" />
+    <link rel="prev" title="Machine Learning Framework for CIDER Functionals" href="gp.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html">
+            
+              <img src="../_static/cider_logo_and_name.png" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../installation/installation.html">Overview and Installation Instructions</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="theory.html">Theory Overview</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="uniform_scaling.html">Uniform Scaling</a></li>
+<li class="toctree-l2"><a class="reference internal" href="gp.html">Machine Learning Framework for CIDER Functionals</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Numerical Evaluation of NLDF Features</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../features/features.html">Density and Orbital Features in CiderPress</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../ciderpress/dft/dft.html">DFT Module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../ciderpress/models/models.html">The Models Module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../ciderpress/pyscf/pyscf.html">PySCF Interface</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../ciderpress/gpaw/gpaw.html">GPAW Interface</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../c_extensions/c_extensions.html">C Extension Libraries</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">CiderPress</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="theory.html">Theory Overview</a></li>
+      <li class="breadcrumb-item active">Numerical Evaluation of NLDF Features</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/theory/nldf_numerical.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="numerical-evaluation-of-nldf-features">
+<span id="nldf-numerical"></span><h1>Numerical Evaluation of NLDF Features<a class="headerlink" href="#numerical-evaluation-of-nldf-features" title="Link to this heading"></a></h1>
+<p>Computing <a class="reference internal" href="../features/nldf.html#nldf-feat"><span class="std std-ref">Nonlocal Density Features</span></a> (NLDFs) using simple
+numerical integration can be unwieldy and computationally costly, so in
+practical calculations, the feature integrals are expanded as a sum
+of convolutions. The expansion is slightly different for each
+feature version.</p>
+<p>For version j, the general form of the feature is</p>
+<div class="math notranslate nohighlight">
+\[G_i[n](\mathbf{r}) = \int \text{d}^3\mathbf{r} k(a_0[n](\mathbf{r}'), a_i(\mathbf{r}), |\mathbf{r}-\mathbf{r}'|) n(\mathbf{r}')\]</div>
+<p>In the context of implementing a nonlocal van der Waals density functional, Román-Pérez and Soler<a class="footnote-reference brackets" href="#footcite-roman-perez2009" id="id1" role="doc-noteref"><span class="fn-bracket">[</span>1<span class="fn-bracket">]</span></a>
+found that the kernel <span class="math notranslate nohighlight">\(k(a_0[n](\mathbf{r}'), a_i(\mathbf{r}), |\mathbf{r}-\mathbf{r}'|)\)</span>
+can be approximated as</p>
+<div class="math notranslate nohighlight">
+\[k(a, b, r) \approx \sum_\alpha \sum_\beta k(\alpha, \beta, r) p_\alpha(a) p_\beta(b)\]</div>
+<p>where <span class="math notranslate nohighlight">\(\alpha\)</span> and <span class="math notranslate nohighlight">\(\beta\)</span> are a set of interpolating points that span the range
+of values taken by <span class="math notranslate nohighlight">\(a_0\)</span> and <span class="math notranslate nohighlight">\(a_i\)</span> over the density distribution,
+and <span class="math notranslate nohighlight">\(p_\alpha(a)\)</span> is a cubic spline that is <span class="math notranslate nohighlight">\(1\)</span> when <span class="math notranslate nohighlight">\(a=\alpha\)</span> and <span class="math notranslate nohighlight">\(0\)</span>
+when <span class="math notranslate nohighlight">\(a=\beta\)</span> (with <span class="math notranslate nohighlight">\(\beta\)</span> being another interpolation point not equal to <span class="math notranslate nohighlight">\(\alpha\)</span>).
+Because the interpolation points are constants independent of the density, the above approximation
+converts the feature integral into a sum over convolutions.</p>
+<p>The <a class="reference internal" href="../ciderpress/dft/plans.html#ciderpress.dft.plans.NLDFSplinePlan" title="ciderpress.dft.plans.NLDFSplinePlan"><code class="xref py py-class docutils literal notranslate"><span class="pre">ciderpress.dft.plans.NLDFSplinePlan</span></code></a> class implements this interpolation
+approach.</p>
+<p>The version j integration kernel <span class="math notranslate nohighlight">\(k(a, b, r)\)</span> is separable in <span class="math notranslate nohighlight">\(a\)</span> and <span class="math notranslate nohighlight">\(b\)</span>:</p>
+<div class="math notranslate nohighlight">
+\[k(a, b, r) = \exp(-(a+b)r^2) = \exp(-a r^2) \exp(-b r^2)\]</div>
+<p>Because of this, the interpolations can also be performed by expanding <span class="math notranslate nohighlight">\(\exp(-a r^2)\)</span>
+as a linear combination of the interpolation functions <span class="math notranslate nohighlight">\(\exp(-\alpha r^2)\)</span>. This
+modified approach is implemented by the <a class="reference internal" href="../ciderpress/dft/plans.html#ciderpress.dft.plans.NLDFGaussianPlan" title="ciderpress.dft.plans.NLDFGaussianPlan"><code class="xref py py-class docutils literal notranslate"><span class="pre">ciderpress.dft.plans.NLDFGaussianPlan</span></code></a> class.</p>
+<p>The details of how this interpolation approximation is used to compute the NLDFs
+is dependent on the periodicity, type of grid, and type of basis set used in a DFT
+calculation. For details on the implementation of this approach for isolated Gaussian-type
+orbital calculations and periodic plane-wave DFT calculations, see Bystrom and Kozinsky<a class="footnote-reference brackets" href="#footcite-cider23x" id="id2" role="doc-noteref"><span class="fn-bracket">[</span>2<span class="fn-bracket">]</span></a>.</p>
+<p>The other features versions (i and k) require slightly modified version of this approach,
+but the basic idea is the same and the implementation quite similar.</p>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="gp.html" class="btn btn-neutral float-left" title="Machine Learning Framework for CIDER Functionals" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="../features/features.html" class="btn btn-neutral float-right" title="Density and Orbital Features in CiderPress" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Kyle Bystrom.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>  
+
+  <style>
+    /* Sidebar header (and topbar for mobile) */
+    .wy-side-nav-search, .wy-nav-top {
+      background: #002040;
+    }
+    /* Sidebar */
+    .wy-nav-side {
+      background: #002040;
+    }
+  </style>
+
+
+</body>
+</html>

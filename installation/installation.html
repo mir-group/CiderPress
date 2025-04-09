@@ -1,0 +1,336 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Overview and Installation Instructions &mdash; CiderPress 0.4.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=6c02275b"></script>
+      <script src="../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Theory Overview" href="../theory/theory.html" />
+    <link rel="prev" title="CiderPress: Machine Learning Exchange-Correlation Functionals" href="../index.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html">
+            
+              <img src="../_static/cider_logo_and_name.png" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Overview and Installation Instructions</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#what-is-the-cider-formalism">What is the CIDER formalism?</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#warning-the-ciderpress-code-base-is-experimental"><strong>WARNING</strong>: The CiderPress Code Base is Experimental</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#installation">Installation</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#installation-from-pypi">Installation from PyPI</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#build-from-source">Build from Source</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#installation-in-a-conda-environment">Installation in a Conda Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#step-by-step-installation-with-conda-micromamba-etc">Step-by-step Installation with Conda, Micromamba, etc.</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#notes-on-external-code-performance-and-compatibility">Notes on External Code Performance and Compatibility</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#how-can-i-run-a-cider-calculation">How can I run a CIDER calculation?</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#how-can-i-train-a-cider-functional">How can I train a CIDER functional?</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#known-issues">Known Issues</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#questions-and-comments">Questions and Comments</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#citing">Citing</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../theory/theory.html">Theory Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../features/features.html">Density and Orbital Features in CiderPress</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../ciderpress/dft/dft.html">DFT Module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../ciderpress/models/models.html">The Models Module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../ciderpress/pyscf/pyscf.html">PySCF Interface</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../ciderpress/gpaw/gpaw.html">GPAW Interface</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../c_extensions/c_extensions.html">C Extension Libraries</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">CiderPress</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Overview and Installation Instructions</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/installation/installation.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="overview-and-installation-instructions">
+<h1>Overview and Installation Instructions<a class="headerlink" href="#overview-and-installation-instructions" title="Link to this heading"></a></h1>
+<p>CiderPress is a Python/C package that provides tools for training and evaluating CIDER Exchange-Correlation (XC) functionals for use in Density Functional Theory calculations. Interfaces to the <a class="reference external" href="https://gpaw.readthedocs.io/">GPAW</a> and <a class="reference external" href="https://pyscf.org/">PySCF</a> codes are included.</p>
+<section id="what-is-the-cider-formalism">
+<h2>What is the CIDER formalism?<a class="headerlink" href="#what-is-the-cider-formalism" title="Link to this heading"></a></h2>
+<p>Machine Learning (ML) has recently gained attention as a means to fit more accurate Exchange-Correlation (XC) functionals for use in Density Functional Theory (DFT). We have developed CIDER, a set of features, models, and training techniques for efficiently learning the exchange and correlation functionals. <strong>CIDER</strong> stands for <strong>C</strong>ompressed scale-<strong>I</strong>nvariant <strong>DE</strong>nsity <strong>R</strong>epresentation, which refers to the fact that the descriptors are invariant under squishing or expanding of the density while maintaining its shape. This property makes it efficient for learning the XC functional, especially the exchange energy.</p>
+</section>
+<section id="warning-the-ciderpress-code-base-is-experimental">
+<h2><strong>WARNING</strong>: The CiderPress Code Base is Experimental<a class="headerlink" href="#warning-the-ciderpress-code-base-is-experimental" title="Link to this heading"></a></h2>
+<p>Both the code and the functionals themselves are experimental. The code base will likely change significantly in the next few years. Therefore, please read the installation guidance, usage instructions, examples, and known issues thoroughly before using CiderPress.</p>
+</section>
+<section id="installation">
+<h2>Installation<a class="headerlink" href="#installation" title="Link to this heading"></a></h2>
+<p>Installation of CiderPress requires the following:</p>
+<ul class="simple">
+<li><p>Python 3.9-3.12</p></li>
+<li><p>BLAS and LAPACK</p></li>
+<li><p>C and C++ compilers with OpenMP support.</p></li>
+</ul>
+<p>CiderPress uses cmake to build its C backend. If you use <code class="docutils literal notranslate"><span class="pre">pip</span></code>, cmake is automatically installed as a dependency to enable the build process. The C compiler and linear algebra libraries must be findable by cmake.</p>
+<p>Also, if you use <code class="docutils literal notranslate"><span class="pre">pip</span></code>, all Python package dependencies are installed automatically, with the exception of the optional dependency Pytorch. Pytorch is only needed if you plan to use the <code class="docutils literal notranslate"><span class="pre">CIDER24X</span></code> functionals. To install Pytorch with CUDA 11.8, you can use the following:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip3<span class="w"> </span>install<span class="w"> </span>torch<span class="w"> </span>--index-url<span class="w"> </span>https://download.pytorch.org/whl/cu118
+</pre></div>
+</div>
+<p>If you want to run plane-wave DFT calculations, you must also install GPAW with LibXC and FFTW. GPAW uses a <code class="docutils literal notranslate"><span class="pre">siteconfig.py</span></code> file to customize the libraries it links to. This repo’s <code class="docutils literal notranslate"><span class="pre">.github/workflows/gpaw_siteconfig.py</span></code> could be useful for compiling GPAW with MKL, LibXC, and FFTW.</p>
+<p>If you wish to run parallel calculations with GPAW, you should also have an MPI installation on your system along with an <code class="docutils literal notranslate"><span class="pre">mpicc</span></code> compiler. CiderPress has only been tested with OpenMPI but in principle should be compatible with MPICH and Intel MPI as well. The CiderPress build will automatically detect whether MPI is available, and if so it will build an MPI-parallel version of the GPAW interface.</p>
+<p>The rest of the code is parallelized with OpenMP only for now.</p>
+<section id="installation-from-pypi">
+<h3>Installation from PyPI<a class="headerlink" href="#installation-from-pypi" title="Link to this heading"></a></h3>
+<p>You can install with the usual:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>ciderpress
+</pre></div>
+</div>
+<p>Currently only the sdist is available (no wheels yet), so it will take some time to build. The C backend of CiderPress is built using cmake, so you can customize the installation by setting the <code class="docutils literal notranslate"><span class="pre">CMAKE_CONFIGURE_ARGS</span></code> environment variable. For example, by default, CiderPress builds its own FFTW and searches for a (non-MKL) BLAS/LAPACK installation to link to. To use the Intel Math Kernel Library (MKL) as the FFT and linear algebra backend instead, use the following:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">CMAKE_CONFIGURE_ARGS</span><span class="o">=</span><span class="s2">&quot;-DBUILD_WITH_MKL=ON&quot;</span>
+pip<span class="w"> </span>install<span class="w"> </span>ciderpress
+</pre></div>
+</div>
+<p>NOTE: If CiderPress will link to MKL as its linear algebra backend, make sure that you set <code class="docutils literal notranslate"><span class="pre">-DBUILD_WITH_MKL=ON</span></code>. Otherwise, CiderPress might link to MKL and FFTW, which can cause runtime crashes because MKL contains an FFTW wrapper with identical function names.</p>
+<p>Here is a list of cmake build options with their default values:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">BUILD_WITH_MKL</span> <span class="pre">(OFF)</span></code>: If ON, use Intel Math Kernel Library as the linear algebra and FFT backends. If OFF, link to whatever BLAS/LAPACK version is found by cmake and link to FFTW as the FFT backend.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">BUILD_LIBXC</span> <span class="pre">(OFF)</span></code>: If ON, libxc is downloaded, compiled, and linked to CiderPress during the compilation process. If OFF, a libxc installation must be available to link to and findable by cmake at compile time.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">BUILD_FFTW</span> <span class="pre">(ON)</span></code>: Ignored if <code class="docutils literal notranslate"><span class="pre">BUILD_WITH_MKL=ON</span></code>. Otherwise, if ON, FFTW is built and linked to by cmake during compilation. If OFF, an FFTW installation must be available to link to and findable by cmake at compile time.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">BUILD_MARCH_NATIVE</span> <span class="pre">(OFF)</span></code>: If ON, use the <code class="docutils literal notranslate"><span class="pre">-march=native</span></code> C compiler flag, which enables instruction sets on the CPU used for compilation, potentially resulting in higher performance.</p></li>
+</ul>
+<p>To further customize the installation, you can build from source and edit the <code class="docutils literal notranslate"><span class="pre">CMakeLists.txt</span></code> files in <code class="docutils literal notranslate"><span class="pre">ciderpress/lib</span></code> and its subdirectories.</p>
+</section>
+<section id="build-from-source">
+<h3>Build from Source<a class="headerlink" href="#build-from-source" title="Link to this heading"></a></h3>
+<p>You can also build from source. If you clone the CiderPress repository, you can enter the repository directory and simply type:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>.
+</pre></div>
+</div>
+<p>Alternatively, to build the C extensions “in-place,” you can use cmake directly as follows:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>ciderpress/lib
+mkdir<span class="w"> </span>build
+<span class="nb">cd</span><span class="w"> </span>build
+cmake<span class="w"> </span>&lt;CMAKE_ARGS&gt;<span class="w"> </span>..
+make
+</pre></div>
+</div>
+<p>You can also use the cmake configuration arguments listed above with these approaches. Note that if you use <code class="docutils literal notranslate"><span class="pre">pip</span></code>, <code class="docutils literal notranslate"><span class="pre">cmake</span></code> will be installed as a dependency. If you build from source directly, you must have <code class="docutils literal notranslate"><span class="pre">cmake</span></code> installed on your system.</p>
+</section>
+<section id="installation-in-a-conda-environment">
+<h3>Installation in a Conda Environment<a class="headerlink" href="#installation-in-a-conda-environment" title="Link to this heading"></a></h3>
+<p>Installation in a conda environment follows the same procedure as above, but with the added benefit that non-Python dependencies can be installed using conda. For example, you can install the MKL using:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>install<span class="w"> </span>mkl<span class="s2">&quot;&lt;=2024.0&quot;</span><span class="w"> </span>mkl-devel<span class="s2">&quot;&lt;=2024.0&quot;</span><span class="w"> </span>mkl-service<span class="s2">&quot;&lt;=2024.0&quot;</span><span class="w"> </span>mkl_fft<span class="w"> </span>mkl_random
+</pre></div>
+</div>
+<p>The <code class="docutils literal notranslate"><span class="pre">&lt;=2024.0</span></code> is to fix a compatibility issue with PyTorch and MKL, so you can remove it if you don’t need PyTorch (i.e. if you don’t want to use CIDER24X models). In principle, it is also possible to pip install the MKL dependencies, but we have had trouble getting the libraries to link. Then you install CiderPress using MKL:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">CMAKE_CONFIGURE_ARGS</span><span class="o">=</span><span class="sb">``</span>-DBUILD_WITH_MKL<span class="o">=</span>ON<span class="sb">``</span><span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>.
+</pre></div>
+</div>
+</section>
+<section id="step-by-step-installation-with-conda-micromamba-etc">
+<h3>Step-by-step Installation with Conda, Micromamba, etc.<a class="headerlink" href="#step-by-step-installation-with-conda-micromamba-etc" title="Link to this heading"></a></h3>
+<p>This section covers how to install CiderPress and its dependencies from a fresh conda environment. Micromamba is also supported; you will just need to replace the <code class="docutils literal notranslate"><span class="pre">conda</span></code> commands with <code class="docutils literal notranslate"><span class="pre">micromamba</span></code> below.</p>
+<ol class="arabic">
+<li><p>Make sure you have a C compiler installed. (Or you can install one through conda after creating your environment in step 1.)</p></li>
+<li><p>Create a new conda environment.:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>create<span class="w"> </span>-n<span class="w"> </span>&lt;my_env&gt;<span class="w"> </span><span class="nv">python</span><span class="o">=</span><span class="m">3</span>.11
+conda<span class="w"> </span>activate<span class="w"> </span>&lt;my_env&gt;
+</pre></div>
+</div>
+<p>Python 3.9-3.12 are supported.</p>
+</li>
+<li><p>Install dependencies. The scripts <code class="docutils literal notranslate"><span class="pre">.github/workflows/mm_install_torch.sh</span></code> and
+<code class="docutils literal notranslate"><span class="pre">.github/workflows/mm_install_mpi.h</span></code> can both be used to set up an environment
+for running CIDER calculations. <code class="docutils literal notranslate"><span class="pre">mm_install_torch.sh</span></code> installs MKL, libxc, FFTW,
+and pytorch, so it is useful if you want to run calculations with CIDER24X
+functionals, which require pytorch. <code class="docutils literal notranslate"><span class="pre">mm_install_mpi.sh</span></code> installs MKL, libxc,
+FFTW, OpenMPI, and mpicc, so it is useful if you want to run GPAW calculations.
+Note that the conda MPI installation might not work well for multi-node jobs on
+clusters, so you might want to use your own MPI/mpicc instead if that
+is your use case. Single-node jobs should work fine with conda’s MPI.</p></li>
+<li><p>Build C extensions and install CiderPress.:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>.
+</pre></div>
+</div>
+</li>
+<li><p>(If using GPAW) Install GPAW from source. We recommend using our <code class="docutils literal notranslate"><span class="pre">gpaw_siteconfig.py</span></code> to link gpaw to
+MPI and MKL for simplicity and speed. (You can download GPAW at gitlab.com/gpaw/gpaw.):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>&lt;place<span class="w"> </span>you<span class="w"> </span>want<span class="w"> </span>to<span class="w"> </span>save<span class="w"> </span>the<span class="w"> </span>GPAW<span class="w"> </span>source&gt;
+git<span class="w"> </span>clone<span class="w"> </span>https://gitlab.com/gpaw/gpaw.git
+<span class="nb">cd</span><span class="w"> </span>gpaw
+cp<span class="w"> </span>&lt;CiderPress&gt;/.github/workflows/gpaw_siteconfig.py<span class="w"> </span>siteconfig.py
+python<span class="w"> </span>setup.py<span class="w"> </span>build<span class="w"> </span>install
+</pre></div>
+</div>
+<p><strong>Note</strong>: Currently CiderPress does not support the new GPAW version (<code class="docutils literal notranslate"><span class="pre">gpaw.new</span></code>), but we plan to support it in the future.</p>
+</li>
+</ol>
+</section>
+<section id="notes-on-external-code-performance-and-compatibility">
+<h3>Notes on External Code Performance and Compatibility<a class="headerlink" href="#notes-on-external-code-performance-and-compatibility" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p>CiderPress automatically installs PySCF as a dependency, and GPAW can be installed simply by <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">gpaw</span></code>. However, both codes will in general have better performance if compiled from source. See the <a class="reference external" href="https://pyscf.org/install.html">PySCF installation instructions</a> and the <a class="reference external" href="https://gpaw.readthedocs.io/install.html">GPAW installation instructions</a> for details.</p></li>
+<li><p>GPAW uses MPI for parallelization, and the CiderPress extensions must also link to MPI to run parallel GPAW calculations. Make sure cmake can find OpenMPI or an equivalent installation and that you have a working <code class="docutils literal notranslate"><span class="pre">mpicc</span></code> compiler before building CiderPress and GPAW together.</p></li>
+<li><p>The CiderPress C extensions must use the same OpenMP as PySCF and GPAW, otherwise you will run into parallelization issues and code crashes. The <code class="docutils literal notranslate"><span class="pre">gpaw_siteconfig.py</span></code> provided in the CiderPress repository (see Step 5 of step-by-step instructions above) assumes Intel’s <code class="docutils literal notranslate"><span class="pre">iomp5</span></code> as the OpenMP library by default. If you are using GNU OpenMP, you should change <code class="docutils literal notranslate"><span class="pre">iomp5</span></code> to <code class="docutils literal notranslate"><span class="pre">gomp</span></code> in <code class="docutils literal notranslate"><span class="pre">gpaw_siteconfig.py</span></code>. CiderPress will find OpenMP automatically using cmake, so please make sure this version is the one used to build PySCF and GPAW.</p></li>
+<li><p>To run the CIDER24X functionals, you also need to install Pytorch.</p></li>
+</ul>
+</section>
+</section>
+<section id="how-can-i-run-a-cider-calculation">
+<h2>How can I run a CIDER calculation?<a class="headerlink" href="#how-can-i-run-a-cider-calculation" title="Link to this heading"></a></h2>
+<p>The ML models that define CIDER functionals are stored in <code class="docutils literal notranslate"><span class="pre">yaml</span></code> files. To use previously developed functionals, you can download them using:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>&lt;CiderPress&gt;
+python<span class="w"> </span>scripts/download_functionals.py
+</pre></div>
+</div>
+<p>See the <code class="docutils literal notranslate"><span class="pre">examples</span></code> directory for details on how to load and use the functionals.</p>
+<p>CIDER calculations can be run in PySCF (for non-periodic, all-electron calculations) and GPAW (for periodic, plane-wave PAW calculations) using the functional initializers <code class="docutils literal notranslate"><span class="pre">ciderpress.pyscf.dft.make_cider_calc</span></code> and <code class="docutils literal notranslate"><span class="pre">ciderpress.gpaw.calculator.get_cider_functional</span></code>, respectively. Periodic PySCF calculations are not yet supported, except for the CIDER24X functionals with uniform grids and pseudopotentials. See <code class="docutils literal notranslate"><span class="pre">examples/pyscf/simple_calc.py</span></code> and <code class="docutils literal notranslate"><span class="pre">examples/gpaw/simple_calc.py</span></code> for a demonstration of setting up a typical calculation, and refer to the docstrings of the initializers for a more detailed explanation of all the input options. As explained in the docstrings, the defaults are sufficient for most of the input options. The recommended functional for most applications in which the goal is to reproduce hybrid DFT is the <code class="docutils literal notranslate"><span class="pre">CIDER23X_NL_MGGA_DTR</span></code> exchange functional, which is a meta-GGA with nonlocal features of the density.</p>
+<p>The more recent <code class="docutils literal notranslate"><span class="pre">CIDER24Xne</span></code> and <code class="docutils literal notranslate"><span class="pre">CIDER24Xe</span></code> functionals use more powerful descriptors and are therefore more accurate than any of the <code class="docutils literal notranslate"><span class="pre">CIDER23X</span></code> functionals, but they are also more expensive and only available for use in PySCF. <code class="docutils literal notranslate"><span class="pre">CIDER24Xe</span></code> is fit to molecular HOMO-LUMO gaps, so it might be useful for properties where band gaps are important.</p>
+</section>
+<section id="how-can-i-train-a-cider-functional">
+<h2>How can I train a CIDER functional?<a class="headerlink" href="#how-can-i-train-a-cider-functional" title="Link to this heading"></a></h2>
+<p>The basic ML training framework for CiderPress is stored in <code class="docutils literal notranslate"><span class="pre">ciderpress.models</span></code>. CiderPress currently only contains the ML model classes themselves, but not the various training tools needed to set up the training databases. If you are interested in training your own CIDER model, we suggest reaching out to us to discuss (email <a class="reference external" href="mailto:kylebystrom&#37;&#52;&#48;gmail&#46;com">kylebystrom<span>&#64;</span>gmail<span>&#46;</span>com</a>).</p>
+</section>
+<section id="known-issues">
+<h2>Known Issues<a class="headerlink" href="#known-issues" title="Link to this heading"></a></h2>
+<p>CiderPress has a few known issues that we are currently investigating. Please be aware of these when attempting calculations with CIDER functionals. We will make a note and publish a new release when we fix these issues. If you run into any other problems, please post an issue on the Github repository.</p>
+<ul class="simple">
+<li><p>For some periodic systems in GPAW within the PAW formalism, significant numerical instability issues arise for the nonlocal functionals. In our experience thus far, these issues are uncommon and seem to be caused by the nonlocal PAW corrections to the CIDER features as opposed to the functionals themselves.</p></li>
+<li><p>For the GPAW interface, the memory overhead for the nonlocal features can be fairly high, occasionally causing memory issues. Please be aware that you might need to allocate more memory for a nonlocal CIDER calculation than for, say, a PBE calculation.</p></li>
+<li><p>For the PySCF interface, there are (mostly minor) convergence issues for some systems. These issues are much less common and less severe for our most robust functionals (like NL-MGGA-DTR). Even for NL-MGGA-DTR, occasionally a system will not quite converge. Usually the energy convergence is fine, but the orbital gradients are somewhat unstable; it might be necessary to set <code class="docutils literal notranslate"><span class="pre">conv_tol_grad</span></code> to a higher value than the default. These issues are likely a mix between inherent functional stability and the stability of the fast feature evaluation algorithm.</p></li>
+<li><p>The code spits out a lot of divide-by-zero and invalid value warnings from numpy, which occur because (as with many functionals) some terms in CIDER functionals become numerically unstable at very small densities. These issues are corrected by setting the XC energy and potential at very low density to zero, and we will clean up various warnings and unnecessary debug statements as soon as possible.</p></li>
+<li><p>The construction of the CIDER PAW corrections within GPAW have a very small numerical stability issue that results in different energies on different runs (with energy differences of roughly <span class="math notranslate nohighlight">\(10^{-11}\)</span> eV). The difference is so small that it is insignificant for most applications, but it might affect finite difference calculations with very small perturbations.</p></li>
+</ul>
+</section>
+<section id="questions-and-comments">
+<h2>Questions and Comments<a class="headerlink" href="#questions-and-comments" title="Link to this heading"></a></h2>
+<p>Find a bug? Areas of code unclearly documented? Other questions? Feel free to contact
+Kyle Bystrom at <a class="reference external" href="mailto:kylebystrom&#37;&#52;&#48;gmail&#46;com">kylebystrom<span>&#64;</span>gmail<span>&#46;</span>com</a> AND/OR create an issue on the <a class="reference external" href="https://github.com/mir-group/CiderPress">Github page</a>.</p>
+</section>
+<section id="citing">
+<h2>Citing<a class="headerlink" href="#citing" title="Link to this heading"></a></h2>
+<p>If you find CiderPress or CIDER functionals useful in your research, please cite the following article:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>@article<span class="o">{</span>PhysRevB.110.075130,
+<span class="w"> </span><span class="nv">title</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">{</span>Nonlocal<span class="w"> </span>machine-learned<span class="w"> </span>exchange<span class="w"> </span>functional<span class="w"> </span><span class="k">for</span><span class="w"> </span>molecules<span class="w"> </span>and<span class="w"> </span>solids<span class="o">}</span>,
+<span class="w"> </span><span class="nv">author</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">{</span>Bystrom,<span class="w"> </span>Kyle<span class="w"> </span>and<span class="w"> </span>Kozinsky,<span class="w"> </span>Boris<span class="o">}</span>,
+<span class="w"> </span><span class="nv">journal</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">{</span>Phys.<span class="w"> </span>Rev.<span class="w"> </span>B<span class="o">}</span>,
+<span class="w"> </span><span class="nv">volume</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">{</span><span class="m">110</span><span class="o">}</span>,
+<span class="w"> </span><span class="nv">issue</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">{</span><span class="m">7</span><span class="o">}</span>,
+<span class="w"> </span><span class="nv">pages</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">{</span><span class="m">075130</span><span class="o">}</span>,
+<span class="w"> </span><span class="nv">numpages</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">{</span><span class="m">30</span><span class="o">}</span>,
+<span class="w"> </span><span class="nv">year</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">{</span><span class="m">2024</span><span class="o">}</span>,
+<span class="w"> </span><span class="nv">month</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">{</span>Aug<span class="o">}</span>,
+<span class="w"> </span><span class="nv">publisher</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">{</span>American<span class="w"> </span>Physical<span class="w"> </span>Society<span class="o">}</span>,
+<span class="w"> </span><span class="nv">doi</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">{</span><span class="m">10</span>.1103/PhysRevB.110.075130<span class="o">}</span>,
+<span class="w"> </span><span class="nv">url</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">{</span>https://link.aps.org/doi/10.1103/PhysRevB.110.075130<span class="o">}</span>
+<span class="o">}</span>
+</pre></div>
+</div>
+<p>The above article introduces the CIDER23X functionals and much of the algorithms in CiderPress. If you use the CIDER24X functionals, please also cite:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>@article<span class="o">{</span>doi:10.1021/acs.jctc.4c00999,
+<span class="w"> </span><span class="nv">author</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">{</span>Bystrom,<span class="w"> </span>Kyle<span class="w"> </span>and<span class="w"> </span>Falletta,<span class="w"> </span>Stefano<span class="w"> </span>and<span class="w"> </span>Kozinsky,<span class="w"> </span>Boris<span class="o">}</span>,
+<span class="w"> </span><span class="nv">title</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">{</span>Training<span class="w"> </span>Machine-Learned<span class="w"> </span>Density<span class="w"> </span>Functionals<span class="w"> </span>on<span class="w"> </span>Band<span class="w"> </span>Gaps<span class="o">}</span>,
+<span class="w"> </span><span class="nv">journal</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">{</span>Journal<span class="w"> </span>of<span class="w"> </span>Chemical<span class="w"> </span>Theory<span class="w"> </span>and<span class="w"> </span>Computation<span class="o">}</span>,
+<span class="w"> </span><span class="nv">volume</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">{</span><span class="m">20</span><span class="o">}</span>,
+<span class="w"> </span><span class="nv">number</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">{</span><span class="m">17</span><span class="o">}</span>,
+<span class="w"> </span><span class="nv">pages</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">{</span><span class="m">7516</span>-7532<span class="o">}</span>,
+<span class="w"> </span><span class="nv">year</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">{</span><span class="m">2024</span><span class="o">}</span>,
+<span class="w"> </span><span class="nv">doi</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">{</span><span class="m">10</span>.1021/acs.jctc.4c00999<span class="o">}</span>,
+<span class="w"> </span><span class="nv">note</span><span class="w"> </span><span class="o">={</span>PMID:<span class="w"> </span><span class="m">39178337</span><span class="o">}</span>,
+<span class="w"> </span><span class="nv">URL</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">{</span>https://doi.org/10.1021/acs.jctc.4c00999<span class="o">}</span>,
+<span class="w"> </span><span class="nv">eprint</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">{</span>https://doi.org/10.1021/acs.jctc.4c00999<span class="o">}</span>
+<span class="o">}</span>
+</pre></div>
+</div>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="../index.html" class="btn btn-neutral float-left" title="CiderPress: Machine Learning Exchange-Correlation Functionals" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="../theory/theory.html" class="btn btn-neutral float-right" title="Theory Overview" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Kyle Bystrom.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>  
+
+  <style>
+    /* Sidebar header (and topbar for mobile) */
+    .wy-side-nav-search, .wy-nav-top {
+      background: #002040;
+    }
+    /* Sidebar */
+    .wy-nav-side {
+      background: #002040;
+    }
+  </style>
+
+
+</body>
+</html>

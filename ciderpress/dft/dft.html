@@ -1,0 +1,173 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DFT Module &mdash; CiderPress 0.4.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=6c02275b"></script>
+      <script src="../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="The Settings Module" href="settings.html" />
+    <link rel="prev" title="Smooth Density Matrix Exchange (SDMX)" href="../../features/sdmx.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html">
+            
+              <img src="../../_static/cider_logo_and_name.png" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../../installation/installation.html">Overview and Installation Instructions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../theory/theory.html">Theory Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../features/features.html">Density and Orbital Features in CiderPress</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">DFT Module</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="settings.html">The Settings Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="plans.html">The Plans Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="feat_normalizer.html">The Feature Normalizer Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="transform_data.html">The Transform Data Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="xc_evaluator.html">The XC Evaluator Modules</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../models/models.html">The Models Module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../pyscf/pyscf.html">PySCF Interface</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../gpaw/gpaw.html">GPAW Interface</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../c_extensions/c_extensions.html">C Extension Libraries</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">CiderPress</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">DFT Module</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../../_sources/ciderpress/dft/dft.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="dft-module">
+<h1>DFT Module<a class="headerlink" href="#dft-module" title="Link to this heading"></a></h1>
+<p>The <code class="xref py py-mod docutils literal notranslate"><span class="pre">ciderpress.dft</span></code> module contains many of the core utilities
+of the CiderPress code. The most important of these are:</p>
+<ul class="simple">
+<li><p>The <a class="reference internal" href="settings.html#module-ciderpress.dft.settings" title="ciderpress.dft.settings"><code class="xref py py-mod docutils literal notranslate"><span class="pre">ciderpress.dft.settings</span></code></a> module, which consists of a set
+of classes for specifying the types of features to be computed
+for an ML model along with the parametrizations of those features.</p></li>
+<li><p>The <a class="reference internal" href="plans.html#module-ciderpress.dft.plans" title="ciderpress.dft.plans"><code class="xref py py-mod docutils literal notranslate"><span class="pre">ciderpress.dft.plans</span></code></a> module, which provides classes
+that specify <em>how</em> a given set of features is to be computed.
+For example, an instance of <code class="xref py py-class docutils literal notranslate"><span class="pre">NLDFSettingsVJ</span></code> from the
+<code class="xref py py-mod docutils literal notranslate"><span class="pre">settings</span></code> module specifies that version-j <a class="reference internal" href="../../features/nldf.html#nldf-feat"><span class="std std-ref">NLDF</span></a>
+features are to be computed, and an instance <code class="xref py py-class docutils literal notranslate"><span class="pre">NLDFSplinePlan</span></code>
+from <code class="xref py py-mod docutils literal notranslate"><span class="pre">plans</span></code> instructs CiderPress how to compute these
+features using cubic spline interpolation (see
+<a class="reference internal" href="../../theory/nldf_numerical.html#nldf-numerical"><span class="std std-ref">NLDF Numerical Evaluation</span></a>).</p></li>
+<li><p>The <a class="reference internal" href="feat_normalizer.html#module-ciderpress.dft.feat_normalizer" title="ciderpress.dft.feat_normalizer"><code class="xref py py-mod docutils literal notranslate"><span class="pre">ciderpress.dft.feat_normalizer</span></code></a> module, which provides
+utilities to transform “raw” features (which might not be scale-invariant)
+to scale-invariant “normalized features”. Note it is not necessary to make
+every feature scale-invariant unless you want to enforce the uniform
+scaling rule for exchange.</p></li>
+<li><p>The <a class="reference internal" href="transform_data.html#module-ciderpress.dft.transform_data" title="ciderpress.dft.transform_data"><code class="xref py py-mod docutils literal notranslate"><span class="pre">ciderpress.dft.transform_data</span></code></a> module, which provides
+utilities to transform “normalized” features (which do not necessarily fall
+in a finite interval, making them unwieldy for ML models) into
+“transformed” features suitable for direct input into Gaussian process
+regression.</p></li>
+<li><p>The <a class="reference internal" href="xc_evaluator.html#module-ciderpress.dft.xc_evaluator" title="ciderpress.dft.xc_evaluator"><code class="xref py py-mod docutils literal notranslate"><span class="pre">ciderpress.dft.xc_evaluator</span></code></a> and <a class="reference internal" href="xc_evaluator.html#module-ciderpress.dft.xc_evaluator2" title="ciderpress.dft.xc_evaluator2"><code class="xref py py-mod docutils literal notranslate"><span class="pre">ciderpress.dft.xc_evaluator2</span></code></a>
+modules, which provide tools to efficiently evaluate trained CIDER models.</p></li>
+</ul>
+<p>The APIs of these modules are documentation in the subsections below.</p>
+<div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="settings.html">The Settings Module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="plans.html">The Plans Module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="feat_normalizer.html">The Feature Normalizer Module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="transform_data.html">The Transform Data Module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="xc_evaluator.html">The XC Evaluator Modules</a></li>
+</ul>
+</div>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="../../features/sdmx.html" class="btn btn-neutral float-left" title="Smooth Density Matrix Exchange (SDMX)" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="settings.html" class="btn btn-neutral float-right" title="The Settings Module" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Kyle Bystrom.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>  
+
+  <style>
+    /* Sidebar header (and topbar for mobile) */
+    .wy-side-nav-search, .wy-nav-top {
+      background: #002040;
+    }
+    /* Sidebar */
+    .wy-nav-side {
+      background: #002040;
+    }
+  </style>
+
+
+</body>
+</html>
