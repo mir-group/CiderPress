@@ -409,17 +409,21 @@ class _CiderBase:
             n_xg = self._global_redistributor.distribute(n_xg)
         shape = n_xg.shape[:-3]
         ndist_xg = self.distribution.block_zeros(shape)
-        self.distribution.gd2block(n_xg, ndist_xg)
+        for x in range(n_xg.shape[0]):
+            self.distribution.gd2block(n_xg[x], ndist_xg[x])
         return ndist_xg
 
     def _add_from_cider_grid(self, d_xg, ddist_xg):
+        nx = d_xg.shape[0]
         if self._global_redistributor is not None:
             shape = d_xg.shape[:-3]
             tmp_xg = self._global_redistributor.aux_gd.zeros(shape)
-            self.distribution.block2gd_add(ddist_xg, tmp_xg)
+            for x in range(nx):
+                self.distribution.block2gd_add(ddist_xg[x], tmp_xg[x])
             d_xg[:] += self._global_redistributor.collect(tmp_xg)
         else:
-            self.distribution.block2gd_add(ddist_xg, d_xg)
+            for x in range(nx):
+                self.distribution.block2gd_add(ddist_xg[x], d_xg[x])
 
     def _get_taut(self, n_sg):
         if self.type == "MGGA":
