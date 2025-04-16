@@ -1477,14 +1477,18 @@ class NLDFAuxiliaryPlan(ABC):
             with respect to rho, sigma, and tau. Combined, this makes for a
             tuple of four arrays.
         """
-        rho = rho_tuple[0]
+        rho = rho_tuple[0].copy()
+        cond = rho < self.rhocut
+        rho[cond] = 0
         if self.nldf_settings.rho_mult == "one":
             da = [
                 np.ones_like(rho),
             ] + [np.zeros_like(r) for r in rho_tuple[1:]]
+            da[0][cond] = 0
             return rho, tuple(da)
         elif self.nldf_settings.rho_mult == "expnt":
             a, da_tuple = self.eval_feat_exp(rho_tuple, i=-1)
+            a[cond] = 0
             for da in da_tuple:
                 da[:] *= rho
             da_tuple[0][:] += a
