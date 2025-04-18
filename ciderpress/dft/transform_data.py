@@ -796,6 +796,125 @@ class SLXMap(FeatureNormalizer):
         return cls(d["i"], d["j"], d["gamma"])
 
 
+class SLRMap(FeatureNormalizer):
+    code = "SLR"
+
+    def __init__(self, i, j, k):
+        self.i = i
+        self.j = j
+        self.k = k
+        from ciderpress.dft.settings import get_cider_exponent
+
+        self.get_exp = get_cider_exponent
+
+    @property
+    def bounds(self):
+        return (0, 1)
+
+    @property
+    def num_arg(self):
+        return 3
+
+    def fill_feat_(self, y, x):
+        a = self.get_exp(x[self.i], np.zeros_like(x[self.i]), x[self.j])[0]
+        rho = np.maximum(x[self.i], 1e-10)
+        y[:] = a / (rho * (x[self.k] + a))
+
+    def fill_deriv_(self, dfdx, dfdy, x):
+        a, dadi, _, dadj = self.get_exp(x[self.i], np.zeros_like(x[self.i]), x[self.j])
+        rho = np.maximum(x[self.i], 1e-10)
+        invax2 = 1.0 / (x[self.k] + a)
+        dfdx[self.i] -= a * invax2 / rho**2
+        invax2 *= invax2 / rho
+        dfdx[self.k] -= a * invax2
+        invax2 *= x[self.k]
+        dfdx[self.i] += invax2 * dadi
+        dfdx[self.j] += invax2 * dadj
+
+    def as_dict(self):
+        return {"code": self.code, "i": self.i, "j": self.j, "k": self.k}
+
+    @classmethod
+    def from_dict(cls, d):
+        return cls(d["i"], d["j"], d["k"])
+
+
+class SLR2Map(FeatureNormalizer):
+    code = "SLR2"
+
+    def __init__(self, i, j):
+        self.i = i
+        self.j = j
+        from ciderpress.dft.settings import get_cider_exponent
+
+        self.get_exp = get_cider_exponent
+
+    @property
+    def bounds(self):
+        return (0, 1)
+
+    @property
+    def num_arg(self):
+        return 2
+
+    def fill_feat_(self, y, x):
+        rho = np.maximum(x[self.i], 1e-10)
+        rho[rho < 1e-10] = 1e100
+        y[:] = x[self.j] / rho
+
+    def fill_deriv_(self, dfdx, dfdy, x):
+        rho = np.maximum(x[self.i], 0)
+        rho[rho < 1e-10] = 1e100
+        dfdx[self.j] += 1 / rho
+        dfdx[self.i] -= x[self.j] / rho**2
+
+    def as_dict(self):
+        return {"code": self.code, "i": self.i, "j": self.j}
+
+    @classmethod
+    def from_dict(cls, d):
+        return cls(d["i"], d["j"])
+
+
+class SLR3Map(FeatureNormalizer):
+    code = "SLR3"
+
+    def __init__(self, i, j):
+        self.i = i
+        self.j = j
+        from ciderpress.dft.settings import get_cider_exponent
+
+        self.get_exp = get_cider_exponent
+
+    @property
+    def bounds(self):
+        return (0, 1)
+
+    @property
+    def num_arg(self):
+        return 2
+
+    def fill_feat_(self, y, x):
+        rho = np.maximum(x[self.i], 1e-10)
+        y[:] = x[self.j] / (x[self.j] + rho)
+
+    def fill_deriv_(self, dfdx, dfdy, x):
+        rho = np.maximum(x[self.i], 1e-10)
+        inv2 = 1.0 / (x[self.j] + rho)
+        inv2[:] *= inv2
+        inv2[inv2 > 1e10] = 0
+        np.argmax(inv2)
+        dfdx[self.i] -= x[self.j] * inv2
+        dfdx[self.j] += x[self.i] * inv2
+
+    def as_dict(self):
+        return {"code": self.code, "i": self.i, "j": self.j}
+
+    @classmethod
+    def from_dict(cls, d):
+        return cls(d["i"], d["j"])
+
+
 class SLBMap(FeatureNormalizer):
     """
     beta = (tau - tauw) / (tau + tau0)
@@ -1100,6 +1219,9 @@ ALL_CLASSES = [
     SignedUMap,
     SLNMap,
     SLXMap,
+    SLRMap,
+    SLR2Map,
+    SLR3Map,
     SLBMap,
     SLTMap,
     SLTWMap,

@@ -28,6 +28,9 @@ from ciderpress.dft.transform_data import (
     LMap,
     OmegaMap,
     SignedUMap,
+    SLR2Map,
+    SLR3Map,
+    SLRMap,
     TMap,
     UMap,
     VMap,
@@ -133,6 +136,13 @@ class TestFeatureNormalizer(unittest.TestCase):
         )
         gradfd = get_grad_fd(TEST_VEC, flist)
         grada = get_grad_a(TEST_VEC, flist)
+        assert_almost_equal(gradfd, grada)
+
+    def test_slrmap(self):
+        flist = FeatureList([SLRMap(0, 1, 2), SLR2Map(0, 1), SLR3Map(1, 2)])
+        test_vec = np.abs(TEST_VEC) + 1
+        gradfd = get_grad_fd(test_vec, flist)
+        grada = get_grad_a(test_vec, flist)
         assert_almost_equal(gradfd, grada)
 
     def test_integration(self):

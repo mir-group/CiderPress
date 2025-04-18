@@ -676,14 +676,37 @@ class CiderMGGAPASDW(CiderPASDW_MPRoutines, CiderMGGA):
 
         stress_vv = P * np.eye(3)
         tau_cross_g = self.gd.empty()
+        # TODO eventually we should update this to use more concise GPAW routines
         for s in range(nspin):
-            for v1 in range(3):
-                for v2 in range(3):
-                    stress_vv[v1, v2] -= integrate(
-                        rho_sxg[s, v1 + 1], dedrho_sxg[s, v2 + 1]
-                    )
-                    self.distribute_and_interpolate(tau_svvG[s, v1, v2], tau_cross_g)
-                    stress_vv[v1, v2] -= integrate(tau_cross_g, dedtaut_sg[s])
+            if tau_svvG.shape[1] == 3:
+                for v1 in range(3):
+                    for v2 in range(3):
+                        stress_vv[v1, v2] -= integrate(
+                            rho_sxg[s, v1 + 1], dedrho_sxg[s, v2 + 1]
+                        )
+                        self.distribute_and_interpolate(
+                            tau_svvG[s, v1, v2], tau_cross_g
+                        )
+                        stress_vv[v1, v2] -= integrate(tau_cross_g, dedtaut_sg[s])
+            else:
+                assert tau_svvG.shape[1] == 6
+                tau_swG = tau_svvG
+                w = 0
+                for v1 in range(3):
+                    for v2 in range(v1, 3):
+                        stress_vv[v1, v2] -= integrate(
+                            rho_sxg[s, v1 + 1], dedrho_sxg[s, v2 + 1]
+                        )
+                        if v1 != v2:
+                            stress_vv[v2, v1] -= integrate(
+                                rho_sxg[s, v2 + 1], dedrho_sxg[s, v1 + 1]
+                            )
+                        self.distribute_and_interpolate(tau_swG[s, w], tau_cross_g)
+                        stress_contrib = integrate(tau_cross_g, dedtaut_sg[s])
+                        stress_vv[v1, v2] -= stress_contrib
+                        if v1 != v2:
+                            stress_vv[v2, v1] -= stress_contrib
+                        w += 1
 
         self.dedtaut_sG = self.wfs.gd.empty(self.wfs.nspins)
         for s in range(self.wfs.nspins):

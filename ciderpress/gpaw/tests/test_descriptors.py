@@ -45,6 +45,7 @@ from ciderpress.gpaw.interp_paw import DiffMGGA2 as DiffMGGA
 from ciderpress.gpaw.xc_tools import non_self_consistent_eigenvalues as nscfeig
 
 TEST_LAMBD = 1.8
+NUMPY_ERR_DICT = {}
 
 
 def setUpModule():
@@ -59,6 +60,7 @@ def setUpModule():
 def tearDownModule():
     global NUMPY_ERR_DICT
     np.seterr(**NUMPY_ERR_DICT)
+    NUMPY_ERR_DICT = {}
 
 
 def get_xc(fname, use_paw=True, force_nl=False):
