@@ -891,6 +891,7 @@ class LCAOInterpolatorDirect(LCAOInterpolator):
     def project_grid2orb(self, f_gq, f_uq=None):
         ngpp = self.all_coords.shape[0] + self.grids_indexer.padding
         assert f_gq.shape == (ngpp, self.num_out)
+        # There might be some padding at the end that we need to cut off
         in_gq = f_gq[: self.all_coords.shape[0]]
         if f_uq is None:
             f_uq = np.zeros((self.atco.nao, self.num_in))

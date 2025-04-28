@@ -418,6 +418,19 @@ class ATCBasis:
             ctypes.c_int(offset),
         )
 
+    def solve_atc_coefs_arr_(self, f_uq, basis_mode=0):
+        """
+        In-place operation to transform the coefficient array.
+        """
+        assert f_uq.flags.c_contiguous
+        assert f_uq.shape[0] == self.nao
+        libcider.solve_atc_coefs_arr(
+            self.atco_c_ptr,
+            f_uq.ctypes.data_as(ctypes.c_void_p),
+            ctypes.c_int(f_uq.shape[-1]),
+            ctypes.c_int(basis_mode),
+        )
+
 
 class ConvolutionCollection:
     """

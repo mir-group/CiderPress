@@ -147,6 +147,22 @@ def get_phi_iabk(pfuncs_k, ks, alphas, betas=None):
     return phi_iabk
 
 
+def get_phi_iabk_v2(pfuncs_k, ks, expnts, facs, k2pows):
+    nbeta, nalpha = expnts.shape
+    nk = ks.size
+    n_pfuncs = pfuncs_k.shape[0]
+    phi_iabk = np.empty((n_pfuncs, nalpha, nbeta, nk))
+    k2s = ks * ks
+    for a in range(nalpha):
+        for b in range(nbeta):
+            kernel = facs[b, a] * np.exp(-expnts[b, a] * k2s)
+            if k2pows[a] == 1:
+                kernel[:] *= k2s
+            for i in range(n_pfuncs):
+                phi_iabk[i, a, b, :] = kernel * pfuncs_k[i]
+    return phi_iabk
+
+
 def get_phi_iabg(phi_iabk, ls, rgd):
     phi_iabg = phi_iabk.copy()
     n_pfuncs = phi_iabk.shape[0]
@@ -193,8 +209,13 @@ def get_p12_p21_matrix(delta_l_pg, phi_jabg, rgd, w_b, nbas_loc):
     return p12_vbja, p21_javb
 
 
-def get_p22_matrix(phi_iabg, rgd, rcut, l, w_b, nbas_loc, reg=0, cut_func=False):
-    dv_g = get_dv(rgd)
+def get_p22_matrix(
+    phi_iabg, rgd, rcut, l, w_b, nbas_loc, reg=0, cut_func=False, recip=False
+):
+    if recip:
+        dv_g = get_dvk(rgd)
+    else:
+        dv_g = get_dv(rgd)
     phicut_iabg = phi_iabg[nbas_loc[l] : nbas_loc[l + 1]] * np.sqrt(dv_g)
     if cut_func:
         x = rgd.r_g / (0.75 * rcut)

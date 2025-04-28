@@ -74,7 +74,9 @@ class AtomicGridsIndexer:
                  coords = all_coords[idx_map]
     """
 
-    def __init__(self, natm, lmax, rad_arr, ar_loc, ra_loc, rad_loc, ylm, ylm_loc):
+    def __init__(
+        self, natm, lmax, rad_arr, ar_loc, ra_loc, rad_loc, ylm, ylm_loc, dylm=None
+    ):
         """
         Initialize AtomicGridsIndexer. See attributes for argument details.
 
@@ -89,6 +91,9 @@ class AtomicGridsIndexer:
             ylm (np.ndarray): Spherical harmonics
             ylm_loc (np.ndarray): Location of spherical harmonics for each
                 radial coordinate.
+            dylm (np.ndarray, optional): Derivatives of spherical harmonics.
+                Only needed if one plans to use the "deriv" argument
+                in reduce_angc_ylm_.
         """
         self.natm = natm
         self.lmax = lmax
@@ -99,6 +104,7 @@ class AtomicGridsIndexer:
         self.ra_loc = ra_loc
         self.rad_loc = rad_loc
         self.ylm = ylm
+        self.dylm = dylm
         self.dirs = np.ascontiguousarray(ylm[:, [3, 1, 2]] * np.sqrt(4 * np.pi / 3))
         self.ylm_loc = ylm_loc
         self.all_weights = None
@@ -230,7 +236,7 @@ class AtomicGridsIndexer:
             shape = (nspin, self.ngrids, nalpha)
         return np.empty(shape, dtype=np.float64)
 
-    def reduce_angc_ylm_(self, theta_rlmq, theta_gq, a2y=True, offset=None):
+    def reduce_angc_ylm_(self, theta_rlmq, theta_gq, a2y=True, offset=None, deriv=None):
         """
         Project a function between angular coordinates and spherical harmonics.
         NOTE that this is an in-place operation (with the output being
@@ -244,6 +250,12 @@ class AtomicGridsIndexer:
             theta_gq (np.ndarray): Shape (ngrids, nalpha)
             a2y (bool): If True, project real-space to spherical harmonics.
                 If False, project spherical harmonics onto real-space coords.
+            offset (int): Starting index to write to/read from in thera_gq.
+            deriv (str, None): If None (default), contraction is done with
+                spherical harmonics. If "x", "y", or "z", contraction is
+                done with spherical harmonic derivatives in the given direction.
+                Error is raised if deriv is not None and dylm was not passed
+                to the initializer.
         """
         if offset is None:
             offset = 0
@@ -260,9 +272,22 @@ class AtomicGridsIndexer:
             fn = libcider.reduce_angc_to_ylm
         else:
             fn = libcider.reduce_ylm_to_angc
+        if deriv is None:
+            ylm = self.ylm
+        else:
+            if self.dylm is None:
+                raise ValueError("Need dylm to use spherical harmonic derivatives")
+            elif deriv == "x":
+                ylm = self.dylm[0]
+            elif deriv == "y":
+                ylm = self.dylm[1]
+            elif deriv == "z":
+                ylm = self.dylm[2]
+            else:
+                raise ValueError("deriv must be None, 'x', 'y', or 'z'")
         fn(
             theta_rlmq.ctypes.data_as(ctypes.c_void_p),
-            self.ylm.ctypes.data_as(ctypes.c_void_p),
+            ylm.ctypes.data_as(ctypes.c_void_p),
             theta_gq.ctypes.data_as(ctypes.c_void_p),
             self.rad_loc.ctypes.data_as(ctypes.c_void_p),
             self.ylm_loc.ctypes.data_as(ctypes.c_void_p),
@@ -275,7 +300,7 @@ class AtomicGridsIndexer:
         )
 
     @classmethod
-    def make_single_atom_indexer(cls, Y_nL, r_g):
+    def make_single_atom_indexer(cls, Y_nL, r_g, DY_nLv=None):
         nn, nlm = Y_nL.shape
         lmax = int(np.sqrt(nlm + 1e-8)) - 1
         ng = r_g.size
@@ -284,5 +309,9 @@ class AtomicGridsIndexer:
         ra_loc = np.asarray([0, ng], dtype=np.int32, order="C")
         rad_loc = np.ascontiguousarray((nn * np.arange(0, ng + 1)).astype(np.int32))
         ylm = np.ascontiguousarray(Y_nL.astype(np.float64))
+        if DY_nLv is not None:
+            dylm = np.ascontiguousarray(DY_nLv.transpose(2, 0, 1).astype(np.float64))
+        else:
+            dylm = None
         ylm_loc = np.zeros((ng,), dtype=np.int32)
-        return cls(1, lmax, rad_arr, ar_loc, ra_loc, rad_loc, ylm, ylm_loc)
+        return cls(1, lmax, rad_arr, ar_loc, ra_loc, rad_loc, ylm, ylm_loc, dylm=dylm)

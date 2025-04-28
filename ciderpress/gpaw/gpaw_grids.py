@@ -39,6 +39,79 @@ def _interp_helper(f_g, dg):
     return (1 - dg) * f_g[..., g] + dg * f_g[..., g + 1]
 
 
+def _get_deriv_weights(r_g, D, i, istart):
+    y = np.zeros(D)
+    diffs = np.empty((D, D))
+    y[1] = 1
+    rc = r_g[i]
+    for j in range(D):
+        r = r_g[istart + j]
+        for k in range(D):
+            diffs[k, j] = (r - rc) ** k
+    return np.linalg.solve(diffs, y)
+
+
+def make_radial_derivative_calculator(r_g, order=2):
+    """
+    This utility function takes an arbitrary radial grid and returns
+    a function that calculates numerical derivatives on that grid.
+    The order is the precision of the derivative: 2*order+1 nearby
+    points are used to compute the numerical derivative. This
+    function might be less precise than more sophisticated
+    techniques of the same order, but it has the benefit that it
+    can be used on arbitrary radial grids, without knowledge of
+    the particular grid being used. A second function is also
+    returned that can evaluated the derivative of the radial
+    derivative with respect to a change in function value.
+    """
+    N = r_g.size
+    assert N > order, "Grid too small"
+    assert order > 0, "Order must be > 0"
+    D = 2 * order + 1
+    weight_list = np.empty((D, N))
+    for i in range(order):
+        weight_list[:, i] = _get_deriv_weights(r_g, D, i, 0)
+    for i in range(order, N - order):
+        weight_list[:, i] = _get_deriv_weights(r_g, D, i, i - order)
+    for i in range(N - order, N):
+        weight_list[:, i] = _get_deriv_weights(r_g, D, i, N - D)
+    end = N - D + 1
+
+    def _eval_radial_deriv(func_xg):
+        deriv_xg = np.empty_like(func_xg)
+        deriv_xg[..., :order] = np.einsum(
+            "...g,gd->...d", func_xg[..., :D], weight_list[:, :order]
+        )
+        deriv_xg[..., -order:] = np.einsum(
+            "...g,gd->...d", func_xg[..., -D:], weight_list[:, -order:]
+        )
+        deriv_xg[..., order:-order] = weight_list[0, order:-order] * func_xg[..., :end]
+        for d in range(1, D):
+            deriv_xg[..., order:-order] += (
+                weight_list[d, order:-order] * func_xg[..., d : end + d]
+            )
+        return deriv_xg
+
+    def _eval_radial_deriv_bwd(vderiv_xg):
+        vfunc_xg = np.zeros_like(vderiv_xg)
+        vfunc_xg[..., :end] = (
+            weight_list[0, order:-order] * vderiv_xg[..., order:-order]
+        )
+        for d in range(1, D):
+            vfunc_xg[..., d : end + d] += (
+                weight_list[d, order:-order] * vderiv_xg[..., order:-order]
+            )
+        vfunc_xg[..., :D] += np.einsum(
+            "...d,gd->...g", vderiv_xg[..., :order], weight_list[:, :order]
+        )
+        vfunc_xg[..., -D:] += np.einsum(
+            "...d,gd->...g", vderiv_xg[..., -order:], weight_list[:, -order:]
+        )
+        return vfunc_xg
+
+    return _eval_radial_deriv, _eval_radial_deriv_bwd
+
+
 class SBTRadialGridDescriptor(RadialGridDescriptor):
     def __init__(self, a, d, N=1000, default_spline_points=25):
         """Radial grid descriptor for Spherical Bessel Transform

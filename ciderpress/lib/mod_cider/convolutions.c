@@ -737,13 +737,15 @@ void solve_atc_coefs(convolution_collection *ccl) {
     }
 }
 
-void solve_atc_coefs_arr(atc_basis_set *atco, double *p_uq, int nalpha) {
+void solve_atc_coefs_arr(atc_basis_set *atco, double *p_uq, int nalpha,
+                         int basis_mode) {
 #pragma omp parallel
     {
         int ia, dish;
         int ish0;
         atc_atom atcc;
         double *chomat;
+        double *gtrans;
         int info;
         int max_size = 0;
         int my_size;
@@ -762,6 +764,14 @@ void solve_atc_coefs_arr(atc_basis_set *atco, double *p_uq, int nalpha) {
 #pragma omp for schedule(dynamic, 4)
         for (ia = 0; ia < atco->natm; ia++) {
             atcc = atco->atc_convs[ia];
+            if (basis_mode == 1) {
+                gtrans = atcc.gtrans_p;
+            } else if (basis_mode == -1) {
+                gtrans = atcc.gtrans_m;
+            } else {
+                // default basis_mode = 0
+                gtrans = atcc.gtrans_0;
+            }
             for (int l = 0; l < atcc.lmax + 1; l++) {
                 ish0 = atcc.global_l_loc[l];
                 dish = atcc.global_l_loc[l + 1] - ish0;
@@ -772,7 +782,7 @@ void solve_atc_coefs_arr(atc_basis_set *atco, double *p_uq, int nalpha) {
                         buf[mq * dish + sh] = p_mq[mq];
                     }
                 }
-                chomat = atcc.gtrans_0 + atcc.l_loc2[l];
+                chomat = gtrans + atcc.l_loc2[l];
                 dpotrs_(&(atco->UPLO), &dish, &n_mq, chomat, &dish, buf, &dish,
                         &info);
                 for (int sh = 0; sh < dish; sh++) {
@@ -827,7 +837,7 @@ void solve_atc_coefs_arr_ccl(convolution_collection *ccl, double *p_uq,
     } else {
         atco = ccl->atco_out;
     }
-    solve_atc_coefs_arr(atco, p_uq, nalpha);
+    solve_atc_coefs_arr(atco, p_uq, nalpha, 0);
 }
 
 /**
@@ -966,6 +976,46 @@ void atc_reciprocal_convolution(double *in_sklmq, double *out_sklmq,
                         out_q[q2] = 0.0;
                         for (q1 = 0; q1 < nq; q1++, ind++) {
                             out_q[q2] += conv[ind] * in_q[q1];
+                        }
+                    }
+                }
+            }
+        }
+        free(conv);
+    }
+    free(conv_exps);
+    free(conv_facs);
+}
+
+// q1 is the output size, q0 is the input size
+void atc_reciprocal_convolution_v2(double *in_sklmq, double *out_sklmq,
+                                   double *k_k, double *conv_exps,
+                                   double *conv_facs, int nspin, int nk,
+                                   int nlm, int nq0, int nq1) {
+    double FPI = 16 * atan(1.0);
+    int nq01 = nq0 * nq1;
+#pragma omp parallel
+    {
+        int k, q0, q1, lm, ind, displ, s;
+        double *conv = (double *)malloc(nq01 * sizeof(double));
+        double *in_q, *out_q;
+        double mk2;
+        for (k = 0; k < nk; k++) {
+            mk2 = -1.0 * k_k[k] * k_k[k];
+            for (ind = 0; ind < nq01; ind++) {
+                conv[ind] = conv_facs[ind] * exp(mk2 * conv_exps[ind]);
+            }
+            for (s = 0; s < nspin; s++) {
+                for (lm = 0; lm < nlm; lm++) {
+                    // TODO blas
+                    ind = 0;
+                    displ = lm + nlm * (k + nk * s);
+                    in_q = in_sklmq + nq0 * displ;
+                    out_q = out_sklmq + nq1 * displ;
+                    for (q1 = 0; q1 < nq1; q1++) {
+                        out_q[q1] = 0.0;
+                        for (q0 = 0; q0 < nq0; q0++, ind++) {
+                            out_q[q1] += conv[ind] * in_q[q0];
                         }
                     }
                 }
