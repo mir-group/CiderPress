@@ -107,40 +107,29 @@ void ciderpw_init_serial(ciderpw_data data, int nalpha, int nbeta,
     data->work_ska = alloc_fft_array(fftw_alloc_size * sizeof(double complex));
     data->work_array_size = fftw_alloc_size;
 
+    int is_r2c;
     if (data->fft_type == CIDERPW_R2C) {
-        data->plan_g2k = allocate_fftnd_plan(3, data->cell.Nglobal, 1, 1,
-                                             data->kernel.work_size, 1, 0);
-        data->plan_k2g = allocate_fftnd_plan(3, data->cell.Nglobal, 0, 1,
-                                             data->kernel.work_size, 1, 0);
+        is_r2c = 1;
     } else {
-        data->plan_g2k = allocate_fftnd_plan(3, data->cell.Nglobal, 1, 0,
-                                             data->kernel.work_size, 1, 0);
-        data->plan_k2g = allocate_fftnd_plan(3, data->cell.Nglobal, 0, 0,
-                                             data->kernel.work_size, 1, 0);
+        is_r2c = 0;
+    }
+    data->plan_g2k = allocate_fftnd_plan(3, data->cell.Nglobal, 1, is_r2c,
+                                         data->kernel.work_size, 1, 0);
+    data->plan_k2g = allocate_fftnd_plan(3, data->cell.Nglobal, 0, is_r2c,
+                                         data->kernel.work_size, 1, 0);
+    if (data->kernel.numvi > 0) {
+        data->iplan_g2k = allocate_fftnd_plan(3, data->cell.Nglobal, 1, is_r2c,
+                                              data->kernel.numvi, 1, 0);
+        data->iplan_k2g = allocate_fftnd_plan(3, data->cell.Nglobal, 0, is_r2c,
+                                              data->kernel.numvi, 1, 0);
+        fftw_alloc_size = data->icell.Nglobal[0] * data->icell.Nglobal[1] *
+                          data->icell.Nglobal[2] * data->kernel.numvi;
+        assert(fftw_alloc_size % data->kernel.numvi == 0);
+        data->work_ski =
+            alloc_fft_array(fftw_alloc_size * sizeof(double complex));
     }
     initialize_fft_plan(data->plan_g2k, data->work_ska, NULL);
     initialize_fft_plan(data->plan_k2g, data->work_ska, NULL);
-    /*
-    if (data->fft_type == CIDERPW_R2C) {
-        data->plan_g2k = fftw_plan_many_dft_r2c(
-            3, plan_dims, data->kernel.work_size, (double *)data->work_ska,
-            NULL, data->kernel.work_size, 1, data->work_ska, NULL,
-            data->kernel.work_size, 1, FFTW_ESTIMATE);
-        data->plan_k2g = fftw_plan_many_dft_c2r(
-            3, plan_dims, data->kernel.work_size, data->work_ska, NULL,
-            data->kernel.work_size, 1, (double *)data->work_ska, NULL,
-            data->kernel.work_size, 1, FFTW_ESTIMATE);
-    } else {
-        data->plan_g2k = fftw_plan_many_dft(
-            3, plan_dims, data->kernel.work_size, data->work_ska, NULL,
-            data->kernel.work_size, 1, data->work_ska, NULL,
-            data->kernel.work_size, 1, FFTW_FORWARD, FFTW_ESTIMATE);
-        data->plan_k2g = fftw_plan_many_dft(
-            3, plan_dims, data->kernel.work_size, data->work_ska, NULL,
-            data->kernel.work_size, 1, data->work_ska, NULL,
-            data->kernel.work_size, 1, FFTW_BACKWARD, FFTW_ESTIMATE);
-    }
-    */
     assert(data->plan_g2k != NULL);
     assert(data->plan_k2g != NULL);
     ciderpw_allocate_buffers(data);
@@ -150,6 +139,14 @@ void ciderpw_init_serial(ciderpw_data data, int nalpha, int nbeta,
 void ciderpw_g2k_serial(ciderpw_data data) { execute_fft_plan(data->plan_g2k); }
 
 void ciderpw_k2g_serial(ciderpw_data data) { execute_fft_plan(data->plan_k2g); }
+
+void ciderpw_g2k_vi_serial(ciderpw_data data) {
+    execute_fft_plan(data->iplan_g2k);
+}
+
+void ciderpw_k2g_vi_serial(ciderpw_data data) {
+    execute_fft_plan(data->iplan_k2g);
+}
 
 void ciderpw_g2k_serial_gpaw(ciderpw_data data, double *in_g,
                              double complex *out_g) {

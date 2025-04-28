@@ -27,4 +27,8 @@ void ciderpw_g2k_serial(ciderpw_data data);
 
 void ciderpw_k2g_serial(ciderpw_data data);
 
+void ciderpw_g2k_vi_serial(ciderpw_data data);
+
+void ciderpw_k2g_vi_serial(ciderpw_data data);
+
 #endif

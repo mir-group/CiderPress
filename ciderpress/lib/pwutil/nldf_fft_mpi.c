@@ -96,77 +96,6 @@ void ciderpw_setup_reciprocal_vectors(ciderpw_data data) {
     }
 }
 
-/*
-void ciderpw_init_mpi(ciderpw_data data, MPI_Comm mpi_comm, int nalpha,
-                      int nbeta, double *norms_ab, double *expnts_ab) {
-    fftw_mpi_init();
-    ciderpw_set_communicator(data, mpi_comm);
-
-    const ptrdiff_t plan_dims[3] = {
-        data->cell.Nglobal[0], data->cell.Nglobal[1], data->cell.Nglobal[2]};
-    ptrdiff_t local_size_dims[3];
-    ptrdiff_t fftw_alloc_size;
-    data->kLDA = data->icell.Nglobal[2];
-    data->gLDA = 2 * data->kLDA;
-    local_size_dims[0] = data->cell.Nglobal[0];
-    local_size_dims[1] = data->cell.Nglobal[1];
-    local_size_dims[2] = data->kLDA;
-    data->fft_type = CIDERPW_R2C;
-
-    ptrdiff_t fftw_xsize, fftw_xstart, fftw_ysize, fftw_ystart;
-    ciderpw_setup_kernel(data, nalpha, nbeta, norms_ab, expnts_ab);
-
-    fftw_alloc_size = fftw_mpi_local_size_many_transposed(
-        3, local_size_dims, data->kernel.work_size, FFTW_MPI_DEFAULT_BLOCK,
-        FFTW_MPI_DEFAULT_BLOCK, data->mpi_comm, &fftw_xsize, &fftw_xstart,
-        &fftw_ysize, &fftw_ystart);
-    data->cell.Nlocal[0] = fftw_xsize;
-    data->cell.Nlocal[1] = data->cell.Nglobal[1];
-    data->cell.Nlocal[2] = data->cell.Nglobal[2];
-    data->cell.offset[0] = fftw_xstart;
-    data->cell.offset[1] = 0;
-    data->cell.offset[2] = 0;
-
-    data->icell.Nlocal[0] = data->icell.Nglobal[0];
-    data->icell.Nlocal[1] = fftw_ysize;
-    data->icell.Nlocal[2] = data->icell.Nglobal[2];
-    data->icell.offset[0] = 0;
-    data->icell.offset[1] = fftw_ystart;
-    data->icell.offset[2] = 0;
-
-    assert(fftw_alloc_size % data->kernel.work_size == 0);
-    data->work_ska = fftw_alloc_complex(fftw_alloc_size);
-    data->work_array_size = fftw_alloc_size;
-
-    if (data->fft_type == CIDERPW_R2C) {
-        data->plan_g2k = fftw_mpi_plan_many_dft_r2c(
-            3, plan_dims, data->kernel.work_size, FFTW_MPI_DEFAULT_BLOCK,
-            FFTW_MPI_DEFAULT_BLOCK, (double *)data->work_ska, data->work_ska,
-            data->mpi_comm, FFTW_ESTIMATE | FFTW_MPI_TRANSPOSED_OUT);
-        data->plan_k2g = fftw_mpi_plan_many_dft_c2r(
-            3, plan_dims, data->kernel.work_size, FFTW_MPI_DEFAULT_BLOCK,
-            FFTW_MPI_DEFAULT_BLOCK, data->work_ska, (double *)data->work_ska,
-            data->mpi_comm, FFTW_ESTIMATE | FFTW_MPI_TRANSPOSED_IN);
-    } else {
-        data->plan_g2k = fftw_mpi_plan_many_dft(
-            3, plan_dims, data->kernel.work_size, FFTW_MPI_DEFAULT_BLOCK,
-            FFTW_MPI_DEFAULT_BLOCK, data->work_ska, data->work_ska,
-            data->mpi_comm, FFTW_FORWARD,
-            FFTW_ESTIMATE | FFTW_MPI_TRANSPOSED_OUT);
-        data->plan_k2g = fftw_mpi_plan_many_dft(
-            3, plan_dims, data->kernel.work_size, FFTW_MPI_DEFAULT_BLOCK,
-            FFTW_MPI_DEFAULT_BLOCK, data->work_ska, data->work_ska,
-            data->mpi_comm, FFTW_BACKWARD,
-            FFTW_ESTIMATE | FFTW_MPI_TRANSPOSED_IN);
-    }
-
-    assert(data->plan_g2k != NULL);
-    assert(data->plan_k2g != NULL);
-    ciderpw_allocate_buffers(data);
-    ciderpw_setup_reciprocal_vectors(data);
-}
-*/
-
 void ciderpw_init_mpi(ciderpw_data data, MPI_Comm mpi_comm, int nalpha,
                       int nbeta, double *norms_ab, double *expnts_ab) {
     // fftw_mpi_init();
@@ -180,13 +109,24 @@ void ciderpw_init_mpi(ciderpw_data data, MPI_Comm mpi_comm, int nalpha,
 
     ciderpw_setup_kernel(data, nalpha, nbeta, norms_ab, expnts_ab);
 
+    int is_r2c;
     if (data->fft_type == CIDERPW_R2C) {
-        data->plan = allocate_mpi_fft3d_plan(data->mpi_comm, dims, 1,
-                                             data->kernel.work_size);
+        is_r2c = 1;
     } else {
-        data->plan = allocate_mpi_fft3d_plan(data->mpi_comm, dims, 0,
-                                             data->kernel.work_size);
+        is_r2c = 0;
     }
+    data->plan = allocate_mpi_fft3d_plan(data->mpi_comm, dims, is_r2c,
+                                         data->kernel.work_size);
+    if (data->kernel.numvi > 0) {
+        data->iplan = allocate_mpi_fft3d_plan(data->mpi_comm, dims, is_r2c,
+                                              data->kernel.numvi);
+        data->work_ski = data->iplan->work;
+    } else {
+        data->iplan = NULL;
+    }
+    data->work_ska = data->plan->work;
+    data->work_array_size = data->plan->work_array_size;
+
     data->cell.Nlocal[0] = data->plan->r_Nlocal[0];
     data->cell.Nlocal[1] = data->plan->r_Nlocal[1];
     data->cell.Nlocal[2] = data->plan->r_Nlocal[2];
@@ -200,9 +140,6 @@ void ciderpw_init_mpi(ciderpw_data data, MPI_Comm mpi_comm, int nalpha,
     data->icell.offset[0] = data->plan->k_offset[0];
     data->icell.offset[1] = data->plan->k_offset[1];
     data->icell.offset[2] = data->plan->k_offset[2];
-
-    data->work_ska = data->plan->work;
-    data->work_array_size = data->plan->work_array_size;
 
     ciderpw_allocate_buffers(data);
     ciderpw_setup_reciprocal_vectors(data);
@@ -218,6 +155,14 @@ void ciderpw_init_mpi_from_gpaw(ciderpw_data data, PyObject *gpaw_comm,
 void ciderpw_g2k_mpi(ciderpw_data data) { execute_mpi_fft3d_fwd(data->plan); }
 
 void ciderpw_k2g_mpi(ciderpw_data data) { execute_mpi_fft3d_bwd(data->plan); }
+
+void ciderpw_g2k_vi_mpi(ciderpw_data data) {
+    execute_mpi_fft3d_fwd(data->iplan);
+}
+
+void ciderpw_k2g_vi_mpi(ciderpw_data data) {
+    execute_mpi_fft3d_bwd(data->iplan);
+}
 
 void ciderpw_g2k_mpi_gpaw(ciderpw_data data, double *in_g,
                           double complex *out_g) {

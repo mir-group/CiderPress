@@ -1589,7 +1589,13 @@ class NLDFAuxiliaryPlan(ABC):
     def _cache_l1_vectors(self, f_qg, drho, s):
         for loc in self._l1_start_locs:
             self._cached_l1_data[s].append(f_qg[loc : loc + 3].copy())
-        self._cached_l1_data[s].append(drho.copy())
+        if drho is None:
+            for i, j in self._l1_dots:
+                if i == -1 or j == -1:
+                    raise ValueError("Feature requires density gradient")
+            self._cached_l1_data[s].append(None)
+        else:
+            self._cached_l1_data[s].append(drho.copy())
 
     def _cache_p_tensor(self, s, p):
         self._cached_p_i_qg[s].append(p)
@@ -1623,7 +1629,7 @@ class NLDFAuxiliaryPlan(ABC):
             feat[i] = f_qg[loc]
             i += 1
         for j, k in self._l1_dots:
-            feat[i] = np.einsum("xg,xg->g", l1cache[j], l1cache[k])
+            feat[i] = np.einsum("x...,x...->...", l1cache[j], l1cache[k])
             feat[i] *= self.nspin
             i += 1
         return feat
@@ -1651,7 +1657,6 @@ class NLDFAuxiliaryPlan(ABC):
                 target = vf_qg[loc : loc + 3]
             target[:] += vfeat[i] * l1cache[j]
             i += 1
-        # self._clear_l1_cache(spin)
 
     def eval_rho_full(
         self,
@@ -1722,7 +1727,6 @@ class NLDFAuxiliaryPlan(ABC):
             if cache_p:
                 self._cache_p_tensor(spin, p)
         start = 0 if self.nldf_settings.nldf_type == "i" else self.nalpha
-        self._clear_l1_cache(spin)
         if "i" in self.nldf_settings.nldf_type:
             self.eval_rho_vi_(f_qg[start:], rho_data[1:4], feat[num_vj:], spin=spin)
         feat[:] *= self.nspin

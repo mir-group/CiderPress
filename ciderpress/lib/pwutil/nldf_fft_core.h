@@ -43,12 +43,12 @@ struct ciderpw_unit_cell {
 struct ciderpw_kernel {
     int kernel_type;
     int nalpha;
-    int nbeta;
+    int numvi;
     int work_size;
-    double *expnts_ba;
-    double *norms_ba;
-    double *expnts_ab;
-    double *norms_ab;
+    double *expnts_aa;
+    double *norms_aa;
+    double *expnts_ia;
+    double *norms_ia;
     int num_l1_feats;
 };
 
@@ -76,13 +76,20 @@ struct ciderpw_data_obj {
     // spin first, then k/g, then alpha
     double complex *work_ska;
 
+    // work_ski contains the convolutions for version i features.
+    // It will be NULL if there are no version i features.
+    double complex *work_ski;
+
     // for NLDF, this will always be r2c and c2r, but might want
     // to reuse this struct for SDMX or R3.5, which will have c2c tranforms.
 #if HAVE_MPI
     mpi_fft3d_plan_t *plan;
+    mpi_fft3d_plan_t *iplan;
 #else
     fft_plan_t *plan_g2k;
     fft_plan_t *plan_k2g;
+    fft_plan_t *iplan_g2k;
+    fft_plan_t *iplan_k2g;
 #endif
 
     int nk;
@@ -129,12 +136,12 @@ double *ciderpw_get_work_pointer(ciderpw_data data);
 
 void ciderpw_get_local_size_and_lda(ciderpw_data data, int *sizes);
 
-void ciderpw_compute_kernels_helper(double k2, double *kernel_ab,
-                                    double *norms_ab, double *expnts_ab,
+void ciderpw_compute_kernels_helper(double k2, double *kernel_aa,
+                                    double *norms_aa, double *expnts_aa,
                                     int n_ab);
 
-void ciderpw_compute_kernels_sym_helper(double k2, double *kernel_ab,
-                                        double *norms_ab, double *expnts_ab,
+void ciderpw_compute_kernels_sym_helper(double k2, double *kernel_aa,
+                                        double *norms_aa, double *expnts_aa,
                                         int nalpha);
 
 void ciderpw_compute_kernels(struct ciderpw_kernel *kernel, double k2,

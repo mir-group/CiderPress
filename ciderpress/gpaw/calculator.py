@@ -135,7 +135,7 @@ def get_cider_functional(
     elif not mlfunc.settings.sdmx_settings.is_empty:
         raise NotImplementedError("SDMX features in GPAW")
     elif not mlfunc.settings.nldf_settings.is_empty:
-        if mlfunc.settings.nldf_settings.version != "j":
+        if False:  # mlfunc.settings.nldf_settings.version != "j":
             raise NotImplementedError(
                 "Currently only version j NLDF features are implemented in GPAW. "
                 "Other versions are planned for future development. The version "

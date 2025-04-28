@@ -227,6 +227,14 @@ class _CiderBase:
                 dp.shape = a_g.shape + (plan.nalpha,)
                 self.fft_obj.fill_vj_feature_(feat_sig[s, i], p)
                 self.fft_obj.fill_vj_feature_(dfeat_sjg[s, i], dp)
+            if "i" in plan.nldf_settings.nldf_type:
+                numvi = len(plan.nldf_settings.l0_feat_specs) + 3 * len(
+                    plan.nldf_settings.l1_feat_specs
+                )
+                f_ig = np.zeros((numvi,) + feat_sig.shape[2:])
+                self.fft_obj.fill_vi_terms_(f_ig)
+                plan.eval_rho_vi_(f_ig, None, feat_sig[s, plan.num_vj :], spin=s)
+                # feat_sig[s, plan.num_vj:] = 0
             self.timer.stop()
         return feat_sig, dfeat_sjg, arg_sg, darg_sg, fun_sg, dfun_sg, p, dp
 
@@ -281,6 +289,13 @@ class _CiderBase:
                 # dedrho_sxg[s, 1:4] += 2 * da_g[1] * rho_sxg[s, 1:4] * tmp
                 # if tau_sg is not None:
                 #    dedrho_sxg[s, 4] += da_g[2] * tmp
+            if "i" in plan.nldf_settings.nldf_type:
+                numvi = len(plan.nldf_settings.l0_feat_specs) + 3 * len(
+                    plan.nldf_settings.l1_feat_specs
+                )
+                vf_ig = np.zeros((numvi,) + vfeat_sig.shape[2:])
+                plan.eval_vxc_vi_(vfeat_sig[s, plan.num_vj :], None, vf_ig, s)
+                self.fft_obj.fill_vi_potential_(vf_ig)
             self.timer.stop()
             self.set_fft_work(s, pot=True)
             self.timer.start("FFT and kernel")

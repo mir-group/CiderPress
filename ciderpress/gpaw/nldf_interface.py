@@ -42,27 +42,39 @@ def get_norms_and_expnts_from_plan(plan):
     alpha_norms = plan.alpha_norms
     settings = plan.nldf_settings
     version = settings.version
-    if version in ["j", "ij", "k"]:
+    if version in ["j", "ij"]:
         nbeta = nalpha
-    else:
+    elif version == "k":
+        nbeta = 1
+    elif version == "i":
         nbeta = 0
-    norms_ab = np.empty((nalpha, nbeta))
-    expnts_ab = np.empty((nalpha, nbeta))
+    else:
+        raise ValueError("Unrecognized NLDF version {}".format(version))
+    if version in ["i", "ij"]:
+        nbeta += len(settings.l0_feat_specs)
+        # 0-th index is value, 1st-4th are grad
+        # want to save the value for projection onto PAW
+        nbeta += 4 * len(settings.l1_feat_specs)
+    norms_ab = np.empty((nbeta, nalpha))
+    expnts_ab = np.empty((nbeta, nalpha))
     t = 0
-    if version in ["j", "ij", "k"]:
+    if version in ["j", "ij"]:
         aexp = alphas + alphas[:, None]
         fac = (np.pi / aexp) ** 1.5
-        norms_ab[:, :nalpha] = fac * alpha_norms * alpha_norms[:, None]
-        expnts_ab[:, :nalpha] = 1.0 / (4 * aexp)
+        norms_ab[:nalpha, :] = fac * alpha_norms * alpha_norms[:, None]
+        expnts_ab[:nalpha, :] = 1.0 / (4 * aexp)
         t = nalpha
+    elif version == "k":
+        fac = (np.pi / alphas) ** 1.5
+        norms_ab[0, :] = fac * alpha_norms
+        expnts_ab[0, :] = 1.0 / (4 * alphas)
     if version in ["i", "ij"]:
         for spec in settings.l0_feat_specs:
             fac = alpha_norms * (np.pi / alphas) ** 1.5
-            # TODO this won't be correct for r^2 and lapl ones.
             if spec == "se":
                 fac *= 1
             elif spec == "se_r2":
-                fac *= 1
+                raise NotImplementedError("se_r2 feature for PW calculation")
             elif spec == "se_apr2":
                 fac *= alphas
             elif spec == "se_ap":
@@ -70,11 +82,11 @@ def get_norms_and_expnts_from_plan(plan):
             elif spec == "se_ap2r2":
                 fac *= alphas * alphas
             elif spec == "se_lapl":
-                fac *= 1
+                raise NotImplementedError("se_lapl feature for PW calculation")
             else:
-                raise ValueError
-            norms_ab[:, t] = fac
-            expnts_ab[:, t] = 1.0 / (4 * alphas)
+                raise ValueError("Unrecognized vi l0 feature {}".format(spec))
+            norms_ab[t, :] = fac
+            expnts_ab[t, :] = 1.0 / (4 * alphas)
             t += 1
         for spec in settings.l1_feat_specs:
             fac = alpha_norms * (np.pi / alphas) ** 1.5
@@ -84,10 +96,10 @@ def get_norms_and_expnts_from_plan(plan):
             elif spec == "se_rvec":
                 fac /= alphas
             else:
-                raise ValueError
-            norms_ab[:, t : t + 3] = fac[:, None]
-            expnts_ab[:, t : t + 3] = alphas[:, None]
-            t += 3
+                raise ValueError("Unrecognized vi l1 feature {}".format(spec))
+            norms_ab[t : t + 4, :] = fac
+            expnts_ab[t : t + 4, :] = 1.0 / (4 * alphas)
+            t += 4
     return nalpha, nbeta, alphas, alpha_norms, norms_ab, expnts_ab
 
 
@@ -267,6 +279,15 @@ class LibCiderPW:
             p_gq.ctypes.data_as(ctypes.c_void_p),
         )
 
+    def fill_vi_terms_(self, f_ig):
+        # TODO check 0-th dimension of f_ig
+        assert f_ig.flags.c_contiguous
+        assert f_ig[0].size == np.prod(self._local_shape_real)
+        pwutil.ciderpw_fill_vi_terms(
+            self._ptr,
+            f_ig.ctypes.data_as(ctypes.c_void_p),
+        )
+
     def fill_vj_potential_(self, vfeat_g, p_gq):
         """
         This function is an IN-PLACE operation on the internal C work array.
@@ -288,6 +309,14 @@ class LibCiderPW:
             self._ptr,
             vfeat_g.ctypes.data_as(ctypes.c_void_p),
             p_gq.ctypes.data_as(ctypes.c_void_p),
+        )
+
+    def fill_vi_potential_(self, vf_ig):
+        assert vf_ig.flags.c_contiguous
+        assert vf_ig[0].size == np.prod(self._local_shape_real)
+        pwutil.ciderpw_fill_vi_potential(
+            self._ptr,
+            vf_ig.ctypes.data_as(ctypes.c_void_p),
         )
 
     def set_work(self, fun_g, p_gq):
