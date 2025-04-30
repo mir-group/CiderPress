@@ -199,6 +199,7 @@ def run_vxc_test(xc0, xc1, spinpol=False, use_pp=False, safe=True):
     si = bulk("Si")
     si.calc = GPAW(
         mode=PW(250),
+        h=0.15,
         mixer=Mixer(0.7, 5, 50.0),
         xc=xc0,
         kpts=(k, k, k),

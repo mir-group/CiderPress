@@ -960,14 +960,24 @@ void atc_reciprocal_convolution(double *in_sklmq, double *out_sklmq,
         double *conv = (double *)malloc(nq * nq * sizeof(double));
         double *in_q, *out_q;
         double mk2;
+        const char ntrans = 'N';
+        double one = 1.0;
+        double zero = 0.0;
+#pragma omp for schedule(static)
         for (k = 0; k < nk; k++) {
             mk2 = -1.0 * k_k[k] * k_k[k];
             for (ind = 0; ind < nq * nq; ind++) {
                 conv[ind] = conv_facs[ind] * exp(mk2 * conv_exps[ind]);
             }
             for (s = 0; s < nspin; s++) {
+                lm = 0;
+                displ = nq * (lm + nlm * (k + nk * s));
+                in_q = in_sklmq + displ;
+                out_q = out_sklmq + displ;
+                dgemm_(&ntrans, &ntrans, &nq, &nlm, &nq, &one, conv, &nq, in_q,
+                       &nq, &zero, out_q, &nq);
+                /*
                 for (lm = 0; lm < nlm; lm++) {
-                    // TODO blas
                     ind = 0;
                     displ = nq * (lm + nlm * (k + nk * s));
                     in_q = in_sklmq + displ;
@@ -979,6 +989,7 @@ void atc_reciprocal_convolution(double *in_sklmq, double *out_sklmq,
                         }
                     }
                 }
+                */
             }
         }
         free(conv);
@@ -1022,6 +1033,76 @@ void atc_reciprocal_convolution_v2(double *in_sklmq, double *out_sklmq,
             }
         }
         free(conv);
+    }
+    free(conv_exps);
+    free(conv_facs);
+}
+
+void atc_reciprocal_convolution_v3(double *in_sklmq, double *out_sklmq,
+                                   const int nspin, const int nk, const int nlm,
+                                   const int nb, const int na,
+                                   double *kernel_kba, const int fwd) {
+#pragma omp parallel
+    {
+        int k, displ, s;
+        double *in_q, *out_q;
+        double mk2;
+        const char ntrans = 'N';
+        double one = 1.0;
+        double zero = 0.0;
+        double *kernel_ba;
+        int nq_in, nq_out;
+        char ktrans;
+        if (fwd) {
+            nq_in = na;
+            nq_out = nb;
+            ktrans = 'T';
+        } else {
+            nq_in = nb;
+            nq_out = na;
+            ktrans = 'N';
+        }
+#pragma omp for schedule(static)
+        for (k = 0; k < nk; k++) {
+            for (s = 0; s < nspin; s++) {
+                displ = nlm * (k + nk * s);
+                in_q = in_sklmq + nq_in * displ;
+                out_q = out_sklmq + nq_out * displ;
+                kernel_ba = kernel_kba + k * na * nb;
+                dgemm_(&ktrans, &ntrans, &nq_in, &nlm, &nq_out, &one, kernel_ba,
+                       &na, in_q, &nq_in, &zero, out_q, &nq_out);
+            }
+        }
+    }
+}
+
+void atc_make_kernel(double *kernel_kqq, double *k_k, double *alphas,
+                     double *alpha_norms, int nk, int nq) {
+    double *conv_facs = (double *)malloc(nq * nq * sizeof(double));
+    double *conv_exps = (double *)malloc(nq * nq * sizeof(double));
+    double FPI = 16 * atan(1.0);
+#pragma omp parallel for
+    for (int n2 = 0; n2 < nq; n2++) {
+        for (int n1 = 0; n1 < nq; n1++) {
+            int ind = n2 * nq + n1;
+            conv_exps[ind] = 0.25 / (alphas[n1] + alphas[n2]);
+            conv_facs[ind] = alpha_norms[n1] * alpha_norms[n2];
+            conv_facs[ind] *= pow(FPI * conv_exps[ind], 1.5);
+        }
+    }
+#pragma omp parallel
+    {
+        int k, ind;
+        double *kernel_qq;
+        double mk2;
+#pragma omp for schedule(static)
+        for (k = 0; k < nk; k++) {
+            mk2 = -1.0 * k_k[k] * k_k[k];
+            kernel_qq = kernel_kqq + k * nq * nq;
+            for (ind = 0; ind < nq * nq; ind++) {
+                kernel_qq[ind] = conv_facs[ind] * exp(mk2 * conv_exps[ind]);
+            }
+        }
     }
     free(conv_exps);
     free(conv_facs);

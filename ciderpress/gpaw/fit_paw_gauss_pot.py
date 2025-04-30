@@ -190,6 +190,7 @@ def get_p11_matrix(delta_l_pg, rgd, reg=0):
     p11_l_ii = []
     for l, delta_pg in enumerate(delta_l_pg):
         mat = np.einsum("pg,qg,g->pq", delta_pg, delta_pg, dv_g)
+        print("P11 ERR", l, mat.shape, np.max(np.abs(mat - np.identity(mat.shape[0]))))
         mat[:] += reg * np.identity(mat.shape[-1])
         p11_l_ii.append(mat)
     return p11_l_ii

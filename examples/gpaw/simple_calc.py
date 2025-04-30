@@ -5,11 +5,12 @@ from ase.build import bulk
 from gpaw import PW, Mixer
 
 from ciderpress.gpaw.calculator import CiderGPAW, get_cider_functional
+from ciderpress.gpaw.descriptors import get_descriptors
 
 # NOTE: Run this script as follows:
 # mpirun -np <NPROC> gpaw python simple_calc.py
 
-MODIFY_CELL = True
+MODIFY_CELL = False
 
 atoms = bulk("Si")
 
@@ -33,7 +34,7 @@ xc = get_cider_functional(
     pasdw_store_funcs=False,
     # pasdw_ovlp_fit=True (default) uses overlap fitting to improve precision
     # of PAW correction terms of features. Usually not needed.
-    pasdw_ovlp_fit=False,
+    pasdw_ovlp_fit=True,
 )
 
 # Using CiderGPAW instead of the default GPAW calculator allows calculations
@@ -72,3 +73,9 @@ if MODIFY_CELL:
 
 # run the calculation
 etot = atoms.get_potential_energy()
+
+desc, wts = get_descriptors(
+    atoms.calc, atoms.calc.hamiltonian.xc.cider_kernel.mlfunc.settings.nldf_settings
+)
+
+print(desc.sum())

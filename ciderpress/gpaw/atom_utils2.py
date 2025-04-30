@@ -19,6 +19,7 @@
 #
 
 import ctypes
+import time
 
 import numpy as np
 from gpaw.atom.radialgd import EquidistantRadialGridDescriptor
@@ -40,7 +41,7 @@ from ciderpress.dft.lcao_convolutions import (
     get_gamma_lists_from_etb_list,
 )
 from ciderpress.dft.plans import NLDFAuxiliaryPlan, libcider
-from ciderpress.gpaw.fit_paw_gauss_pot import get_dv, get_dvk, get_ffunc, get_pfunc_norm
+from ciderpress.gpaw.fit_paw_gauss_pot import get_dv, get_ffunc, get_pfunc_norm
 from ciderpress.gpaw.gpaw_grids import (
     SBTFullGridDescriptor,
     make_radial_derivative_calculator,
@@ -390,6 +391,11 @@ class FastAtomPASDWSlice:
             self.psetup.lmlist_i,
         )
         ovlp_pf = np.einsum("pg,fg->pf", pfuncs_ig, ffuncs_ig) * self.dv
+        print(
+            "OVLPS",
+            np.linalg.eigvals(ovlp_pf.T),
+            np.linalg.eigvals(self.psetup.exact_ovlp_pf),
+        )
         self.sinv_pf = np.linalg.solve(ovlp_pf.T, self.psetup.exact_ovlp_pf)
 
     def get_ovlp_deriv(self, pfuncs_ig, pgrads_vig, stress=False):
@@ -469,18 +475,18 @@ class _PAWCiderContribs:
         return self.grids_indexer.nlm
 
     @classmethod
-    def from_plan(cls, plan, gplan, cider_kernel, Z, xcc, paw_algo, beta=1.8):
+    def from_plan(cls, plan, gplan, cider_kernel, Z, xcc, beta=1.8):
         lmax = int(np.sqrt(Y_nL.shape[1] + 1e-8)) - 1
         rmax = np.max(xcc.rgd.r_g)
         # TODO tune this to find optimal basis size
         min_exps = 0.125 / (rmax * rmax) * np.ones(4)
-        max_exps = get_hgbs_max_exps(Z)[:4] * 10
+        max_exps = get_hgbs_max_exps(Z)[:4]
         etb = get_etb_from_expnt_range(
             lmax, beta, min_exps, max_exps, 0.0, 1e99, lower_fac=1.0, upper_fac=4.0
         )
         inputs_to_atco = get_gamma_lists_from_etb_list([etb])
         atco = ATCBasis(*inputs_to_atco)
-        return cls(plan, cider_kernel, atco, xcc, gplan, paw_algo)
+        return cls(plan, cider_kernel, atco, xcc, gplan)
 
     @property
     def is_mgga(self):
@@ -593,6 +599,7 @@ class _PAWCiderContribs:
             self.grids_indexer.reduce_angc_ylm_(x_srLq[s], x_gq, a2y=True, offset=0)
         return x_srLq
 
+    """
     def get_paw_atom_contribs_en(self, e_g, rho_sxg, vrho_sxg, f_srLq, feat_only=False):
         # NOTE that grid index order is different than previous implementation
         # gn instead of previous ng
@@ -648,8 +655,8 @@ class _PAWCiderContribs:
             )
         if feat_only:
             return feat_sig
-        print(feat_sig[0, 0, :: self._ang_w_g.size])
-        print(feat_sig.sum(), dfeat_sig.sum())
+        # print(feat_sig[0, 0, :: self._ang_w_g.size])
+        print("FEAT", feat_sig[0].sum(axis=-1), dfeat_sig[0].sum(axis=-1))
         sigma_xg = get_sigma(rho_sxg[:, 1:4])
         dedsigma_xg = np.zeros_like(sigma_xg)
         nspin = feat_sig.shape[0]
@@ -680,7 +687,7 @@ class _PAWCiderContribs:
         vrho_sxg[:, 1:4] = 2 * dedsigma_xg[::2, None, :] * rho_sxg[:, 1:4]
         if nspin == 2:
             vrho_sxg[:, 1:4] += dedsigma_xg[1, None, :] * rho_sxg[::-1, 1:4]
-        print(vfeat_sig.sum())
+        # print(vfeat_sig.sum())
         for s in range(nspin):
             f_gq[:] = self.plan.eval_vxc_full(
                 vfeat_sig[s],
@@ -733,6 +740,76 @@ class _PAWCiderContribs:
             # vf_srLq[:, :10, :, -n1:] = 0  # f1_srLq
         # vf_srLq[:] *= self._rad_w_g[:, None, None]
         return vf_srLq
+    """
+
+    def get_paw_atom_contribs_en(self, e_g, rho_sxg, vrho_sxg, f_srLq, feat_only=False):
+        # NOTE that grid index order is different than previous implementation
+        # gn instead of previous ng
+        nspin = rho_sxg.shape[0]
+        ngrid = rho_sxg.shape[2]
+        f_srLq = np.ascontiguousarray(f_srLq)
+        vf_srLq = np.empty_like(f_srLq)
+        feat_sig = np.zeros((nspin, self.plan.nldf_settings.nfeat, ngrid))
+        dfeat_sig = np.zeros((nspin, self.plan.num_vj, ngrid))
+        f_gq = self.grids_indexer.empty_gq(nalpha=self.plan.nalpha)
+        for s in range(nspin):
+            self.grids_indexer.reduce_angc_ylm_(f_srLq[s], f_gq, a2y=False, offset=0)
+            self.plan.eval_rho_full(
+                f_gq,
+                rho_sxg[s],
+                spin=s,
+                feat=feat_sig[s],
+                dfeat=dfeat_sig[s],
+                cache_p=True,
+                # TODO might need to be True for gaussian interp
+                apply_transformation=False,
+                # coeff_multipliers=self.plan.alpha_norms,
+            )
+        if feat_only:
+            return feat_sig
+        featw_ig = feat_sig.sum(axis=0) * self.w_g
+        print("FEAT", featw_ig.sum(axis=-1))
+        sigma_xg = get_sigma(rho_sxg[:, 1:4])
+        dedsigma_xg = np.zeros_like(sigma_xg)
+        nspin = feat_sig.shape[0]
+        dedn_sg = np.zeros_like(vrho_sxg[:, 0])
+        e_g[:] = 0.0
+        args = [
+            e_g,
+            rho_sxg[:, 0].copy(),
+            dedn_sg,
+            sigma_xg,
+            dedsigma_xg,
+        ]
+        if rho_sxg.shape[1] == 4:
+            args.append(feat_sig)
+        elif rho_sxg.shape[1] == 5:
+            dedtau_sg = np.zeros_like(vrho_sxg[:, 0])
+            args += [
+                rho_sxg[:, 4].copy(),
+                dedtau_sg,
+                feat_sig,
+            ]
+        else:
+            raise ValueError
+        vfeat_sig = self.cider_kernel.calculate(*args)
+        vrho_sxg[:, 0] = dedn_sg
+        if rho_sxg.shape[1] == 5:
+            vrho_sxg[:, 4] = dedtau_sg
+        vrho_sxg[:, 1:4] = 2 * dedsigma_xg[::2, None, :] * rho_sxg[:, 1:4]
+        if nspin == 2:
+            vrho_sxg[:, 1:4] += dedsigma_xg[1, None, :] * rho_sxg[::-1, 1:4]
+        for s in range(nspin):
+            f_gq[:] = self.plan.eval_vxc_full(
+                vfeat_sig[s],
+                vrho_sxg[s],
+                dfeat_sig[s],
+                rho_sxg[s],
+                spin=s,
+            )
+            f_gq[:] *= self.w_g[:, None]
+            self.grids_indexer.reduce_angc_ylm_(vf_srLq[s], f_gq, a2y=True, offset=0)
+        return vf_srLq
 
     def get_paw_atom_contribs_pot(self, rho_sxg, vrho_sxg, vx_srLq):
         nspin = self.nspin
@@ -761,51 +838,42 @@ class _PAWCiderContribs:
         raise NotImplementedError
 
     def calculate_y_terms(self, xt_sgLq, dx_sgLq, projector):
-        na = projector.alphas.size
-        self.sbt_rgd = projector.sbt_rgd
+        na = projector.alphas_ps.size
+        self._projector = projector
+        t0 = time.monotonic()
         dx_skLq = self.grid2aux(dx_sgLq)
+        th = time.monotonic()
         dy_skLq = self.perform_convolution_fwd(dx_skLq)
-        # dy1_skLq = dy_skLq[..., :na] * psetup.w_b
-        # dy2_skLq = dy_skLq[..., na:]
-        # yy_skLq = self.perform_fitting_convolution_bwd(dy1_skLq)
-
-        # If using version i or ij, need to be careful about output shape
-        c_siq, dxt_sgLq, df_sgLq = projector.get_c_and_df(dy_skLq)
-        # xt_sgLq[..., :na] += (
-        #     psetup.coef_to_real(c_siq) * get_dv(psetup.slrgd)[:, None, None]
-        # )
-        xt_sgLq[..., :na] += dxt_sgLq
-        xt_sxq = self.grid2aux(xt_sgLq)
-        fr_sxq = self.perform_convolution_fwd(xt_sxq)
-        fr_sgLq = self.aux2grid(fr_sxq)
+        t1 = time.monotonic()
+        c_siq, dxt_skLq, df_sgLq = projector.get_c_and_df(dy_skLq)
+        t2 = time.monotonic()
+        xt_skLq = self.grid2aux(xt_sgLq)
+        xt_skLq[..., :na] += dxt_skLq
+        fr_skLq = self.perform_convolution_fwd(xt_skLq)
+        fr_skLq[:] *= self._projector.dv_k[:, None, None]
+        fr_sgLq = self.aux2grid(fr_skLq)
+        t3 = time.monotonic()
+        print("YTIMES", th - t0, t1 - th, t2 - t1, t3 - t2)
         return fr_sgLq, df_sgLq, c_siq
 
     def calculate_vx_terms(self, vfr_sgLq, vdf_sgLq, vc_siq, projector):
-        na = projector.alphas.size
-        self.sbt_rgd = projector.sbt_rgd
-        vfr_sxq = self.grid2aux(vfr_sgLq)
-        vxt_sxq = self.perform_convolution_bwd(vfr_sxq)
-        vxt_sgLq = self.aux2grid(vxt_sxq)
-        # NOTE need to make sure w_b is accounted for in the fitting process
-        # since we are not applying it here anymore
-        # vdy2_sxq = psetup.get_vdf_only(np.ascontiguousarray(vdf_sgLq[..., na:]))
-        # vc_siq[:] += psetup.real_to_coef(
-        #     vxt_sgLq[..., :na] * get_dv(psetup.slrgd)[:, None, None]
-        # )
-        # vdy1_skLq = psetup.get_vy_and_vyy(vc_siq, vxt_sgLq[:, :na], vdf_sgLq)
-        vdy_skLq = projector.get_vy_and_vyy(vc_siq, vxt_sgLq[:, :na], vdf_sgLq)
-
-        # vdy1_sxq[:] += self.perform_fitting_convolution_fwd(vyy_sxq)
-        # vdy_sxq = np.concatenate([vdy1_sxq * psetup.w_b, vdy2_sxq], axis=-1)
-        vdx_sxq = self.perform_convolution_bwd(vdy_skLq)
-        vdx_sgLq = self.aux2grid(vdx_sxq)
+        na = projector.alphas_ps.size
+        self._projector = projector
+        vfr_skLq = self.grid2aux(vfr_sgLq)
+        vfr_skLq[:] *= self._projector.dv_k[:, None, None]
+        vxt_skLq = self.perform_convolution_bwd(vfr_skLq)
+        vxt_skLa = vxt_skLq[..., :na].copy()
+        vxt_sgLq = self.aux2grid(vxt_skLq)
+        vdy_skLq = projector.get_vy_and_vyy(vc_siq, vxt_skLa, vdf_sgLq)
+        vdx_skLq = self.perform_convolution_bwd(vdy_skLq)
+        vdx_sgLq = self.aux2grid(vdx_skLq)
         return vxt_sgLq, vdx_sgLq
 
 
 class PAWCiderContribsRecip(_PAWCiderContribs):
-    def __init__(self, plan, cider_kernel, atco, xcc, gplan, paw_algo):
+    def __init__(self, plan, cider_kernel, atco, xcc, gplan):
         super(PAWCiderContribsRecip, self).__init__(
-            plan, cider_kernel, atco, xcc, gplan, paw_algo
+            plan, cider_kernel, atco, xcc, gplan
         )
         self._atco_recip = self._atco.get_reciprocal_atco()
         self._galphas = gplan.alphas.copy()
@@ -816,26 +884,25 @@ class PAWCiderContribsRecip(_PAWCiderContribs):
         if nlm not in self._grid_indexers:
             y = Y_nL[:, :nlm]
             r_g = self.grids_indexer.rad_arr
-            k_g = self.sbt_rgd.k_g
+            k_g = self._projector.k_k
             rind = AtomicGridsIndexer.make_single_atom_indexer(y, r_g)
             kind = AtomicGridsIndexer.make_single_atom_indexer(y, k_g)
             self._grid_indexers[nlm] = (rind, kind)
         return self._grid_indexers[nlm]
 
-    def r2k(self, in_sxLq, rgd, fwd=True):
+    def r2k(self, in_sxLq, fwd=True):
         in_sxLq = np.ascontiguousarray(in_sxLq)
         nspin, nx, nlm, nq = in_sxLq.shape
         indexers = self._make_grid_indexers(nlm)
         if fwd:
             atco_inp = self.atco_inp
             atco_out = self._atco_recip
-            nx = rgd.k_g.size
             in_indexer, out_indexer = indexers
         else:
             atco_inp = self._atco_recip
             atco_out = self.atco_feat
-            nx = self.grids_indexer.rad_arr.size
             out_indexer, in_indexer = indexers
+        nx = out_indexer.rad_arr.size
         shape = (nspin, nx, nlm, nq)
         out_sxLq = np.zeros(shape)
         assert in_sxLq.flags.c_contiguous
@@ -862,22 +929,22 @@ class PAWCiderContribsRecip(_PAWCiderContribs):
         return out_sxLq
 
     def grid2aux(self, f_sgLq):
-        return self.r2k(f_sgLq, self.sbt_rgd, fwd=True)
+        return self.r2k(f_sgLq, fwd=True)
 
-    def aux2grid(self, f_sxq):
-        f_sxq = f_sxq * get_dvk(self.sbt_rgd)[:, None, None]
-        return self.r2k(f_sxq, self.sbt_rgd, fwd=False)
+    def aux2grid(self, f_skLq):
+        return self.r2k(f_skLq, fwd=False)
 
-    def calc_conv_skLq(self, in_skLq, rgd, alphas=None, alpha_norms=None):
+    def calc_conv_skLq(self, in_skLq, alphas=None, alpha_norms=None):
         in_skLq = np.ascontiguousarray(in_skLq)
         out_skLq = np.empty_like(in_skLq)
-        k_g = np.ascontiguousarray(rgd.k_g)
+        k_g = np.ascontiguousarray(self._projector.k_k)
         nspin, nk, nlm, nq = in_skLq.shape
         if alphas is None:
             alphas = self.plan.alphas
             alpha_norms = self.plan.alpha_norms
         assert nk == k_g.size
         assert nq == alphas.size
+        t0 = time.monotonic()
         libcider.atc_reciprocal_convolution(
             in_skLq.ctypes.data_as(ctypes.c_void_p),
             out_skLq.ctypes.data_as(ctypes.c_void_p),
@@ -889,13 +956,15 @@ class PAWCiderContribsRecip(_PAWCiderContribs):
             ctypes.c_int(nlm),
             ctypes.c_int(nq),
         )
+        t1 = time.monotonic()
+        print("TIME", t1 - t0)
         return out_skLq
 
     def perform_convolution_fwd(self, f_skLq):
-        return self.calc_conv_skLq(f_skLq, self.sbt_rgd)
+        return self.calc_conv_skLq(f_skLq)
 
     def perform_convolution_bwd(self, f_skLq):
-        return self.calc_conv_skLq(f_skLq, self.sbt_rgd)
+        return self.calc_conv_skLq(f_skLq)
 
     def perform_fitting_convolution_bwd(self, f_skLq):
         return self.calc_conv_skLq(
@@ -1157,17 +1226,6 @@ class FastPASDWCiderKernel:
                 setup.xc_correction = DiffPAWXCCorrection.from_setup(
                     setup, build_kinetic=True, ke_order_ng=False
                 )
-                # TODO it would be good to be able to remove this.
-                # Old version of the code used these settings:
-                # setup, rmin=setup.xc_correction.rgd.r_g[0]+1e-5,
-                # N=1024, encut=1e6, d=0.018
-                setup.nlxc_correction = SBTGridContainer.from_setup(
-                    setup,
-                    rmin=1e-4,
-                    N=512,
-                    encut=5e4,
-                    d=0.02,
-                )
                 # TODO for some reason, in the core there are sometimes
                 # exponents that are very big (z**2 * 2000 required).
                 # However, the SCF energy and stress are essentially
@@ -1202,7 +1260,6 @@ class FastPASDWCiderKernel:
                     setup.Z,
                     setup.xc_correction,
                     beta=1.6,
-                    paw_algo=self._paw_algo,
                 )
                 if setup.cider_contribs.plan is not None:
                     assert (
@@ -1212,7 +1269,7 @@ class FastPASDWCiderKernel:
                 setup.ps_setup = PSSetup.from_setup(setup)
                 setup.pa_setup = PASetup.from_setup(setup)
                 sbt_rgd = SBTGridContainer.from_setup(
-                    setup, rmin=1e-4, N=512, encut=5e4, d=0.02
+                    setup, rmin=1e-4, N=1024, encut=5e7, d=0.02
                 ).big_rgd
                 setup.cider_proj = CiderCoreTermProjector.from_atco_and_setup(
                     self.plan,
@@ -1222,7 +1279,7 @@ class FastPASDWCiderKernel:
                     sbt_rgd,
                     encut0,
                     # TODO this is grid_nlm
-                    setup.cider_contribs.nlm,
+                    # setup.cider_contribs.nlm,
                 )
 
     def _multiply_spherical_terms_by_cutoff_(self, setup, x_sgLq):
@@ -1257,8 +1314,8 @@ class FastPASDWCiderKernel:
         c_asiq = {}
 
         for a, D_sp in D_asp.items():
+            t0 = time.monotonic()
             setup = setups[a]
-            psetup = setup.ps_setup
 
             self.timer.start("coefs")
             rcalc = CiderRadialFeatureCalculator(setup.cider_contribs)
@@ -1270,13 +1327,16 @@ class FastPASDWCiderKernel:
             self.timer.stop()
             self._multiply_spherical_terms_by_cutoff_(setup, xt_sgLq)
             self.timer.start("transform and convolve")
+            t1 = time.monotonic()
             fr_sgLq, df_sgLq, c_siq = setup.cider_contribs.calculate_y_terms(
-                xt_sgLq, dx_sgLq, psetup
+                xt_sgLq, dx_sgLq, setup.cider_proj
             )
+            t2 = time.monotonic()
             self.timer.stop()
             self.df_asgLq[a] = df_sgLq
             self.fr_asgLq[a] = fr_sgLq
             c_asiq[a] = c_siq
+            print("OVERALL", t1 - t0, t2 - t1)
         return c_asiq
 
     def _add_smooth_nonlocal_terms_(
@@ -1378,7 +1438,6 @@ class FastPASDWCiderKernel:
             # needed anymore after this step.
             self.fr_asgLq[a] = None
             self.df_asgLq[a] = None
-        exit()
         return dvD_asiq, deltaE, deltaV
 
     def calculate_paw_cider_potential(self, setups, D_asp, vc_asiq):
@@ -1402,9 +1461,8 @@ class FastPASDWCiderKernel:
 
         for a, D_sp in D_asp.items():
             setup = setups[a]
-            psetup = setup.ps_setup
             vxt_sgLq, vdx_sgLq = setup.cider_contribs.calculate_vx_terms(
-                self.vfr_asgLq[a], self.vdf_asgLq[a], vc_asiq[a], psetup
+                self.vfr_asgLq[a], self.vdf_asgLq[a], vc_asiq[a], setup.cider_proj
             )
             self._multiply_spherical_terms_by_cutoff_(setup, vxt_sgLq)
             F_sbLg = vdx_sgLq - vxt_sgLq
@@ -1480,14 +1538,22 @@ class _PASDWData:
         self.pfuncs_ntp = None
         self.ffuncs_jg = None
         self.ffuncs_jtp = None
-        self.setup_basis(nlist_j, llist_j)
-        self.setup_pfuncs_and_ffuncs()
+        self.ni = None
+        self.nj = None
+        self.nn = None
+        self.lmax = None
+        self._setup_basis(nlist_j, llist_j)
+        self._setup_pfuncs_and_ffuncs()
 
     @property
     def rmax(self):
         return self.paw_rgd.r_g[-1]
 
-    def setup_basis(self, nlist_j, llist_j):
+    @property
+    def rcut_func(self):
+        return self.rcut
+
+    def _setup_basis(self, nlist_j, llist_j):
         lp1 = np.max(llist_j) + 1
         nbas_lst = [0] * lp1
         for l in llist_j:
@@ -1514,10 +1580,15 @@ class _PASDWData:
         self.jlist_i = np.array(jlist_i).astype(np.int32)
         self.jloc_l = np.array(jloc_l).astype(np.int32)
 
+        self.nj = len(self.nlist_j)
+        self.ni = len(self.nlist_i)
+        self.nn = np.max(self.nlist_j) + 1
+        self.lmax = np.max(self.llist_j)
+
     def get_pfunc(self, n, r_g):
         raise NotImplementedError
 
-    def setup_pfuncs_and_ffuncs(self):
+    def _setup_pfuncs_and_ffuncs(self):
         raise NotImplementedError
 
     def get_filt(self, r_g):
@@ -1533,7 +1604,8 @@ class _PASDWData:
         return fcut
 
     def map_to_spline(self, funcs_t):
-        nt = funcs_t.shape
+        assert funcs_t.ndim == 1
+        nt = funcs_t.size
         return spline(np.arange(nt).astype(np.float64), funcs_t)
 
     def map_many_to_spline(self, funcs_nt):
@@ -1557,7 +1629,7 @@ class _PASDWData:
         rgd = setup.xc_correction.rgd
         rcut = np.max(setup.rcut_j)
         nt = 100
-        interp_rgd = EquidistantRadialGridDescriptor(h=rcut * 1.2 / (nt - 1), N=nt)
+        interp_rgd = EquidistantRadialGridDescriptor(h=rcut * 1.0 / (nt - 1), N=nt)
         nlist_j, llist_j = get_psetup_func_counts(setup.Z)
         return cls(interp_rgd, rgd, nlist_j, llist_j, rcut)
 
@@ -1566,7 +1638,7 @@ class PASetup(_PASDWData):
     def get_pfunc(self, n, r_g):
         return get_ffunc(n, r_g, 0.8 * self.rmax)
 
-    def setup_pfuncs_and_ffuncs(self):
+    def _setup_pfuncs_and_ffuncs(self):
         nn, nj, ng, nt, r_g, dr_g = self.get_setup_vals()
         interp_r_g = self.interp_rgd.r_g
         ffuncs_jg = np.zeros((nj, ng))
@@ -1609,7 +1681,7 @@ class PSSetup(_PASDWData):
     def get_pfunc(self, n, r_g):
         return get_pfunc_norm(n, r_g, self.rcut)
 
-    def setup_pfuncs_and_ffuncs(self):
+    def _setup_pfuncs_and_ffuncs(self):
         nn, nj, ng, nt, r_g, dr_g = self.get_setup_vals()
         interp_r_g = self.interp_rgd.r_g
         rgd = self.paw_rgd
@@ -1639,6 +1711,7 @@ class PSSetup(_PASDWData):
                         exact_ovlp_pf[i0, i1] = ovlp
 
         self.exact_ovlp_pf = exact_ovlp_pf
+        self.pfuncs_ng = pfuncs_ng
         self.pfuncs_ntp = pfuncs_ntp
         self.ffuncs_jg = ffuncs_jg
         self.ffuncs_jtp = pfuncs_ntp.copy()
@@ -1683,8 +1756,16 @@ class CiderCoreTermProjector:
         return self.gplan.alpha_norms
 
     @property
+    def k_k(self):
+        return self.loc_kbasis.r_g
+
+    @property
     def dv_k(self):
         return self.loc_kbasis.dv_g
+
+    @property
+    def r_g(self):
+        return self.loc_rbasis.r_g
 
     @property
     def dv_g(self):
@@ -1704,7 +1785,7 @@ class CiderCoreTermProjector:
 
     def _check_rfcs(self):
         # make sure lmaxs and basis sizes are the same
-        assert self.loc_kbasis.jloc_l == self.loc_rbasis.jloc_l
+        assert (self.loc_kbasis.iloc_l == self.loc_rbasis.iloc_l).all()
         assert self.loc_kbasis.lmax == self.smooth_kbasis.lmax
         assert self.loc_rbasis.lmax == self.smooth_kbasis.lmax
 
@@ -1714,146 +1795,154 @@ class CiderCoreTermProjector:
         assert (np.abs(k1_g - k2_g) < 1e-10).all()
 
         # make sure things are orthogonal
-        jloc_l = self.loc_kbasis.jloc_l
+        jloc_l = self.loc_kbasis.iloc_l
         for l in range(self.lmax + 1):
             j0, j1 = jloc_l[l], jloc_l[l + 1]
-            lfuncs_jk = self.loc_kbasis.funcs_jg[j0:j1]
+            lfuncs_jk = self.loc_kbasis.funcs_ig[j0:j1]
             ovlp = np.einsum("ik,jk,k->ij", lfuncs_jk, lfuncs_jk, self.dv_k)
-            assert (np.abs(ovlp - np.identity(ovlp.shape[0])) < 1e-9).all()
-            lfuncs_jg = self.loc_rbasis.funcs_jg[j0:j1]
+            assert (np.abs(ovlp - np.identity(ovlp.shape[0])) < 1e-4).all()
+            lfuncs_jg = self.loc_rbasis.funcs_ig[j0:j1]
             ovlp = np.einsum("ig,jg,g->ij", lfuncs_jg, lfuncs_jg, self.dv_g)
-            assert (np.abs(ovlp - np.identity(ovlp.shape[0])) < 1e-9).all()
+            assert (np.abs(ovlp - np.identity(ovlp.shape[0])) < 1e-4).all()
 
     def _get_p21_matrix(self):
         p21_l_javb = []
-        jloc_l = self.smooth_kbasis.jloc_l
-        vloc_l = self.loc_kbasis.jloc_l
-        kernel_bak = self._kernel_bak
+        jloc_l = self.smooth_kbasis.iloc_l
+        vloc_l = self.loc_kbasis.iloc_l
+        kernel_kba = self._kernel_kba
         for l in range(self.lmax + 1):
-            lsmooth_jk = self.smooth_kbasis.funcs_jg[jloc_l[l] : jloc_l[l + 1]]
+            lsmooth_jk = self.smooth_kbasis.funcs_ig[jloc_l[l] : jloc_l[l + 1]]
             lloc_vk = self.loc_kbasis.funcs_ig[vloc_l[l] : vloc_l[l + 1]]
-            phi_jabk = np.einsum("jk,bak->jabk", lsmooth_jk, kernel_bak)
+            phi_jabk = np.einsum("jk,kba->jabk", lsmooth_jk, kernel_kba)
             p21_javb = np.einsum("vk,jabk,k->javb", lloc_vk, phi_jabk, self.dv_k)
             p21_javb[:] *= self.w_b
             p21_l_javb.append(p21_javb)
         return p21_l_javb
 
     def _get_p22_matrix(self, reg=0):
-        kernel_bak = self._kernel_bak
-        kernel_aak = np.einsum("bak,bck,b->ack", kernel_bak, kernel_bak, self.w_b)
-        kernel_aak[:] *= np.sqrt(self.dv_k)
+        kernel_kba = self._kernel_kba
+        kernel_aak = np.einsum("kba,kbc,b->ack", kernel_kba, kernel_kba, self.w_b)
+        kernel_aak[:] *= self.dv_k
         p22_l_jaja = []
-        jloc_l = self.smooth_kbasis.jloc_l
+        jloc_l = self.smooth_kbasis.iloc_l
         for l in range(self.lmax + 1):
-            lfuncs_jk = self.smooth_kbasis.funcs_jg[jloc_l[l] : jloc_l[l + 1]]
+            lfuncs_jk = self.smooth_kbasis.funcs_ig[jloc_l[l] : jloc_l[l + 1]]
             p22_jaja = np.einsum("abk,ik,jk->iajb", kernel_aak, lfuncs_jk, lfuncs_jk)
+            p22_jaja = np.ascontiguousarray(p22_jaja)
             nj, na = p22_jaja.shape[:2]
             p22_ii = p22_jaja.view()
             p22_ii.shape = (nj * na, nj * na)
-            reg = reg / np.tile(self.w_b, nj)
-            p22_ii[:] += reg * np.identity(nj * na)
+            my_reg = reg / np.tile(self.w_b[:na], nj)
+            p22_ii[:] += my_reg * np.identity(nj * na)
             p22_l_jaja.append(p22_jaja)
         return p22_l_jaja
 
-    def _combine_matrices(self, p21_l, p22_l):
+    def _combine_matrices(self, p21_l, p22_l, reg=0):
         z_l = []
+        invw = 1.0 / self.w_b / (1 + reg)
         for l in range(len(p21_l)):
-            p21 = p21_l[l]
-            p22 = p22_l[l]
-            invw = 1.0 / self.w_b
-            m = p22 - (p21 * invw).dot(p21.T)
-            mqtinvd = -1.0 * p21 * invw
+            p21 = p21_l[l].copy()
+            p21iw = p21 * invw
+            p22 = p22_l[l].copy()
+            nj, na, nv, nb = p21.shape
+            p21.shape = (nj * na, nv * nb)
+            p21iw.shape = (nj * na, nv * nb)
+            p22.shape = (nj * na, nj * na)
+            m = p22 - (p21iw).dot(p21.T)
+            mqtinvd = -1.0 * p21iw
             v = np.append(mqtinvd, np.identity(m.shape[0]), axis=1)
-            u = cholesky(m, lower=False)
+            u = cholesky(m, lower=True)
             z = np.linalg.solve(u, v)
             z_l.append(z)
         return z_l
 
     def _initialize(self):
         expnts, facs, k2pows = get_convolution_data(
-            self.gplan.settings,
+            self.gplan.nldf_settings,
             self.gplan.alphas,
             self.gplan.alpha_norms,
             self.aplan.alphas,
             self.aplan.alpha_norms,
         )
-        pfuncs_jk = self.smooth_kbasis.funcs_jg
-        nj, nk = pfuncs_jk.shape
         nb, na = expnts.shape
-        k2_g = self.dv_k * self.dv_k
-        self._kernel_bak = facs[..., None] * np.exp(-expnts[..., None] * k2_g)
-        # for b in range(nb):
-        #     kernel_bak[b] *= k2_g**k2pows[b]
+        k2_g = self.k_k * self.k_k
+        self._kernel_kba = facs * np.exp(-expnts * k2_g[:, None, None])
+        # self._kernel_bak[na:] = 0.0
         p21 = self._get_p21_matrix()
-        p22 = self._get_p22_matrix(reg=1e-4)
-        self._zmat_l = self._combine_matrices(p21, p22)
+        p22 = self._get_p22_matrix(reg=1e-8)
+        self._zmat_l = self._combine_matrices(p21, p22, reg=1e-8)
 
     def get_c_and_df(self, y_skLb):
-        yy_skLa = np.einsum(
-            "sklb,bak,b,k->skla", y_skLb, self._kernel_bak, self.w_b, self.dv_k
-        )
+        t0 = time.monotonic()
+        y_skLb = y_skLb * self.dv_k[:, None, None]
+        t1 = time.monotonic()
+        yy_skLa = np.einsum("sklb,kba,b->skla", y_skLb, self._kernel_kba, self.w_b)
+        t2 = time.monotonic()
         nspin, nk, nlm, nb = y_skLb.shape
         na = yy_skLa.shape[-1]
         c_sia = np.zeros((nspin, self.ni, na))
         df_sub = np.zeros((nspin, self.nu, nb))
+        all_b1_sub = self.loc_kbasis.grid2basis_spin(y_skLb)
+        all_b2_sia = self.smooth_kbasis.grid2basis_spin(yy_skLa)
         for s in range(nspin):
-            all_b1_ub = self.pcol.basis2grid(y_skLb[s], fwd=False)
-            all_b2_ia = self.jcol.basis2grid(yy_skLa[s], fwd=False)
             for l in range(self.lmax + 1):
                 nm = 2 * l + 1
                 for m in range(nm):
-                    uloc_l = self.pcol.uloc_l
+                    uloc_l = self.loc_kbasis.uloc_l
                     slice1 = slice(uloc_l[l] + m, uloc_l[l + 1] + m, nm)
-                    b1 = all_b1_ub[slice1] * self.w_b
-                    uloc_l = self.jcol.uloc_l
+                    b1 = all_b1_sub[s][slice1] * self.w_b
+                    uloc_l = self.smooth_kbasis.uloc_l
                     slice2 = slice(uloc_l[l] + m, uloc_l[l + 1] + m, nm)
-                    b2 = all_b2_ia[slice2]
+                    b2 = all_b2_sia[s][slice2]
                     b = self.cat_b_vecs(b1, b2)
                     x = self._zmat_l[l].dot(b)
                     x = self._zmat_l[l].T.dot(x)
-                    x = cho_solve(self.p_cl_l_ii[l], b)
                     n1 = b1.size
                     df_sub[s, slice1] += x[:n1].reshape(-1, nb)
                     c_sia[s, slice2] += x[n1:].reshape(-1, na)
-            df_sub[s] += all_b1_ub
+        df_sub[:] += all_b1_sub
         df_sgLb = self.loc_rbasis.basis2grid_spin(df_sub)
-        dxt_sgLa = self.smooth_rbasis.basis2grid_spin(c_sia)
+        dxt_sgLa = self.smooth_kbasis.basis2grid_spin(c_sia)
+        t3 = time.monotonic()
+        print("TIMES", t1 - t0, t2 - t1, t3 - t2)
         return c_sia, dxt_sgLa, df_sgLb
 
-    def get_vy_and_vyy(self, vc_sia, vdxt_sgLa, vdf_sgLb):
-        vc_sia[:] += self.smooth_rbasis.grid2basis_spin(vdxt_sgLa)
+    def get_vy_and_vyy(self, vc_sia, vdxt_skLa, vdf_sgLb):
+        vc_sia[:] += self.smooth_kbasis.grid2basis_spin(vdxt_skLa)
         vdf_sub = self.loc_rbasis.grid2basis_spin(vdf_sgLb)
         nspin, ni, na = vc_sia.shape
         nu, nb = vdf_sub.shape[1:]
-        nk = self.dv_k.size
-        nlm = (self.lmax + 1) * (self.lmax + 1)
-        vy_skLb = np.empty((nspin, nk, nlm, nb))
-        vyy_skLa = np.empty((nspin, nk, nlm, na))
+        all_vb1_sub = vdf_sub.copy()
+        all_vb2_sia = np.zeros_like(vc_sia)
         for s in range(nspin):
-            all_vb1_ub = vdf_sub[s].copy()
-            all_vb2_ia = np.zeros((ni, na))
             for l in range(self.lmax + 1):
                 nm = 2 * l + 1
                 for m in range(nm):
-                    uloc_l = self.pcol.uloc_l
+                    uloc_l = self.loc_kbasis.uloc_l
                     slice1 = slice(uloc_l[l] + m, uloc_l[l + 1] + m, nm)
                     x1 = vdf_sub[s, slice1].ravel()
-                    uloc_l = self.jcol.uloc_l
+                    uloc_l = self.smooth_kbasis.uloc_l
                     slice2 = slice(uloc_l[l] + m, uloc_l[l + 1] + m, nm)
                     x2 = vc_sia[s, slice2].ravel()
                     x = self.cat_b_vecs(x1, x2)
                     b = self._zmat_l[l].dot(x)
                     b = self._zmat_l[l].T.dot(b)
                     n1 = x1.size
-                    all_vb1_ub[slice1] += self.w_b * b[:n1].reshape(-1, nb)
-                    all_vb2_ia[slice2] += b[n1:].reshape(-1, na)
-            vy_skLb[s] = self.pcol.basis2grid(all_vb1_ub)
-            vyy_skLa[s] = self.jcol.basis2grid(all_vb2_ia)
-        # TODO where to apply dv_k?
+                    all_vb1_sub[s][slice1] += self.w_b * b[:n1].reshape(-1, nb)
+                    all_vb2_sia[s][slice2] += b[n1:].reshape(-1, na)
+        vy_skLb = self.loc_kbasis.basis2grid_spin(all_vb1_sub)
+        vyy_skLa = self.smooth_kbasis.basis2grid_spin(all_vb2_sia)
+        t0 = time.monotonic()
         vy_skLb[:] += np.einsum(
-            "skla,bak,b,k->sklb", vyy_skLa, self._kernel_bak, self.w_b, self.dv_k
+            "skla,kba,b->sklb", vyy_skLa, self._kernel_kba, self.w_b
         )
+        t1 = time.monotonic()
+        print("VY_TIME", t1 - t0)
+        vy_skLb[:] *= self.dv_k[:, None, None]
         return vy_skLb
+
+    def cat_b_vecs(self, b1, b2):
+        return np.append(b1.flatten(), b2.flatten())
 
     def coef_to_real_smooth(self, c_siq, out=None, check_q=True, use_ffuncs=False):
         pass
@@ -1884,29 +1973,29 @@ class CiderCoreTermProjector:
         rcut = ps_setup.rcut
         paw_dv_g = ps_setup.paw_rgd.dr_g * ps_setup.paw_rgd.r_g**2
         dv_g = sbt_rgd.dr_g * sbt_rgd.r_g**2
-        dv_k = sbt_rgd.dk_g * sbt_rgd.k_g**2
-        pawbas_l_vg, coeff_l_vv = _get_loc_basis(
-            betas_lv, rcut, ps_setup.paw_rgd.r_g, paw_dv_g
-        )
-        sbtbas_l_vg = _get_loc_basis(betas_lv, rcut, sbt_rgd.r_g, dv_g)[0]
-        pawbas_l_vg = _orthogonalize_basis(pawbas_l_vg, coeff_l_vv)
-        sbtbas_l_vg = _orthogonalize_basis(sbtbas_l_vg, coeff_l_vv)
+        dv_k = 2 / np.pi * sbt_rgd.dk_g * sbt_rgd.k_g**2
+        pawbas_l_vg = _get_loc_basis(betas_lv, rcut, ps_setup.paw_rgd.r_g)
+        sbtbas_l_vg = _get_loc_basis(betas_lv, rcut, sbt_rgd.r_g)
+        pawbas_l_vg = _orthogonalize_basis(pawbas_l_vg, dv_g=paw_dv_g)[0]
+        sbtbas_l_vg = _orthogonalize_basis(sbtbas_l_vg, dv_g=dv_g)[0]
         sbtbas_l_vk = []
         for l in range(len(sbtbas_l_vg)):
             sbtbas_vk = np.empty_like(sbtbas_l_vg[l])
             for v in range(sbtbas_vk.shape[0]):
                 sbtbas_vk[v] = sbt_rgd.transform_single_fwd(sbtbas_l_vg[l][v], l)
             sbtbas_l_vk.append(sbtbas_vk)
+        # pawbas_l_vg, coeff_l_vv = _orthogonalize_basis(pawbas_l_vg, dv_g=paw_dv_g)
+        # sbtbas_l_vk, coeff_l_vv = _orthogonalize_basis(sbtbas_l_vk, coeff_l_pp=coeff_l_vv)
         loc_basis_pg = np.concatenate(pawbas_l_vg, axis=0)
         loc_basis_pk = np.concatenate(sbtbas_l_vk, axis=0)
         pfuncs_jg = [ps_setup.get_pfunc(n, sbt_rgd.r_g) for n in ps_setup.nlist_j]
         pfuncs_jk = []
         for j, pfunc_g in enumerate(pfuncs_jg):
-            pfuncs_jk.append(sbt_rgd.transform_single_fwd(pfunc_g, ps_setup.llist_j[l]))
-        pfuncs_jg = np.asarray(pfuncs_jg)
+            pfuncs_jk.append(sbt_rgd.transform_single_fwd(pfunc_g, ps_setup.llist_j[j]))
         pfuncs_jk = np.asarray(pfuncs_jk)
+        pfuncs_jg = np.asarray([ps_setup.pfuncs_ng[n] for n in ps_setup.nlist_j])
         smooth_kbasis = RFC(ps_setup.jloc_l, pfuncs_jk, sbt_rgd.k_g, dv_k)
-        smooth_rbasis = RFC(ps_setup.jloc_l, pfuncs_jg, ps_setup.paw_rgd.r_g, dv_g)
+        smooth_rbasis = RFC(ps_setup.jloc_l, pfuncs_jg, ps_setup.paw_rgd.r_g, paw_dv_g)
         loc_rbasis = RFC(vloc_l, loc_basis_pg, ps_setup.paw_rgd.r_g, paw_dv_g)
         loc_kbasis = RFC(vloc_l, loc_basis_pk, sbt_rgd.k_g, dv_k)
         return cls(gplan, aplan, smooth_kbasis, smooth_rbasis, loc_kbasis, loc_rbasis)
@@ -1956,9 +2045,8 @@ def _gauss_and_derivs(a, r):
     return vals
 
 
-def _get_loc_basis(betas_lv, rcut, r_g, dv_g):
+def _get_loc_basis(betas_lv, rcut, r_g):
     delta_l_pg = []
-    coeff_l_pp = []
     for l in range(len(betas_lv)):
         betas = betas_lv[l]
         fcut = (0.5 * np.pi / betas) ** 0.75 * _gauss_and_derivs(betas, rcut)
@@ -1977,12 +2065,8 @@ def _get_loc_basis(betas_lv, rcut, r_g, dv_g):
         funcs = funcs - poly
         funcs[:, r_g > rcut] = 0
         funcs[:] *= r_g**l
-        funcs_tmp = funcs * np.sqrt(dv_g)
-        ovlp = np.einsum("ig,jg->ij", funcs_tmp, funcs_tmp)
-        L = cholesky(ovlp, lower=True)
         delta_l_pg.append(funcs)
-        coeff_l_pp.append(L)
-    return delta_l_pg, coeff_l_pp
+    return delta_l_pg
 
 
 def _get_loc_basis_grad_ovlp(betas_lv, rcut, r_g, dr_g):
@@ -2027,31 +2111,42 @@ def _get_loc_basis_grad_ovlp(betas_lv, rcut, r_g, dr_g):
     return coeff_l_pp
 
 
-def _orthogonalize_basis(delta_l_pg, coeff_l_pp):
+def _orthogonalize_basis(delta_l_pg, coeff_l_pp=None, dv_g=None):
     orth_l_pg = []
+    if coeff_l_pp is None:
+        coeff_l_pp = []
+        assert dv_g is not None
+        calc_coeff = True
+    else:
+        calc_coeff = False
     for l in range(len(delta_l_pg)):
+        if calc_coeff:
+            funcs_tmp = delta_l_pg[l] * np.sqrt(dv_g)
+            ovlp = np.einsum("ig,jg->ij", funcs_tmp, funcs_tmp)
+            L = cholesky(ovlp, lower=True)
+            coeff_l_pp.append(L)
         orth_l_pg.append(np.linalg.solve(coeff_l_pp[l], delta_l_pg[l]))
-    return orth_l_pg
+    return orth_l_pg, coeff_l_pp
 
 
 class RFC:
-    def __init__(self, jloc_l, funcs_jg, r_g, dv_g, lmax=None):
-        self.funcs_jg = np.ascontiguousarray(funcs_jg)
-        self.lmax = len(jloc_l) - 2
+    def __init__(self, iloc_l, funcs_ig, r_g, dv_g, lmax=None):
+        self.funcs_ig = np.ascontiguousarray(funcs_ig)
+        self.lmax = len(iloc_l) - 2
         if lmax is not None:
             assert lmax >= self.lmax
             self.lmax = lmax
-            while len(jloc_l) < lmax + 2:
-                jloc_l.append(jloc_l[-1])
+            while len(iloc_l) < lmax + 2:
+                iloc_l.append(iloc_l[-1])
         self.r_g = r_g
         self.dv_g = dv_g
         self.nu = 0
         self.uloc_l = [0]
-        for l in range(self.jloc_l.size - 1):
-            nj = self.jloc_l[l + 1] - self.jloc_l[l]
+        self.iloc_l = np.asarray(iloc_l, order="C", dtype=np.int32)
+        for l in range(self.iloc_l.size - 1):
+            nj = self.iloc_l[l + 1] - self.iloc_l[l]
             self.nu += (2 * l + 1) * nj
             self.uloc_l.append(self.nu)
-        self.jloc_l = np.asarray(jloc_l, order="C", dtype=np.int32)
         self.uloc_l = np.asarray(self.uloc_l, order="C", dtype=np.int32)
 
     @property
