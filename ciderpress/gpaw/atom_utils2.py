@@ -432,7 +432,7 @@ class _PAWCiderContribs:
     grids_indexer: AtomicGridsIndexer
     plan: NLDFAuxiliaryPlan
 
-    def __init__(self, plan, cider_kernel, atco, xcc, gplan):
+    def __init__(self, plan, cider_kernel, atco, xcc):
         self.plan = plan
         self.cider_kernel = cider_kernel
         self._atco = atco
@@ -451,7 +451,16 @@ class _PAWCiderContribs:
             Y_nL, self.r_g, DY_nLv=rnablaY_nLv
         )
         self.grids_indexer.set_weights(self.w_g)
+        self._projector = None
         self.timer = Timer()
+
+    @property
+    def projector(self):
+        return self._projector
+
+    @projector.setter
+    def projector(self, projector):
+        self._projector = projector
 
     def _apply_ang_weight_(self, f_gq):
         assert f_gq.flags.c_contiguous
@@ -470,7 +479,7 @@ class _PAWCiderContribs:
         return self.grids_indexer.nlm
 
     @classmethod
-    def from_plan(cls, plan, gplan, cider_kernel, Z, xcc, beta=1.8):
+    def from_plan(cls, plan, cider_kernel, Z, xcc, beta=1.8):
         lmax = int(np.sqrt(Y_nL.shape[1] + 1e-8)) - 1
         rmax = np.max(xcc.rgd.r_g)
         # TODO tune this to find optimal basis size
@@ -481,7 +490,7 @@ class _PAWCiderContribs:
         )
         inputs_to_atco = get_gamma_lists_from_etb_list([etb])
         atco = ATCBasis(*inputs_to_atco)
-        return cls(plan, cider_kernel, atco, xcc, gplan)
+        return cls(plan, cider_kernel, atco, xcc)
 
     @property
     def is_mgga(self):
@@ -832,15 +841,14 @@ class _PAWCiderContribs:
     def x2u(self, f_sxq):
         raise NotImplementedError
 
-    def calculate_y_terms(self, xt_sgLq, dx_sgLq, projector):
-        na = projector.alphas_ps.size
-        self._projector = projector
+    def calculate_y_terms(self, xt_sgLq, dx_sgLq):
+        na = self.projector.alphas_ps.size
         t0 = time.monotonic()
         dx_skLq = self.grid2aux(dx_sgLq)
         th = time.monotonic()
         dy_skLq = self.perform_convolution_fwd(dx_skLq)
         t1 = time.monotonic()
-        c_siq, dxt_skLq, df_sgLq = projector.get_c_and_df(dy_skLq)
+        c_siq, dxt_skLq, df_sgLq = self.projector.get_c_and_df(dy_skLq)
         t2 = time.monotonic()
         xt_skLq = self.grid2aux(xt_sgLq)
         xt_skLq[..., :na] += dxt_skLq
@@ -851,28 +859,23 @@ class _PAWCiderContribs:
         print("YTIMES", th - t0, t1 - th, t2 - t1, t3 - t2)
         return fr_sgLq, df_sgLq, c_siq
 
-    def calculate_vx_terms(self, vfr_sgLq, vdf_sgLq, vc_siq, projector):
-        na = projector.alphas_ps.size
-        self._projector = projector
+    def calculate_vx_terms(self, vfr_sgLq, vdf_sgLq, vc_siq):
+        na = self.projector.alphas_ps.size
         vfr_skLq = self.grid2aux(vfr_sgLq)
         vfr_skLq[:] *= self._projector.dv_k[:, None, None]
         vxt_skLq = self.perform_convolution_bwd(vfr_skLq)
         vxt_skLa = vxt_skLq[..., :na].copy()
         vxt_sgLq = self.aux2grid(vxt_skLq)
-        vdy_skLq = projector.get_vy_and_vyy(vc_siq, vxt_skLa, vdf_sgLq)
+        vdy_skLq = self.projector.get_vy_and_vyy(vc_siq, vxt_skLa, vdf_sgLq)
         vdx_skLq = self.perform_convolution_bwd(vdy_skLq)
         vdx_sgLq = self.aux2grid(vdx_skLq)
         return vxt_sgLq, vdx_sgLq
 
 
 class PAWCiderContribsRecip(_PAWCiderContribs):
-    def __init__(self, plan, cider_kernel, atco, xcc, gplan):
-        super(PAWCiderContribsRecip, self).__init__(
-            plan, cider_kernel, atco, xcc, gplan
-        )
+    def __init__(self, plan, cider_kernel, atco, xcc):
+        super(PAWCiderContribsRecip, self).__init__(plan, cider_kernel, atco, xcc)
         self._atco_recip = self._atco.get_reciprocal_atco()
-        self._galphas = gplan.alphas.copy()
-        self._gnorms = gplan.alpha_norms.copy()
         self._grid_indexers = {}
 
     def _make_grid_indexers(self, nlm):
@@ -960,16 +963,6 @@ class PAWCiderContribsRecip(_PAWCiderContribs):
 
     def perform_convolution_bwd(self, f_skLq):
         return self.calc_conv_skLq(f_skLq)
-
-    def perform_fitting_convolution_bwd(self, f_skLq):
-        return self.calc_conv_skLq(
-            f_skLq,
-            self.sbt_rgd,
-            alphas=self._galphas,
-            alpha_norms=self._gnorms,
-        )
-
-    perform_fitting_convolution_fwd = perform_fitting_convolution_bwd
 
 
 PAWCiderContribs = PAWCiderContribsRecip
@@ -1250,7 +1243,6 @@ class FastPASDWCiderKernel:
                 atom_plan = self.plan.new(nalpha=Nalpha, use_smooth_expnt_cutoff=True)
                 setup.cider_contribs = self.PAWCiderContribs.from_plan(
                     atom_plan,
-                    self.plan,
                     self.cider_kernel,
                     setup.Z,
                     setup.xc_correction,
@@ -1266,7 +1258,7 @@ class FastPASDWCiderKernel:
                 sbt_rgd = SBTGridContainer.from_setup(
                     setup, rmin=1e-4, N=1024, encut=5e7, d=0.02
                 ).big_rgd
-                setup.cider_proj = CiderCoreTermProjector.from_atco_and_setup(
+                cider_proj = CiderCoreTermProjector.from_atco_and_setup(
                     self.plan,
                     atom_plan,
                     setup.ps_setup,
@@ -1276,6 +1268,7 @@ class FastPASDWCiderKernel:
                     # TODO this is grid_nlm
                     # setup.cider_contribs.nlm,
                 )
+                setup.cider_contribs.projector = cider_proj
 
     def _multiply_spherical_terms_by_cutoff_(self, setup, x_sgLq):
         slgd = setup.xc_correction.rgd
@@ -1311,7 +1304,6 @@ class FastPASDWCiderKernel:
         for a, D_sp in D_asp.items():
             t0 = time.monotonic()
             setup = setups[a]
-
             self.timer.start("coefs")
             rcalc = CiderRadialFeatureCalculator(setup.cider_contribs)
             expansion = CiderRadialExpansion(rcalc)
@@ -1324,7 +1316,7 @@ class FastPASDWCiderKernel:
             self.timer.start("transform and convolve")
             t1 = time.monotonic()
             fr_sgLq, df_sgLq, c_siq = setup.cider_contribs.calculate_y_terms(
-                xt_sgLq, dx_sgLq, setup.cider_proj
+                xt_sgLq, dx_sgLq
             )
             t2 = time.monotonic()
             self.timer.stop()
@@ -1457,7 +1449,7 @@ class FastPASDWCiderKernel:
         for a, D_sp in D_asp.items():
             setup = setups[a]
             vxt_sgLq, vdx_sgLq = setup.cider_contribs.calculate_vx_terms(
-                self.vfr_asgLq[a], self.vdf_asgLq[a], vc_asiq[a], setup.cider_proj
+                self.vfr_asgLq[a], self.vdf_asgLq[a], vc_asiq[a]
             )
             self._multiply_spherical_terms_by_cutoff_(setup, vxt_sgLq)
             F_sbLg = vdx_sgLq - vxt_sgLq
@@ -1735,6 +1727,10 @@ class CiderCoreTermProjector:
         self._initialize()
 
     @property
+    def settings(self):
+        return self.gplan.nldf_settings
+
+    @property
     def alphas_ae(self):
         return self.aplan.alphas
 
@@ -1864,8 +1860,8 @@ class CiderCoreTermProjector:
         self._kernel_kba = facs * np.exp(-expnts * k2_g[:, None, None])
         # self._kernel_bak[na:] = 0.0
         p21 = self._get_p21_matrix()
-        p22 = self._get_p22_matrix(reg=1e-8)
-        self._zmat_l = self._combine_matrices(p21, p22, reg=1e-8)
+        p22 = self._get_p22_matrix(reg=1e-6)
+        self._zmat_l = self._combine_matrices(p21, p22, reg=1e-6)
 
     def get_c_and_df(self, y_skLb):
         t0 = time.monotonic()

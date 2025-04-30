@@ -23,7 +23,7 @@ from gpaw.sphere.lebedev import R_nv, Y_nL, weight_n
 from gpaw.xc.pawcorrection import rnablaY_nLv
 from numpy import pi, sqrt
 
-from ciderpress.gpaw.atom_utils2 import (
+from ciderpress.gpaw.atom_utils import (
     CiderRadialExpansion,
     FastPASDWCiderKernel,
     PAWCiderContribs,
@@ -321,8 +321,6 @@ class PASDWCiderFeatureKernel(FastPASDWCiderKernel):
 
         for a, D_sp in D_asp.items():
             setup = setups[a]
-            setup.ps_setup
-
             self.timer.start("coefs")
             rcalc = CiderRadialThetaDerivCalculator(setup.cider_contribs)
             expansion = CiderRadialDerivExpansion(rcalc, p_o)
@@ -332,13 +330,12 @@ class PASDWCiderFeatureKernel(FastPASDWCiderKernel):
             dx_sgLq -= xt_sgLq
             self.timer.stop()
             self.timer.start("transform and convolve")
-            # fr_sgLq, df_sgLq, c_siq = setup.cider_contribs.calculate_y_terms(
-            #    xt_sgLq, dx_sgLq, psetup
-            # )
-            print("HI FROM P1")
             fr_sgLq, df_sgLq, c_siq = setup.cider_contribs.calculate_y_terms(
-                xt_sgLq, dx_sgLq, setup.ps_setup
+                xt_sgLq, dx_sgLq
             )
+            # fr_sgLq, df_sgLq, c_siq = setup.cider_contribs.calculate_y_terms(
+            #     xt_sgLq, dx_sgLq, setup.ps_setup
+            # )
             self.timer.stop()
             self.df_asgLq[a] = df_sgLq
             self.fr_asgLq[a] = fr_sgLq
