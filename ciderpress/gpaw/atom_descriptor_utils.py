@@ -23,7 +23,7 @@ from gpaw.sphere.lebedev import R_nv, Y_nL, weight_n
 from gpaw.xc.pawcorrection import rnablaY_nLv
 from numpy import pi, sqrt
 
-from ciderpress.gpaw.atom_utils import (
+from ciderpress.gpaw.atom_utils2 import (
     CiderRadialExpansion,
     FastPASDWCiderKernel,
     PAWCiderContribs,
