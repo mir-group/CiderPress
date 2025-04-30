@@ -24,7 +24,7 @@ import numpy as np
 from gpaw.xc.gga import GGA
 from gpaw.xc.mgga import MGGA
 
-from ciderpress.gpaw.atom_utils import FastAtomPASDWSlice, FastPASDWCiderKernel
+from ciderpress.gpaw.atom_utils2 import FastAtomPASDWSlice, FastPASDWCiderKernel
 from ciderpress.gpaw.cider_fft import (
     CIDERPW_GRAD_MODE_FORCE,
     CIDERPW_GRAD_MODE_NONE,

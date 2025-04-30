@@ -391,11 +391,6 @@ class FastAtomPASDWSlice:
             self.psetup.lmlist_i,
         )
         ovlp_pf = np.einsum("pg,fg->pf", pfuncs_ig, ffuncs_ig) * self.dv
-        print(
-            "OVLPS",
-            np.linalg.eigvals(ovlp_pf.T),
-            np.linalg.eigvals(self.psetup.exact_ovlp_pf),
-        )
         self.sinv_pf = np.linalg.solve(ovlp_pf.T, self.psetup.exact_ovlp_pf)
 
     def get_ovlp_deriv(self, pfuncs_ig, pgrads_vig, stress=False):
@@ -1714,7 +1709,7 @@ class PSSetup(_PASDWData):
         self.pfuncs_ng = pfuncs_ng
         self.pfuncs_ntp = pfuncs_ntp
         self.ffuncs_jg = ffuncs_jg
-        self.ffuncs_jtp = pfuncs_ntp.copy()
+        self.ffuncs_jtp = np.asarray([pfuncs_ntp[n] for n in self.nlist_j], order="C")
 
 
 class CiderCoreTermProjector:
