@@ -94,6 +94,8 @@ def _get_ovlp_fit_interpolation_coefficients(
                 feat_id = VJ_ID_MAP["rinv4"]
             elif plan.nldf_settings.feat_spec_list[i] == "se_rinv4":
                 feat_id = VJ_ID_MAP["rinv4"]
+            else:
+                feat_id = VJ_ID_MAP["se"]
     else:
         assert 0 <= i < plan.nldf_settings.num_feat_param_sets
         if not hasattr(plan.nldf_settings, 'vdw_param'):
@@ -104,7 +106,10 @@ def _get_ovlp_fit_interpolation_coefficients(
             if plan.nldf_settings.feat_spec_list[i] == "rinv2_rinv4":
                 feat_id = VJ_ID_MAP["rinv2"]
             elif plan.nldf_settings.feat_spec_list[i] == "se_rinv4":
-                feat_id = VJ_ID_MAP["se"] 
+                feat_id = VJ_ID_MAP["se"]
+            else:
+                feat_id = VJ_ID_MAP[plan.nldf_settings.feat_spec_list[i]] 
+    print(f"HERE: {feat_id}")
     if feat_id == VJ_ID_MAP["se_erf_rinv"]:
         extra_args = plan._get_extra_args(i)
         num_extra_args = len(extra_args)
