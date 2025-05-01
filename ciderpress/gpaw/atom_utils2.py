@@ -603,7 +603,6 @@ class _PAWCiderContribs:
             self.grids_indexer.reduce_angc_ylm_(x_srLq[s], x_gq, a2y=True, offset=0)
         return x_srLq
 
-    """
     def get_paw_atom_contribs_en(self, e_g, rho_sxg, vrho_sxg, f_srLq, feat_only=False):
         # NOTE that grid index order is different than previous implementation
         # gn instead of previous ng
@@ -621,13 +620,11 @@ class _PAWCiderContribs:
         if n1 > 0:
             f1_srLq = f_srLq[..., -n1:].copy()
             df1_sLqr = self._get_rad_deriv(f1_srLq.transpose(0, 2, 3, 1))
-            df1_sLqr[:] *= self._dgdr
-            print(
-                "HII",
-                f1_srLq[0, :, 0, 0].tolist(),
-                df1_sLqr[0, 0, 0].tolist(),
-                self.r_g.tolist(),
-            )
+            # print(
+            #     f1_srLq[0, :, 0, 0].tolist(),
+            #     df1_sLqr[0, 0, 0].tolist(),
+            #     self.r_g.tolist(),
+            # )
             f1_srLq[:] /= self.r_g[:, None, None] + 1e-10
             f_srLq[..., -n1:] = df1_sLqr.transpose(0, 3, 1, 2)
             tmp_gq = np.empty((f_gq.shape[0], n1))
@@ -636,7 +633,7 @@ class _PAWCiderContribs:
         for s in range(nspin):
             self.grids_indexer.reduce_angc_ylm_(f_srLq[s], f_gq, a2y=False, offset=0)
             if n1 > 0:
-                # go backwards to avoid overwriting
+                # go backward to avoid overwriting
                 for j in range(n1 - 1, -1, -1):
                     nstart = n0 + 3 * j
                     f_gq[:, nstart : nstart + 3] = f_gq[:, n0 + j][:, None] * rhat_gv
@@ -659,8 +656,6 @@ class _PAWCiderContribs:
             )
         if feat_only:
             return feat_sig
-        # print(feat_sig[0, 0, :: self._ang_w_g.size])
-        print("FEAT", feat_sig[0].sum(axis=-1), dfeat_sig[0].sum(axis=-1))
         sigma_xg = get_sigma(rho_sxg[:, 1:4])
         dedsigma_xg = np.zeros_like(sigma_xg)
         nspin = feat_sig.shape[0]
@@ -691,7 +686,6 @@ class _PAWCiderContribs:
         vrho_sxg[:, 1:4] = 2 * dedsigma_xg[::2, None, :] * rho_sxg[:, 1:4]
         if nspin == 2:
             vrho_sxg[:, 1:4] += dedsigma_xg[1, None, :] * rho_sxg[::-1, 1:4]
-        # print(vfeat_sig.sum())
         for s in range(nspin):
             f_gq[:] = self.plan.eval_vxc_full(
                 vfeat_sig[s],
@@ -700,7 +694,6 @@ class _PAWCiderContribs:
                 rho_sxg[s],
                 spin=s,
             )
-            # self._apply_ang_weight_(f_gq)
             f_gq[:] *= self.w_g[:, None]
             if n1 > 0:
                 tmp_rLq = f1_srLq[s].copy()
@@ -721,29 +714,11 @@ class _PAWCiderContribs:
         if n1 > 0:
             df1_sLqr[:] = vf_srLq[..., -n1:].transpose(0, 2, 3, 1).copy()
             f1_srLq[:] /= self.r_g[:, None, None] + 1e-10
-            print(
-                np.sum(f1_srLq),
-                np.sum(np.abs(f1_srLq)),
-                vf_srLq.sum(),
-                np.abs(vf_srLq).sum(),
-            )
-            print(np.abs(df1_sLqr).sum())
-            df1_sLqr[:] *= self._dgdr
             tmp = self._get_rad_deriv_bwd(df1_sLqr)
-            print(np.abs(tmp).sum())
             f1_srLq[:] += tmp.transpose(0, 3, 1, 2)
-            print(
-                np.sum(f1_srLq),
-                np.sum(np.abs(f1_srLq)),
-                vf_srLq.sum(),
-                np.abs(vf_srLq).sum(),
-            )
-            # print(np.abs(f1_srLq).sum(axis=1), np.abs(vf_srLq).sum(axis=(1, 3)))
-            # print(f1_srLq[0, :, 0, 0])
             vf_srLq[..., -n1:] = f1_srLq
-            # vf_srLq[:, :10, :, -n1:] = 0  # f1_srLq
-        # vf_srLq[:] *= self._rad_w_g[:, None, None]
         return vf_srLq
+
     """
 
     def get_paw_atom_contribs_en(self, e_g, rho_sxg, vrho_sxg, f_srLq, feat_only=False):
@@ -814,6 +789,7 @@ class _PAWCiderContribs:
             f_gq[:] *= self.w_g[:, None]
             self.grids_indexer.reduce_angc_ylm_(vf_srLq[s], f_gq, a2y=True, offset=0)
         return vf_srLq
+    """
 
     def get_paw_atom_contribs_pot(self, rho_sxg, vrho_sxg, vx_srLq):
         nspin = self.nspin
@@ -934,25 +910,32 @@ class PAWCiderContribsRecip(_PAWCiderContribs):
 
     def calc_conv_skLq(self, in_skLq, alphas=None, alpha_norms=None):
         in_skLq = np.ascontiguousarray(in_skLq)
-        out_skLq = np.empty_like(in_skLq)
         k_g = np.ascontiguousarray(self._projector.k_k)
-        nspin, nk, nlm, nq = in_skLq.shape
-        if alphas is None:
-            alphas = self.plan.alphas
-            alpha_norms = self.plan.alpha_norms
-        assert nk == k_g.size
-        assert nq == alphas.size
+        nspin, nk, nlm, nq0 = in_skLq.shape
+        expnts, facs, k2pows = get_convolution_data(
+            self.plan.nldf_settings,
+            self.plan.alphas,
+            self.plan.alpha_norms,
+            self.plan.alphas,
+            self.plan.alpha_norms,
+        )
+        if nq0 != expnts.shape[1]:
+            expnts = np.ascontiguousarray(expnts.T)
+            facs = np.ascontiguousarray(facs.T)
+        nq1 = expnts.shape[0]
+        out_skLq = np.empty((nspin, nk, nlm, nq1))
         t0 = time.monotonic()
-        libcider.atc_reciprocal_convolution(
+        libcider.atc_reciprocal_convolution_v2(
             in_skLq.ctypes.data_as(ctypes.c_void_p),
             out_skLq.ctypes.data_as(ctypes.c_void_p),
             k_g.ctypes.data_as(ctypes.c_void_p),
-            alphas.ctypes.data_as(ctypes.c_void_p),
-            alpha_norms.ctypes.data_as(ctypes.c_void_p),
+            expnts.ctypes.data_as(ctypes.c_void_p),
+            facs.ctypes.data_as(ctypes.c_void_p),
             ctypes.c_int(nspin),
             ctypes.c_int(nk),
             ctypes.c_int(nlm),
-            ctypes.c_int(nq),
+            ctypes.c_int(nq0),
+            ctypes.c_int(nq1),
         )
         t1 = time.monotonic()
         print("TIME", t1 - t0)
@@ -1856,6 +1839,8 @@ class CiderCoreTermProjector:
             self.aplan.alpha_norms,
         )
         nb, na = expnts.shape
+        if nb > self.w_b.size:
+            self.w_b = np.append(self.w_b, np.ones(nb - self.w_b.size))
         k2_g = self.k_k * self.k_k
         self._kernel_kba = facs * np.exp(-expnts * k2_g[:, None, None])
         # self._kernel_bak[na:] = 0.0

@@ -998,7 +998,8 @@ void atc_reciprocal_convolution(double *in_sklmq, double *out_sklmq,
     free(conv_facs);
 }
 
-// q1 is the output size, q0 is the input size
+// nq1 is the output size, nq0 is the input size
+// conv_exps and conv_facs should have dimension nq1 x nq0 (row-major),
 void atc_reciprocal_convolution_v2(double *in_sklmq, double *out_sklmq,
                                    double *k_k, double *conv_exps,
                                    double *conv_facs, int nspin, int nk,
@@ -1034,8 +1035,6 @@ void atc_reciprocal_convolution_v2(double *in_sklmq, double *out_sklmq,
         }
         free(conv);
     }
-    free(conv_exps);
-    free(conv_facs);
 }
 
 void atc_reciprocal_convolution_v3(double *in_sklmq, double *out_sklmq,
