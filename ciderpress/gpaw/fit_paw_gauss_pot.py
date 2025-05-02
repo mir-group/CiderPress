@@ -110,7 +110,7 @@ def get_pfunc(n, r, R, enforce_cutoff=True):
 def get_pfunc_norm(n, r, R, enforce_cutoff=True):
     if n >= len(PFUNC2_NORMS):
         raise ValueError
-    res = get_pfunc(n, r, R, enforce_cutoff=True)
+    res = get_pfunc(n, r, R, enforce_cutoff=enforce_cutoff)
     res *= PFUNC2_NORMS[n] / R**1.5
     return res
 
