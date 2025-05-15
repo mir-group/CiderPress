@@ -90,12 +90,13 @@ def _get_ovlp_fit_interpolation_coefficients(
         elif not plan.nldf_settings.vdw_param:
             feat_id = VJ_ID_MAP["se"]
         else:
-            if plan.nldf_settings.feat_spec_list[i] == "rinv2_rinv4":
-                feat_id = VJ_ID_MAP["rinv4"]
-            elif plan.nldf_settings.feat_spec_list[i] == "se_rinv4":
-                feat_id = VJ_ID_MAP["rinv4"]
-            else:
-                feat_id = VJ_ID_MAP["se"]
+            feat_id = VJ_ID_MAP["rinv4"]
+            # if plan.nldf_settings.feat_spec_list[i] == "rinv2_rinv4":
+            #     feat_id = VJ_ID_MAP["rinv4"]
+            # elif plan.nldf_settings.feat_spec_list[i] == "se_rinv4":
+            #     feat_id = VJ_ID_MAP["rinv4"]
+            # else:
+            #     feat_id = VJ_ID_MAP["se"]
     else:
         assert 0 <= i < plan.nldf_settings.num_feat_param_sets
         if not hasattr(plan.nldf_settings, 'vdw_param'):
