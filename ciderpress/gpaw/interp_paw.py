@@ -18,6 +18,8 @@
 # Author: Kyle Bystrom <kylebystrom@gmail.com>
 #
 
+import time
+
 import numpy as np
 from gpaw.atom.radialgd import AERadialGridDescriptor
 from gpaw.sphere.lebedev import R_nv, Y_nL, weight_n
@@ -66,9 +68,11 @@ def create_kinetic_diffpaw(xcc, ny, phi_jg, tau_ypg, _interpc, r_g_new):
                 temp *= phi_jg[j1] * phi_jg[j2]
                 # temp[1:] /= r_g_new[1:]**2
                 # temp[0] = temp[1]
-                temp /= r_g_new**2
+                temp[1:] /= r_g_new[1:] ** 2
                 if r_g_new[0] == 0:
                     temp[0] = temp[1]
+                else:
+                    temp[0] /= r_g_new[0] ** 2
                 tau_ypg[y, p, :] += temp
                 p += 1
             i1 += 1
@@ -173,6 +177,16 @@ class DiffPAWXCCorrection:
         for name, n_g in zip(names, n_g_list):
             if n_g is None:
                 continue
+            if True:
+                x1 = xcc.rgd.r_g[2] - xcc.rgd.r_g[1]
+                x2 = xcc.rgd.r_g[3] - xcc.rgd.r_g[1]
+                xe = xcc.rgd.r_g[0] - xcc.rgd.r_g[1]
+                f0, f1, f2 = n_g[1:4]
+                n_g = n_g.copy()
+                a = ((f2 - f0) / x2 - (f1 - f0) / x1) / (x2 - x1)
+                b = -a * x1 + (f1 - f0) / x1
+                c = f0
+                n_g[0] = a * xe**2 + b * xe + c
             core_dens[name] = n_g
             core_dens["d" + name] = xcc.rgd.derivative(n_g)
 
@@ -284,6 +298,7 @@ def calculate_cider_paw_correction(
         ndiff = x_sbgL.shape[1] - xt_sbgL.shape[1]
         shape = (x_sbgL.shape[0], ndiff, x_sbgL.shape[2], x_sbgL.shape[3])
         if separate_ae_ps:
+            time.monotonic()
             return ediff, dEdD_sp, x_sbgL, np.append(xt_sbgL, np.zeros(shape), axis=1)
         else:
             xdiff = x_sbgL - np.append(xt_sbgL, np.zeros(shape), axis=1)

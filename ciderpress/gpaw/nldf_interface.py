@@ -18,6 +18,12 @@
 # Author: Kyle Bystrom <kylebystrom@gmail.com>
 #
 
+# This module follows interfaces with the pwutil C library to evaluate
+# the convolutions needed to compute the nonlocal density features
+# in GPAW. The interface is based on the gpaw.xc.libvdwxc module,
+# which interfaces with the libvdwxc library. The structure of the pwutil
+# library, in turn, is heavily based on the libvdwxc library.
+
 import ctypes
 
 import numpy as np
@@ -142,11 +148,14 @@ class LibCiderPW:
         alpha_norms = np.asarray(self.alpha_norms, dtype=np.float64, order="C")
         assert len(alphas) == len(alpha_norms)
         assert cell_cv.flags.c_contiguous
+        _N_c = np.asarray(N_c, dtype=np.int32, order="C")
+        _cell_cv = np.asarray(cell_cv, dtype=np.float64, order="C")
+        ptr_ptr = ctypes.byref(ptr)
         pwutil.ciderpw_create(
-            ctypes.byref(ptr),
+            ptr_ptr,
             ctypes.c_double(1),
-            np.array(N_c).astype(np.int32).ctypes.data_as(ctypes.c_void_p),
-            cell_cv.astype(np.float64).ctypes.data_as(ctypes.c_void_p),
+            _N_c.ctypes.data_as(ctypes.c_void_p),
+            _cell_cv.ctypes.data_as(ctypes.c_void_p),
         )
         self._ptr = ptr
         self.comm = comm

@@ -273,4 +273,5 @@ class CiderMGGAHybridKernel(CiderGGAHybridKernel):
             tau_sg=tau_sg,
             dedtau_sg=dedtau_sg,
         )
+        # dedtau_sg[:] = 0.0
         return vfeat_sg

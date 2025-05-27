@@ -85,11 +85,15 @@ def get_cider_exponent(
         sigma = np.asarray([sigma], dtype=np.float64)
         tau = np.asarray([tau], dtype=np.float64)
     tau_fac = tau_mul * 1.2 * (6 * np.pi**2) ** (2.0 / 3) / np.pi
-    cond = rho < rhocut
-    rho = rho.copy()
-    rho[cond] = rhocut
-    sigma[cond] = 0
-    tau[cond] = 0
+    # cond = rho < rhocut
+    # rho = rho.copy()
+    # rho[cond] = rhocut
+    # sigma[cond] = 0
+    # tau[cond] = 0
+    _tau = tau
+    _rho = rho
+    tau = np.sqrt(tau * tau + 1e-16)
+    rho = np.sqrt(rho * rho + 1e-16)
     if nspin == 1:
         B = np.pi / 2 ** (2.0 / 3) * (a0 - tau_fac)
     else:
@@ -106,9 +110,11 @@ def get_cider_exponent(
         dadrho -= 2 * grad_fac * sigma / (rho * rho * rho)
     else:
         dadsigma = np.zeros_like(ascale)
-    dadrho[cond] = 0
-    dadsigma[cond] = 0
-    dadtau[cond] = 0
+    dadrho[:] *= _rho / rho
+    dadtau[:] *= _tau / tau
+    # dadrho[cond] = 0
+    # dadsigma[cond] = 0
+    # dadtau[cond] = 0
     if not isarray:
         ascale = ascale.item()
         dadrho = dadrho.item()

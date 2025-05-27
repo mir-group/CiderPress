@@ -870,18 +870,24 @@ class SLTMap(FeatureNormalizer):
         return 2
 
     def fill_feat_(self, y, x):
-        rho = np.maximum(x[self.i], 1e-10)
+        # rho = np.maximum(x[self.i], 1e-10)
+        rho = np.sqrt(x[self.i] * x[self.i] + 1e-16)
+        tau = np.sqrt(x[self.j] * x[self.j] + 1e-16)
         tau0 = self.const * rho ** (5.0 / 3)
-        tau = x[self.j]
+        # tau = np.maximum(x[self.j], 0.0)
         y[:] = (tau - tau0) / (tau + tau0)
 
     def fill_deriv_(self, dfdx, dfdy, x):
-        rho = np.maximum(x[self.i], 1e-10)
+        # rho = np.maximum(x[self.i], 1e-10)
+        rho = np.sqrt(x[self.i] * x[self.i] + 1e-16)
+        tau = np.sqrt(x[self.j] * x[self.j] + 1e-16)
         tau0 = self.const * rho ** (5.0 / 3)
-        tau = x[self.j]
+        # tau = x[self.j]
         fac = 1.0 / (tau + tau0)
         v0 = -2 * dfdy * tau * fac * fac
         vt = 2 * dfdy * tau0 * fac * fac
+        v0[:] *= x[self.i] / rho
+        vt[:] *= x[self.j] / tau
         dfdx[self.i] += v0 * self.const * (5.0 / 3) * rho ** (2.0 / 3)
         dfdx[self.j] += vt
 

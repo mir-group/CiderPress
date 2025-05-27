@@ -408,8 +408,8 @@ void map_between_fft_meshes(double complex *x1, const int *fftg1,
     }
     int pix1, piy1, pix2, piy2;
     double complex *x1ptr, *x2ptr;
-#pragma omp parallel for collapse(3) private(pix1, piy1, pix2, piy2, x1ptr,    \
-                                                 x2ptr)
+#pragma omp parallel for collapse(3)                                           \
+    private(pix1, piy1, pix2, piy2, x1ptr, x2ptr)
     for (int i = 0; i < num_fft; i++) {
         for (int ix = lb[0]; ix <= ub[0]; ix++) {
             for (int iy = lb[1]; iy <= ub[1]; iy++) {

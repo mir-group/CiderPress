@@ -67,7 +67,7 @@ class CiderPASDW_MPRoutines:
         self.E_a_tmp = dist.from_work(E_a_new)
         self.dH_asp_tmp = dist.from_work(dH_asp_new)
 
-    def initialize_paw_kernel(self, cider_kernel_inp, Nalpha_atom, encut_atom):
+    def initialize_paw_kernel(self, cider_kernel_inp):
         self.paw_kernel = FastPASDWCiderKernel(
             cider_kernel_inp,
             self._plan,
@@ -78,7 +78,6 @@ class CiderPASDW_MPRoutines:
             self.dens, self.atomdist, self.atom_partition, self.setups
         )
         self.paw_kernel.initialize_more_things(self.setups)
-        self.paw_kernel.interpolate_dn1 = self.interpolate_dn1
         self.atom_slices_s = None
 
     def _setup_atom_slices(self):
@@ -139,7 +138,10 @@ class CiderPASDW_MPRoutines:
         sizes = np.array([s[0] * s[1] for s in shapes])
         rank_a = self.atom_partition.rank_a
         comm = self.atom_partition.comm
-        if self.fft_obj.has_mpi:
+        use_cider_comm = False
+        have_mpi = self.fft_obj.has_mpi
+        if use_cider_comm and self.fft_obj.has_mpi:
+            self.timer.start("comm prep")
             atoms = [[] for r in range(comm.size)]
             for a in range(len(self.setups)):
                 atoms[rank_a[a]].append(a)
@@ -181,6 +183,18 @@ class CiderPASDW_MPRoutines:
                 rsizes.ctypes.data_as(ctypes.c_void_p),
                 rlocs.ctypes.data_as(ctypes.c_void_p),
             )
+            self.timer.stop()
+        elif have_mpi:
+            comm.barrier()
+            self.timer.start("comm")
+            coefs_aiq = {}
+            for a, size in enumerate(shapes):
+                if rank_a[a] == comm.rank:
+                    coefs_aiq[a] = self.c_asiq[a][s].copy()
+                else:
+                    coefs_aiq[a] = np.empty(size)
+                comm.broadcast(coefs_aiq[a], rank_a[a])
+            self.timer.stop("comm")
         else:
             max_size = np.max([s[0] * s[1] for s in shapes])
             buf = np.empty(max_size, dtype=np.float64)
@@ -188,8 +202,10 @@ class CiderPASDW_MPRoutines:
 
         for a in range(len(self.setups)):
             atom_slice = atom_slices[a]
-            if self.fft_obj.has_mpi:
+            if use_cider_comm and have_mpi:
                 coefs_iq = np.ndarray(shapes[a], buffer=recvbuf[alocs[a] :])
+            elif have_mpi:
+                coefs_iq = coefs_aiq[a]
             else:
                 coefs_iq = np.ndarray(shapes[a], buffer=buf)
                 coefs_iq = np.ndarray(shapes[a], buffer=buf)
@@ -440,14 +456,7 @@ class CiderPASDW_MPRoutines:
         self.setups = self._hamiltonian.setups
         self.atomdist = self._hamiltonian.atomdist
         self.atom_partition = self.get_D_asp().partition
-
-        encut_atom = self.encut
-        Nalpha_atom = self.Nalpha
-        while encut_atom < self.encut_atom_min:
-            encut_atom *= self.lambd
-            Nalpha_atom += 1
-
-        self.initialize_paw_kernel(self.cider_kernel, Nalpha_atom, encut_atom)
+        self.initialize_paw_kernel(self.cider_kernel)
 
     @property
     def is_initialized(self):

@@ -39,7 +39,10 @@ static void mpi_ensure_finalized(void) {
         PyErr_SetString(PyExc_RuntimeError, "MPI_Finalize error occurred");
 }
 
-// MPI initialization
+// MPI initialization, following the approach in GPAW
+// We might need MPI before it is initialized in GPAW,
+// and we need to know MPI is initialized the way we want it,
+// so we initialize MPI here.
 void mpi_ensure_initialized(void) {
     int already_initialized = 1;
     int ierr = MPI_SUCCESS;
