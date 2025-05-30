@@ -48,7 +48,7 @@ ks = make_cider_calc(
     xkernel="GGA_X_PBE",
     ckernel="GGA_C_PBE",
     # exact exchange mixing parameter
-    xmix=0.25,
+    xmix=1.0,
 )
 ks = ks.density_fit()
 ks.with_df.auxbasis = "def2-universal-jfit"

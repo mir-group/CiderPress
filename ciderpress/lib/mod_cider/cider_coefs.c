@@ -22,6 +22,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+const double SQRT_PI = 1.77245385090551602729;
+const double FOUR_PI = 4.0 * M_PI;
+
 #define CIDER_FEAT_R0_GAUSSIAN 0
 #define FILL_CIDER_R0_GAUSSIAN(ind)                                            \
     tmp = 1.0 / (exp_g[g] + alphas[a]);                                        \
@@ -51,6 +54,67 @@
     dp[ind] = -1.5 * p[ind] * tmp;                                             \
     tmp2 = tmp2 * tmp;                                                         \
     dp[ind] -= 0.5 * p[ind] * tmp2 * tmp2 * extra_args[0] * alphas[a];
+// Kernel: g(a, r) = 1 / (a r^2 + 1)
+#define CIDER_FEAT_RINV2_GAUSSIAN 4
+#define FILL_CIDER_RINV2_GAUSSIAN(ind)                                     \
+    double aval = exp_g[g];                                                \
+    double alpha = alphas[a];                                              \
+    double aval_safe = fmax(aval, 1e-20);                                  \
+    double alpha_safe = fmax(alpha, 1e-20);                                \
+    double sqrt_alpha = sqrt(alpha_safe);                                  \
+    double sqrt_aval = sqrt(aval_safe);                                    \
+    double a_pow_1_5 = aval_safe * sqrt_aval;                              \
+    double a_pow_2 = aval_safe * aval_safe;                                \
+    double a_pow_2_5 = a_pow_2 * sqrt_aval;                                \
+    double a_pow_3 = a_pow_2 * aval_safe;                                  \
+    double a_pow_3_5 = a_pow_3 * sqrt_aval;                                \
+    double ratio = alpha_safe / aval_safe;                                 \
+    double sqrt_ratio = sqrt(ratio);                                       \
+    double exp_ratio = exp(ratio);                                         \
+    double erfc_term = erfc(sqrt_ratio);                                   \
+    double exp_erfc_term = exp_ratio * erfc_term;                          \
+    double term1_p = SQRT_PI / (2.0 * aval_safe * sqrt_alpha);             \
+    double term2_p = (M_PI * exp_erfc_term) / (2.0 * a_pow_1_5);           \
+    p[ind] = FOUR_PI * (term1_p - term2_p);                                \
+    double term1_dp = (M_PI * alpha_safe * exp_erfc_term) / (2.0 * a_pow_3_5); \
+    double term2_dp = (3.0 * M_PI * exp_erfc_term) / (4.0 * a_pow_2_5);      \
+    double term3_dp = (SQRT_PI * sqrt_alpha) / (2.0 * a_pow_3);            \
+    double term4_dp = SQRT_PI / (2.0 * a_pow_2 * sqrt_alpha);              \
+    dp[ind] = FOUR_PI * (term1_dp + term2_dp - term3_dp - term4_dp);
+// Kernel: g(a, r) = (1 / (a r^2 + 1))^2
+#define CIDER_FEAT_RINV4_GAUSSIAN 5
+#define FILL_CIDER_RINV4_GAUSSIAN(ind)                                     \
+    double aval = exp_g[g];                                                \
+    double alpha = alphas[a];                                              \
+    double aval_safe = fmax(aval, 1e-20);                                  \
+    double alpha_safe = fmax(alpha, 1e-20);                                \
+    double sqrt_alpha = sqrt(alpha_safe);                                  \
+    double sqrt_aval = sqrt(aval_safe);                                    \
+    double ratio = alpha_safe / aval_safe;                                 \
+    double sqrt_ratio = sqrt(ratio);                                       \
+    double exp_ratio = exp(ratio);                                         \
+    double erfc_term = erfc(sqrt_ratio);                                   \
+    double exp_erfc_term = exp_ratio * erfc_term;                          \
+    double a_plus_2alpha = aval_safe + 2.0 * alpha_safe;                   \
+    double a_pow_0_5 = sqrt_aval;                                          \
+    double a_pow_1_5 = aval_safe * a_pow_0_5;                              \
+    double a_pow_2 = aval_safe * aval_safe;                                \
+    double a_pow_2_5 = a_pow_2 * a_pow_0_5;                                \
+    double a_pow_3_5 = a_pow_2_5 * aval_safe;                              \
+    double a_pow_3 = a_pow_2 * aval_safe;                                  \
+    double term1_p_num = M_PI * exp_erfc_term * a_plus_2alpha;             \
+    double term2_p_num = 2.0 * SQRT_PI * sqrt_aval * sqrt_alpha;           \
+    double common_den_p = 4.0 * a_pow_2_5;                                 \
+    p[ind] = FOUR_PI * (term1_p_num - term2_p_num) / common_den_p;         \
+    double term1_d1 = SQRT_PI * sqrt_alpha * a_plus_2alpha / a_pow_1_5;    \
+    double term2_d1 = M_PI * alpha_safe * exp_erfc_term * a_plus_2alpha / a_pow_2; \
+    double term3_d1 = SQRT_PI * sqrt_alpha / a_pow_0_5;                    \
+    double term4_d1 = M_PI * exp_erfc_term;                                \
+    double num_d1 = term1_d1 - term2_d1 - term3_d1 + term4_d1;             \
+    double den_d1 = common_den_p;                                           \
+    double num_d2 = term1_p_num - term2_p_num;                             \
+    double den_d2 = 8.0 * a_pow_3_5;                                       \
+    dp[ind] = FOUR_PI * ( (num_d1 / den_d1) - (5.0 * num_d2 / den_d2) );
 
 #define CIDER_GQ_LOOP(FEATNAME)                                                \
     for (g = 0; g < ngrids; g++) {                                             \
@@ -100,6 +164,12 @@ void cider_coefs_gto_gq(double *p_ga, double *dp_ga, double *exp_g,
         case CIDER_FEAT_ERF_GAUSSIAN:
 #pragma omp for
             CIDER_GQ_LOOP(ERF_GAUSSIAN);
+        case CIDER_FEAT_RINV2_GAUSSIAN:
+#pragma omp for
+            CIDER_GQ_LOOP(RINV2_GAUSSIAN);
+        case CIDER_FEAT_RINV4_GAUSSIAN:
+#pragma omp for
+            CIDER_GQ_LOOP(RINV4_GAUSSIAN);
         default:
             printf("INTERNAL CIDER ERROR\n");
         }
@@ -131,6 +201,12 @@ void cider_coefs_gto_qg(double *p_ag, double *dp_ag, double *exp_g,
             case CIDER_FEAT_ERF_GAUSSIAN:
 #pragma omp for
                 CIDER_QG_LOOP(ERF_GAUSSIAN);
+            case CIDER_FEAT_RINV2_GAUSSIAN:
+#pragma omp for
+                CIDER_QG_LOOP(RINV2_GAUSSIAN);
+            case CIDER_FEAT_RINV4_GAUSSIAN:
+#pragma omp for
+                CIDER_QG_LOOP(RINV4_GAUSSIAN);
             default:
                 printf("INTERNAL CIDER ERROR\n");
             }

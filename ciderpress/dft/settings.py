@@ -21,7 +21,7 @@
 from abc import ABC, abstractmethod
 
 import numpy as np
-from scipy.special import gamma as gamma_func
+from scipy.special import gamma as gamma_func, erfc
 
 from ciderpress.dft.feat_normalizer import (
     ConstantNormalizer,
@@ -953,8 +953,9 @@ se_grad: gradient of squared-exponential
 
 se_rvec: squared-exponential times vector (r'-r)
 """
-
-ALLOWED_J_SPECS = ["se", "se_ar2", "se_a2r4", "se_erf_rinv"]
+#TODO: separate rinv4, rinv2
+ALLOWED_J_SPECS = ["se", "se_ar2", "se_a2r4", "se_erf_rinv",
+                    "se_rinv4", "rinv2_rinv4"] # Added vdW placeholders
 """
 Allowed spec strings for version j features.
 Version k features have the same allowed spec strings
@@ -967,6 +968,15 @@ se_a2r4: squared-exponential * a^2 * r^4
 
 se_erf_rinv: squared-exponential * 1/r with short-range
 erf damping
+
+se_rinv4: squared-exponential * (1 / (a r^2 + 1))^2 for G_i feature
+
+rinv2_rinv4: (1 / (a r^2 + 1)) * (1 / (a r^2 + 1))^2 for H_i feature
+
+rinv2: (1 / (a r^2 + 1))
+
+rinv4: (1 / (a r^2 + 1))^2
+
 """
 ALLOWED_K_SPECS = ALLOWED_J_SPECS
 """
@@ -1008,6 +1018,8 @@ SPEC_USPS = {
     "se_grad": 1,
     "se_rvec": -1,
     "grad_rho": 4,
+    "se_rinv4": 0,
+    "rinv2_rinv4": 0,
 }
 """
 Uniform-scaling powers (USPs) descibe how features scale as the
@@ -1274,7 +1286,7 @@ class NLDFSettingsVI(NLDFSettings):
                 raise NotImplementedError
         return norms
 
-
+#TODO: feat_specs, theta_spec default, -1 is the theta params when call_coeffs (passed integer)
 class NLDFSettingsVJ(NLDFSettings):
 
     version = "j"
@@ -1285,7 +1297,7 @@ class NLDFSettingsVJ(NLDFSettings):
         theta_params,
         rho_mult,
         feat_specs,
-        feat_params,
+        feat_params, vdw_param = False, #TODO Apr25: should add optional argument for vdW feat_params
     ):
         """
         Initialize NLDFSettingsVJ
@@ -1316,6 +1328,7 @@ class NLDFSettingsVJ(NLDFSettings):
         super(NLDFSettingsVJ, self).__init__(sl_level, theta_params, rho_mult)
         self.feat_params = feat_params
         self.feat_specs = feat_specs
+        self.vdw_param = vdw_param
         self._check_specs(self.feat_specs, ALLOWED_J_SPECS)
         if len(self.feat_params) != len(self.feat_specs):
             raise ValueError("specs and params must have same length")
@@ -1369,6 +1382,24 @@ class NLDFSettingsVJ(NLDFSettings):
             elif spec == "se_erf_rinv":
                 expnt3 = expnt2 * params[-1]
                 integral *= np.sqrt(expnt / (expnt + expnt3))
+            elif spec == "rinv2_rinv4":
+                a_i = expnt2
+                a_0 = _get_ueg_expnt(a0t, t0t, rho)
+                if a_i < 1e-12 or a_0 < 1e-12:
+                    integral = 0.0
+                else:
+                    integral = np.pi**2 / ((np.sqrt(a_i / a_0) + 1)**2 * a_0**1.5)
+            elif spec == "se_rinv4":
+                a_i = expnt2
+                a_0 = _get_ueg_expnt(a0t, t0t, rho)
+                if a_i < 1e-12 or a_0 < 1e-12:
+                    integral = 0.0
+                else:
+                    ratio = a_i / a_0
+                    sqrt_ratio = np.sqrt(ratio)
+                    term1 = (2 * a_i + a_0) * np.exp(ratio) * erfc(sqrt_ratio) / (a_0 ** 2.5)
+                    term2 = 2.0 * sqrt_ratio / (np.sqrt(np.pi) * a_0 ** 2)
+                    integral = np.pi * np.pi * (term1 - term2)
             else:
                 raise ValueError
             ueg_feats.append(rho * rho_mult * integral)

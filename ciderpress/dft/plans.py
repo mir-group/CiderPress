@@ -50,6 +50,8 @@ VJ_ID_MAP = {
     "se_ar2": 1,
     "se_a2r4": 2,
     "se_erf_rinv": 3,
+    "rinv2": 4,  # Placeholder for H_i term (1 / (a_i r^2 + 1))
+    "rinv4": 5,  # Placeholder for G_i/H_i term (1 / (a_0 r^2 + 1))^2
 }
 VI_ID_MAP = {
     "se": 0,
@@ -62,7 +64,7 @@ VI_ID_MAP = {
     "se_grad": 7,
 }
 
-
+#TODO Apr25: this is where -1 default is used
 def _get_ovlp_fit_interpolation_coefficients(
     plan, arg_g, i=-1, local=True, vbuf=None, dbuf=None
 ):
@@ -83,10 +85,32 @@ def _get_ovlp_fit_interpolation_coefficients(
     p = plan.empty_coefs(ngrids, local=local, buf=vbuf)
     dp = plan.empty_coefs(ngrids, local=local, buf=dbuf)
     if i == -1:
-        feat_id = VJ_ID_MAP["se"]
+        if not hasattr(plan.nldf_settings, 'vdw_param'):
+            feat_id = VJ_ID_MAP["se"]
+        elif not plan.nldf_settings.vdw_param:
+            feat_id = VJ_ID_MAP["se"]
+        else:
+            feat_id = VJ_ID_MAP["rinv4"]
+            # if plan.nldf_settings.feat_spec_list[i] == "rinv2_rinv4":
+            #     feat_id = VJ_ID_MAP["rinv4"]
+            # elif plan.nldf_settings.feat_spec_list[i] == "se_rinv4":
+            #     feat_id = VJ_ID_MAP["rinv4"]
+            # else:
+            #     feat_id = VJ_ID_MAP["se"]
     else:
         assert 0 <= i < plan.nldf_settings.num_feat_param_sets
-        feat_id = VJ_ID_MAP[plan.nldf_settings.feat_spec_list[i]]
+        if not hasattr(plan.nldf_settings, 'vdw_param'):
+            feat_id = VJ_ID_MAP[plan.nldf_settings.feat_spec_list[i]]
+        elif not plan.nldf_settings.vdw_param:
+            feat_id = VJ_ID_MAP[plan.nldf_settings.feat_spec_list[i]] 
+        else:
+            if plan.nldf_settings.feat_spec_list[i] == "rinv2_rinv4":
+                feat_id = VJ_ID_MAP["rinv2"]
+            elif plan.nldf_settings.feat_spec_list[i] == "se_rinv4":
+                feat_id = VJ_ID_MAP["se"]
+            else:
+                feat_id = VJ_ID_MAP[plan.nldf_settings.feat_spec_list[i]] 
+    print(f"HERE: {feat_id}")
     if feat_id == VJ_ID_MAP["se_erf_rinv"]:
         extra_args = plan._get_extra_args(i)
         num_extra_args = len(extra_args)
@@ -117,7 +141,7 @@ def _get_ovlp_fit_interpolation_coefficients(
         ctypes.c_int(len(alphas)),
         ctypes.c_int(feat_id),
         extra_args,
-    )
+    ) #TODO Apr25: c functions call
     return p, dp
 
 
@@ -1506,7 +1530,7 @@ class NLDFAuxiliaryPlan(ABC):
             is_mgga=self.nldf_settings.sl_level == "MGGA",
         )
 
-    def eval_feat_exp(self, rho_tuple, i=-1):
+    def eval_feat_exp(self, rho_tuple, i=-1): #TODO Apr25: check this
         """
         Evaluate the exponents that determine the length-scale
         of feature i at each grid point. i can take a range
@@ -1896,7 +1920,7 @@ class NLDFAuxiliaryPlan(ABC):
                 ctypes.c_int(self.nalpha),
             )
             return p, dp
-        else:
+        else: #TODO Apr25: this is where coefficients are obtained
             return self._get_interpolation_coefficients(
                 arg_g, i=i, vbuf=vbuf, dbuf=dbuf
             )
