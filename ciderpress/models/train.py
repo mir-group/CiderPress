@@ -660,7 +660,7 @@ class MOLGP2(MOLGP):
                         drho_tmp = wt * drho_data[orb][:, i0:i1]
                         dvwrtt_tot[orb] += np.einsum("cdn,dn->c", dkm1[:, s], ddesc_tmp)
                         dvwrtt_tot[orb] += np.einsum("cdn,dn->c", dkm2[:, s], drho_tmp)
-                        dbaseline[orb] += np.dot(da * drho_tmp, wt)
+                        dbaseline[orb] += np.sum(da * drho_tmp)
             kernel.cov_dict[mol_id] = vwrtt_tot
             kernel.base_dict[mol_id] = baseline
             if save_refs:
