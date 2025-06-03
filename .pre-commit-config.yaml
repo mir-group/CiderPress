@@ -24,7 +24,7 @@ repos:
         name: isort (python)
         args: [--profile=black]
   - repo: https://github.com/pre-commit/mirrors-clang-format
-    rev: 79dadb849d5247ae54fa1f13f838fde95d91b2e9
+    rev: "v20.1.5"
     hooks:
     - id: clang-format
       args: ['-style=file']

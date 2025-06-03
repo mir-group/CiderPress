@@ -52,7 +52,7 @@ void ciderpw_allocate_buffers(ciderpw_data data) {
         data->cell.Nlocal[0] * data->cell.Nlocal[1] * data->cell.Nlocal[2];
 }
 
-int ciderpw_get_struct_size() { return sizeof(struct ciderpw_data_obj); }
+size_t ciderpw_get_struct_size() { return sizeof(struct ciderpw_data_obj); }
 
 void ciderpw_nullify(ciderpw_data data) {
     memset(data, 0, ciderpw_get_struct_size());
@@ -123,7 +123,6 @@ void ciderpw_set_unit_cell(ciderpw_data data, int *N_c, double *cell_cv) {
     data->cell.vec[6] = C02;
     data->cell.vec[7] = C12;
     data->cell.vec[8] = C22;
-
     data->cell.Nglobal[0] = N_c[0];
     data->cell.Nglobal[1] = N_c[1];
     data->cell.Nglobal[2] = N_c[2];

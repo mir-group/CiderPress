@@ -1304,7 +1304,9 @@ void contract_grad_terms_parallel(double *excsum, double *f_g, int natm, int a,
         const int ig0 = ithread * ngrids_local;
         const int ig1 = MIN(ig0 + ngrids_local, ngrids);
 #pragma omp single
-        { tmp_priv = (double *)calloc(nthreads * natm, sizeof(double)); }
+        {
+            tmp_priv = (double *)calloc(nthreads * natm, sizeof(double));
+        }
 #pragma omp barrier
         double *my_tmp = tmp_priv + ithread * natm;
         int ib;

@@ -18,6 +18,12 @@
 # Author: Kyle Bystrom <kylebystrom@gmail.com>
 #
 
+# This module interfaces with the pwutil C library to evaluate
+# the convolutions needed to compute the nonlocal density features
+# in GPAW. The interface is based on the gpaw.xc.libvdwxc module,
+# which interfaces with the libvdwxc library. The structure of the pwutil
+# library, in turn, is heavily based on the libvdwxc library.
+
 import ctypes
 
 import numpy as np
@@ -90,11 +96,13 @@ def get_norms_and_expnts_from_plan(plan):
             t += 1
         for spec in settings.l1_feat_specs:
             fac = alpha_norms * (np.pi / alphas) ** 1.5
-            # TODO might be rt(3) or 1/2 prefactor or something
+            # need the factor of 0.5 because we compute the feature by taking
+            # the gradient rather than explicit (r' - r) integral, and this
+            # puts in a factor of 2 due to the squared-exponential derivative.
             if spec == "se_grad":
-                fac *= 1.0
+                fac *= 0.5
             elif spec == "se_rvec":
-                fac /= alphas
+                fac *= 0.5 / alphas
             else:
                 raise ValueError("Unrecognized vi l1 feature {}".format(spec))
             norms_ab[t : t + 4, :] = fac
@@ -142,11 +150,14 @@ class LibCiderPW:
         alpha_norms = np.asarray(self.alpha_norms, dtype=np.float64, order="C")
         assert len(alphas) == len(alpha_norms)
         assert cell_cv.flags.c_contiguous
+        _N_c = np.asarray(N_c, dtype=np.int32, order="C")
+        _cell_cv = np.asarray(cell_cv, dtype=np.float64, order="C")
+        ptr_ptr = ctypes.byref(ptr)
         pwutil.ciderpw_create(
-            ctypes.byref(ptr),
+            ptr_ptr,
             ctypes.c_double(1),
-            np.array(N_c).astype(np.int32).ctypes.data_as(ctypes.c_void_p),
-            cell_cv.astype(np.float64).ctypes.data_as(ctypes.c_void_p),
+            _N_c.ctypes.data_as(ctypes.c_void_p),
+            _cell_cv.ctypes.data_as(ctypes.c_void_p),
         )
         self._ptr = ptr
         self.comm = comm

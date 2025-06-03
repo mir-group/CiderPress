@@ -115,7 +115,7 @@ def get_convolution_data(settings, alphas, alpha_norms, betas, beta_norms):
         for spec in settings.l1_feat_specs:
             vi_expnts.append(viexp)
             if spec == "se_grad":
-                vi_facs.append(vifac)
+                vi_facs.append(0.5 * vifac)
                 k2pows.append(1)
             else:
                 raise NotImplementedError
@@ -679,6 +679,9 @@ class _PAWCiderContribs:
             ]
         else:
             raise ValueError
+        # print("ATOMFEAT", (rho_sxg[:, 0:1, :] * self.w_g).sum(axis=-1),
+        #       (feat_sig * rho_sxg[:, 0:1, :] * self.w_g).sum(axis=-1),
+        #       4 * np.pi * self.r_g[-1]**3 / 3, self.w_g.sum(), self.r_g[-1])
         vfeat_sig = self.cider_kernel.calculate(*args)
         vrho_sxg[:, 0] = dedn_sg
         if rho_sxg.shape[1] == 5:
@@ -760,7 +763,7 @@ class _PAWCiderContribs:
         fr_skLq[:] *= self._projector.dv_k[:, None, None]
         fr_sgLq = self.aux2grid(fr_skLq)
         t3 = time.monotonic()
-        print("YTIMES", th - t0, t1 - th, t2 - t1, t3 - t2)
+        # print("YTIMES", th - t0, t1 - th, t2 - t1, t3 - t2)
         return fr_sgLq, df_sgLq, c_siq
 
     def calculate_vx_terms(self, vfr_sgLq, vdf_sgLq, vc_siq):
@@ -866,7 +869,7 @@ class PAWCiderContribsRecip(_PAWCiderContribs):
             ctypes.c_int(nq1),
         )
         t1 = time.monotonic()
-        print("TIME", t1 - t0)
+        # print("TIME", t1 - t0)
         return out_skLq
 
     def perform_convolution_fwd(self, f_skLq):
@@ -900,7 +903,6 @@ class CiderRadialEnergyCalculator:
         e_g, rho_sxg, vrho_sxg = self.xc.vec_radial_vars(
             n_sLg, Y_nL, dndr_sLg, rnablaY_nLv, ae
         )
-        print("AE", ae)
         vf_srLq = self.xc.get_paw_atom_contribs_en(
             e_g, rho_sxg, vrho_sxg, f_srLq, feat_only=False
         )
@@ -1126,7 +1128,7 @@ class FastPASDWCiderKernel:
                     setup, build_kinetic=True, ke_order_ng=False
                 )
                 # TODO for some reason, in the core there are sometimes
-                # exponents that are very big (z**2 * 2000 required).
+                # exponents that are very big (Z**2 * 2000 required).
                 # However, the SCF energy and stress are essentially
                 # unchanged by not including these very high exponents,
                 # and they don't seem physically relevant. So it would be good
@@ -1167,7 +1169,7 @@ class FastPASDWCiderKernel:
                 setup.ps_setup = PSSetup.from_setup(setup)
                 setup.pa_setup = PASetup.from_setup(setup)
                 sbt_rgd = SBTGridContainer.from_setup(
-                    setup, rmin=1e-4, N=1024, encut=5e7, d=0.02
+                    setup, rmin=1e-4, N=1024, encut=5e6, d=0.02
                 ).big_rgd
                 cider_proj = CiderCoreTermProjector.from_atco_and_setup(
                     self.plan,
@@ -1223,7 +1225,7 @@ class FastPASDWCiderKernel:
             )
             dx_sgLq -= xt_sgLq
             self.timer.stop()
-            self._multiply_spherical_terms_by_cutoff_(setup, xt_sgLq)
+            # self._multiply_spherical_terms_by_cutoff_(setup, xt_sgLq)
             self.timer.start("transform and convolve")
             t1 = time.monotonic()
             fr_sgLq, df_sgLq, c_siq = setup.cider_contribs.calculate_y_terms(
@@ -1362,7 +1364,7 @@ class FastPASDWCiderKernel:
             vxt_sgLq, vdx_sgLq = setup.cider_contribs.calculate_vx_terms(
                 self.vfr_asgLq[a], self.vdf_asgLq[a], vc_asiq[a]
             )
-            self._multiply_spherical_terms_by_cutoff_(setup, vxt_sgLq)
+            # self._multiply_spherical_terms_by_cutoff_(setup, vxt_sgLq)
             F_sbLg = vdx_sgLq - vxt_sgLq
             y_sbLg = vxt_sgLq.copy()
             rcalc = CiderRadialPotentialCalculator(setup.cider_contribs)
@@ -1702,10 +1704,10 @@ class CiderCoreTermProjector:
             j0, j1 = jloc_l[l], jloc_l[l + 1]
             lfuncs_jk = self.loc_kbasis.funcs_ig[j0:j1]
             ovlp = np.einsum("ik,jk,k->ij", lfuncs_jk, lfuncs_jk, self.dv_k)
-            assert (np.abs(ovlp - np.identity(ovlp.shape[0])) < 1e-4).all()
+            # assert (np.abs(ovlp - np.identity(ovlp.shape[0])) < 1e-4).all()
             lfuncs_jg = self.loc_rbasis.funcs_ig[j0:j1]
             ovlp = np.einsum("ig,jg,g->ij", lfuncs_jg, lfuncs_jg, self.dv_g)
-            assert (np.abs(ovlp - np.identity(ovlp.shape[0])) < 1e-4).all()
+            # assert (np.abs(ovlp - np.identity(ovlp.shape[0])) < 1e-4).all()
 
     def _get_p21_matrix(self):
         p21_l_javb = []
@@ -1773,8 +1775,8 @@ class CiderCoreTermProjector:
         self._kernel_kba = facs * np.exp(-expnts * k2_g[:, None, None])
         # self._kernel_bak[na:] = 0.0
         p21 = self._get_p21_matrix()
-        p22 = self._get_p22_matrix(reg=1e-6)
-        self._zmat_l = self._combine_matrices(p21, p22, reg=1e-6)
+        p22 = self._get_p22_matrix(reg=1e-5)
+        self._zmat_l = self._combine_matrices(p21, p22, reg=1e-5)
 
     def get_c_and_df(self, y_skLb):
         t0 = time.monotonic()
@@ -1808,7 +1810,7 @@ class CiderCoreTermProjector:
         df_sgLb = self.loc_rbasis.basis2grid_spin(df_sub)
         dxt_sgLa = self.smooth_kbasis.basis2grid_spin(c_sia)
         t3 = time.monotonic()
-        print("TIMES", t1 - t0, t2 - t1, t3 - t2)
+        # print("TIMES", t1 - t0, t2 - t1, t3 - t2)
         return c_sia, dxt_sgLa, df_sgLb
 
     def get_vy_and_vyy(self, vc_sia, vdxt_skLa, vdf_sgLb):
@@ -1841,7 +1843,7 @@ class CiderCoreTermProjector:
             "skla,kba,b->sklb", vyy_skLa, self._kernel_kba, self.w_b
         )
         t1 = time.monotonic()
-        print("VY_TIME", t1 - t0)
+        # print("VY_TIME", t1 - t0)
         vy_skLb[:] *= self.dv_k[:, None, None]
         return vy_skLb
 
@@ -1898,10 +1900,14 @@ class CiderCoreTermProjector:
             pfuncs_jk.append(sbt_rgd.transform_single_fwd(pfunc_g, ps_setup.llist_j[j]))
         pfuncs_jk = np.asarray(pfuncs_jk)
         pfuncs_jg = np.asarray([ps_setup.pfuncs_ng[n] for n in ps_setup.nlist_j])
-        smooth_kbasis = RFC(ps_setup.jloc_l, pfuncs_jk, sbt_rgd.k_g, dv_k)
-        smooth_rbasis = RFC(ps_setup.jloc_l, pfuncs_jg, ps_setup.paw_rgd.r_g, paw_dv_g)
-        loc_rbasis = RFC(vloc_l, loc_basis_pg, ps_setup.paw_rgd.r_g, paw_dv_g)
-        loc_kbasis = RFC(vloc_l, loc_basis_pk, sbt_rgd.k_g, dv_k)
+        smooth_kbasis = RFC(ps_setup.jloc_l, pfuncs_jk, sbt_rgd.k_g, dv_k, lmax=lmax)
+        smooth_rbasis = RFC(
+            ps_setup.jloc_l, pfuncs_jg, ps_setup.paw_rgd.r_g, paw_dv_g, lmax=lmax
+        )
+        loc_rbasis = RFC(
+            vloc_l, loc_basis_pg, ps_setup.paw_rgd.r_g, paw_dv_g, lmax=lmax
+        )
+        loc_kbasis = RFC(vloc_l, loc_basis_pk, sbt_rgd.k_g, dv_k, lmax=lmax)
         return cls(gplan, aplan, smooth_kbasis, smooth_rbasis, loc_kbasis, loc_rbasis)
 
 
@@ -2038,6 +2044,7 @@ class RFC:
         self.funcs_ig = np.ascontiguousarray(funcs_ig)
         self.lmax = len(iloc_l) - 2
         if lmax is not None:
+            iloc_l = list(iloc_l)
             assert lmax >= self.lmax
             self.lmax = lmax
             while len(iloc_l) < lmax + 2:

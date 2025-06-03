@@ -17,6 +17,25 @@
 // Author: Kyle Bystrom <kylebystrom@gmail.com>
 //
 
+// The pwutil C module contains utilities for evaluating CIDER functionals
+// with plane-wave, codes, particularly GPAW.
+// The algorithms in this module are heavily based on the
+// libvdwxc code: https://gitlab.com/libvdwxc/libvdwxc,
+// since the convolution/interpolation approach is similar for
+// vdW and CIDER functionals. The key differences include:
+// 1) more API functions. Since the "theta" function inputs are
+// computed in Python, and the XC energy/potential is computed
+// from the final features in Python, external code needs to set
+// the theta functions as well as the PAW corrections and read
+// the convolved functions in.
+// 2) The approach to computing the kernel is different because CIDER
+// uses different kernels than vdW functionals.
+// 3) There is an abstraction layer on top of the FFTW interface so
+// that MKL can be used instead if desired, including with MPI.
+// However, unlike libvdwxc, use of PFFT is not implemented yet.
+// 4) Preliminary support for functionals with anisotropic features
+// (l=1 kernel) is provided in this module.
+
 #ifndef NLDF_FFT_CORE_H
 #define NLDF_FFT_CORE_H
 #include "config.h"
@@ -110,7 +129,7 @@ int ciderpw_has_mpi();
 
 void ciderpw_allocate_buffers(ciderpw_data data);
 
-int ciderpw_get_struct_size();
+size_t ciderpw_get_struct_size();
 
 void ciderpw_nullify(ciderpw_data data);
 

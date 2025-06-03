@@ -67,7 +67,7 @@ class CiderPASDW_MPRoutines:
         self.E_a_tmp = dist.from_work(E_a_new)
         self.dH_asp_tmp = dist.from_work(dH_asp_new)
 
-    def initialize_paw_kernel(self, cider_kernel_inp, Nalpha_atom, encut_atom):
+    def initialize_paw_kernel(self, cider_kernel_inp):
         self.paw_kernel = FastPASDWCiderKernel(
             cider_kernel_inp,
             self._plan,
@@ -78,7 +78,6 @@ class CiderPASDW_MPRoutines:
             self.dens, self.atomdist, self.atom_partition, self.setups
         )
         self.paw_kernel.initialize_more_things(self.setups)
-        self.paw_kernel.interpolate_dn1 = self.interpolate_dn1
         self.atom_slices_s = None
 
     def _setup_atom_slices(self):
@@ -440,14 +439,7 @@ class CiderPASDW_MPRoutines:
         self.setups = self._hamiltonian.setups
         self.atomdist = self._hamiltonian.atomdist
         self.atom_partition = self.get_D_asp().partition
-
-        encut_atom = self.encut
-        Nalpha_atom = self.Nalpha
-        while encut_atom < self.encut_atom_min:
-            encut_atom *= self.lambd
-            Nalpha_atom += 1
-
-        self.initialize_paw_kernel(self.cider_kernel, Nalpha_atom, encut_atom)
+        self.initialize_paw_kernel(self.cider_kernel)
 
     @property
     def is_initialized(self):

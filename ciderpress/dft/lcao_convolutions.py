@@ -76,6 +76,7 @@ def gto_norm(l, expnt):
 def get_etb_from_expnt_range(
     lmax, beta, emin_by_l, emax_by_l, def_amax, def_amin, lower_fac=1.0, upper_fac=1.0
 ):
+    # using the PySCF approach for constructing ETBs
     emin_by_l = np.array(emin_by_l)
     emax_by_l = np.array(emax_by_l)
     l_max1 = np.min(emin_by_l.size)

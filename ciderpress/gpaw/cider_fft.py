@@ -367,6 +367,9 @@ class _CiderBase:
         feat_sig, dfeat_sjg, arg_sg, darg_sg, fun_sg, dfun_sg, p_gq, dp_gq = res
         # TODO version i features
         feat_sig[:] *= plan.nspin
+        # print("FFTFEAT", rho_sxg.shape, feat_sig.shape,
+        #       rho_sxg[:, 0, :].sum(axis=(-3,-2,-1)) * self.gd.dv,
+        #       (rho_sxg[:, 0:1, :] * feat_sig).sum(axis=(-3,-2,-1)) * self.gd.dv)
         self.timer.start("eval xc")
         if e_g.size > 0:
             if tau_sg is None:  # GGA
