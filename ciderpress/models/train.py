@@ -21,11 +21,12 @@
 import os
 
 import numpy as np
+from pyscf.dft.libxc import eval_xc
 from pyscf.lib import chkfile, prange
 from scipy.linalg import cho_solve, cholesky
 
 from ciderpress.dft.plans import get_rho_tuple_with_grad_cross, vxc_tuple_to_array
-from ciderpress.dft.settings import FeatureSettings
+from ciderpress.dft.settings import CFC, FeatureSettings
 from ciderpress.dft.xc_evaluator import MappedXC
 from ciderpress.dft.xc_evaluator2 import MappedXC2
 
@@ -395,6 +396,64 @@ class MOLGP:
                     }
                     print("REF DVWRTT", diff, kernel.dbase_dict[mol_id])
 
+    def add_ueg_reactions(
+        self, rholist, zeta, xc_code, mode, omega=None, rel_noise=1e-8
+    ):
+        # TODO test for version 1 and 2, X only, XC, short-range X
+        if not isinstance(rholist, np.ndarray):
+            rholist = np.array(rholist)
+        if zeta is not None:
+            rholist = np.stack([0.5 * rholist * (1 + zeta), 0.5 * rholist * (1 - zeta)])
+            nspin = 2
+        else:
+            rholist = rholist[None, :]
+            nspin = 1
+        refval = eval_xc(xc_code, rho, spin=nspin - 1, deriv=0, omega=omega)[0]
+        rxn_list = []
+        is_mgga = self.settings.sl_settings.level == "MGGA"
+        for ikernel, kernel in enumerate(self.kernels):
+            for i in range(rholist.shape[0]):
+                rho = rholist[:, i : i + 1]
+                # We want to get energy per particle from energy density
+                wt = 1.0 / rho.sum()
+                X0T = self.settings.ueg_vector(rho=rho * nspin, with_normalizers=True)
+                baseline = 0
+                vwrtt_tot = 0
+                if isinstance(self, MOLGP2):
+                    tau = CFC * rho * (nspin * rho) ** (2.0 / 3)
+                    sigma = np.zeros((2 * nspin + 1, 1))
+                    if is_mgga:
+                        rho_tuple = (rho, sigma, tau)
+                    else:
+                        rho_tuple = (rho, sigma)
+                    m = kernel.multiplicative_baseline(rho_tuple)[0]
+                    a = kernel.additive_baseline(rho_tuple)[0]
+                else:
+                    m = kernel.multiplicative_baseline(X0T)[0]
+                    a = kernel.additive_baseline(X0T)[0]
+                k = kernel.get_k(X0T)
+                if kernel.mode == "SEP":
+                    km = (k * m).sum(1)
+                else:
+                    km = k * m
+                vwrtt_tot += (km * wt).sum(axis=1)
+                baseline += (a * wt).sum()
+                mol_id = f"_UEG_{i:010d}"
+                kernel.cov_dict[mol_id] = vwrtt_tot
+                kernel.base_dict[mol_id] = baseline
+                if ikernel == 0:
+                    rxn = {
+                        "unit": 1.0,
+                        "structs": [mol_id],
+                        "counts": [1],
+                        "energy": refval[i] if mode > 0 else None,
+                        "noise": rel_noise * np.abs(refval[i]),
+                    }
+                    rxn_list.append((mode, rxn))
+                    if mode == 0:
+                        self.exx_ref_dict[mol_id] = refval
+        self.add_reactions(rxn_list)
+
     def store_mol_covs(self, ddir, mol_ids, get_orb_deriv=None, get_correlation=True):
         """
         Reads features (and optionally their derivatives with respect to orbital
@@ -579,7 +638,7 @@ class MOLGP2(MOLGP):
             rho_data = data["rho_data"] / nspin
             vwrtt_tot = 0
             baseline = 0
-            is_mgga = self.settings.sl_settings.level
+            is_mgga = self.settings.sl_settings.level == "MGGA"
             if deriv:
                 ddesc = strk_to_tuplek(data["ddesc"])
                 drho_data = strk_to_tuplek(data["drho_data"])
