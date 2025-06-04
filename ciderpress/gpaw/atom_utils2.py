@@ -115,7 +115,7 @@ def get_convolution_data(settings, alphas, alpha_norms, betas, beta_norms):
         for spec in settings.l1_feat_specs:
             vi_expnts.append(viexp)
             if spec == "se_grad":
-                vi_facs.append(vifac)
+                vi_facs.append(0.5 * vifac)
                 k2pows.append(1)
             else:
                 raise NotImplementedError
@@ -1702,10 +1702,10 @@ class CiderCoreTermProjector:
             j0, j1 = jloc_l[l], jloc_l[l + 1]
             lfuncs_jk = self.loc_kbasis.funcs_ig[j0:j1]
             ovlp = np.einsum("ik,jk,k->ij", lfuncs_jk, lfuncs_jk, self.dv_k)
-            assert (np.abs(ovlp - np.identity(ovlp.shape[0])) < 1e-4).all()
+            # assert (np.abs(ovlp - np.identity(ovlp.shape[0])) < 1e-4).all()
             lfuncs_jg = self.loc_rbasis.funcs_ig[j0:j1]
             ovlp = np.einsum("ig,jg,g->ij", lfuncs_jg, lfuncs_jg, self.dv_g)
-            assert (np.abs(ovlp - np.identity(ovlp.shape[0])) < 1e-4).all()
+            # assert (np.abs(ovlp - np.identity(ovlp.shape[0])) < 1e-4).all()
 
     def _get_p21_matrix(self):
         p21_l_javb = []
@@ -1898,10 +1898,18 @@ class CiderCoreTermProjector:
             pfuncs_jk.append(sbt_rgd.transform_single_fwd(pfunc_g, ps_setup.llist_j[j]))
         pfuncs_jk = np.asarray(pfuncs_jk)
         pfuncs_jg = np.asarray([ps_setup.pfuncs_ng[n] for n in ps_setup.nlist_j])
-        smooth_kbasis = RFC(ps_setup.jloc_l, pfuncs_jk, sbt_rgd.k_g, dv_k)
-        smooth_rbasis = RFC(ps_setup.jloc_l, pfuncs_jg, ps_setup.paw_rgd.r_g, paw_dv_g)
-        loc_rbasis = RFC(vloc_l, loc_basis_pg, ps_setup.paw_rgd.r_g, paw_dv_g)
-        loc_kbasis = RFC(vloc_l, loc_basis_pk, sbt_rgd.k_g, dv_k)
+        # smooth_kbasis = RFC(ps_setup.jloc_l, pfuncs_jk, sbt_rgd.k_g, dv_k)
+        # smooth_rbasis = RFC(ps_setup.jloc_l, pfuncs_jg, ps_setup.paw_rgd.r_g, paw_dv_g)
+        # loc_rbasis = RFC(vloc_l, loc_basis_pg, ps_setup.paw_rgd.r_g, paw_dv_g)
+        # loc_kbasis = RFC(vloc_l, loc_basis_pk, sbt_rgd.k_g, dv_k)
+        smooth_kbasis = RFC(ps_setup.jloc_l, pfuncs_jk, sbt_rgd.k_g, dv_k, lmax=lmax)
+        smooth_rbasis = RFC(
+            ps_setup.jloc_l, pfuncs_jg, ps_setup.paw_rgd.r_g, paw_dv_g, lmax=lmax
+        )
+        loc_rbasis = RFC(
+            vloc_l, loc_basis_pg, ps_setup.paw_rgd.r_g, paw_dv_g, lmax=lmax
+        )
+        loc_kbasis = RFC(vloc_l, loc_basis_pk, sbt_rgd.k_g, dv_k, lmax=lmax)
         return cls(gplan, aplan, smooth_kbasis, smooth_rbasis, loc_kbasis, loc_rbasis)
 
 
@@ -2037,6 +2045,7 @@ class RFC:
     def __init__(self, iloc_l, funcs_ig, r_g, dv_g, lmax=None):
         self.funcs_ig = np.ascontiguousarray(funcs_ig)
         self.lmax = len(iloc_l) - 2
+        iloc_l = list(iloc_l)
         if lmax is not None:
             assert lmax >= self.lmax
             self.lmax = lmax

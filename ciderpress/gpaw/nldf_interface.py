@@ -89,7 +89,7 @@ def get_norms_and_expnts_from_plan(plan):
             expnts_ab[t, :] = 1.0 / (4 * alphas)
             t += 1
         for spec in settings.l1_feat_specs:
-            fac = alpha_norms * (np.pi / alphas) ** 1.5
+            fac = 0.5 * alpha_norms * (np.pi / alphas) ** 1.5
             # TODO might be rt(3) or 1/2 prefactor or something
             if spec == "se_grad":
                 fac *= 1.0
