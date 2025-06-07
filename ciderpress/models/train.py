@@ -401,27 +401,36 @@ class MOLGP:
     ):
         # TODO test for version 1 and 2, X only, XC, short-range X
         if not isinstance(rholist, np.ndarray):
-            rholist = np.array(rholist)
+            rholist = np.array([rholist])
         if zeta is not None:
+            zeta = np.minimum(zeta, 1 - 1e-6)
+            zeta = np.maximum(zeta, -1 + 1e-6)
             rholist = np.stack([0.5 * rholist * (1 + zeta), 0.5 * rholist * (1 - zeta)])
             nspin = 2
         else:
             rholist = rholist[None, :]
             nspin = 1
-        refval = eval_xc(xc_code, rho, spin=nspin - 1, deriv=0, omega=omega)[0]
+        refval = eval_xc(xc_code, rholist, spin=nspin - 1, deriv=0, omega=omega)[0]
         rxn_list = []
         is_mgga = self.settings.sl_settings.level == "MGGA"
+        rxn_id_list = []
         for ikernel, kernel in enumerate(self.kernels):
-            for i in range(rholist.shape[0]):
+            for i in range(rholist.shape[1]):
                 rho = rholist[:, i : i + 1]
                 # We want to get energy per particle from energy density
                 wt = 1.0 / rho.sum()
-                X0T = self.settings.ueg_vector(rho=rho * nspin, with_normalizers=True)
+                X0T = np.stack(
+                    [
+                        self.settings.ueg_vector(rho=r * nspin, with_normalizers=True)
+                        for r in rho[:, 0]
+                    ]
+                )[..., None]
+                print(X0T.shape)
                 baseline = 0
                 vwrtt_tot = 0
                 if isinstance(self, MOLGP2):
                     tau = CFC * rho * (nspin * rho) ** (2.0 / 3)
-                    sigma = np.zeros((2 * nspin + 1, 1))
+                    sigma = np.zeros((2 * nspin - 1, 1))
                     if is_mgga:
                         rho_tuple = (rho, sigma, tau)
                     else:
@@ -442,6 +451,7 @@ class MOLGP:
                 kernel.cov_dict[mol_id] = vwrtt_tot
                 kernel.base_dict[mol_id] = baseline
                 if ikernel == 0:
+                    rxn_id_list.append(mol_id)
                     rxn = {
                         "unit": 1.0,
                         "structs": [mol_id],
@@ -451,8 +461,11 @@ class MOLGP:
                     }
                     rxn_list.append((mode, rxn))
                     if mode == 0:
-                        self.exx_ref_dict[mol_id] = refval
+                        self.exx_ref_dict[mol_id] = refval[i]
+                    else:
+                        self.ks_baseline_dict[mol_id] = 0
         self.add_reactions(rxn_list)
+        return rxn_id_list
 
     def store_mol_covs(self, ddir, mol_ids, get_orb_deriv=None, get_correlation=True):
         """
@@ -716,10 +729,10 @@ class MOLGP2(MOLGP):
                         ddesc_tmp = wt * self._get_normalized_feature_derivs(
                             desc[s, :, i0:i1], ddesc_tmp[:, i0:i1]
                         )
-                        drho_tmp = wt * drho_data[orb][:, i0:i1]
+                        drho_tmp = wt * drho_data[orb][1][:, i0:i1]
                         dvwrtt_tot[orb] += np.einsum("cdn,dn->c", dkm1[:, s], ddesc_tmp)
                         dvwrtt_tot[orb] += np.einsum("cdn,dn->c", dkm2[:, s], drho_tmp)
-                        dbaseline[orb] += np.sum(da * drho_tmp)
+                        dbaseline[orb] += np.sum(da[s] * drho_tmp)
             kernel.cov_dict[mol_id] = vwrtt_tot
             kernel.base_dict[mol_id] = baseline
             if save_refs:
